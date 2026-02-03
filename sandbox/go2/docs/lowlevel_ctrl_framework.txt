@@ -1,0 +1,798 @@
+Humanoid Robot
+H1 SDK Development Guide
+G1 SDK Development Guide
+R1 SDK Development Guide
+Open Source Adaptation
+Teleoperation
+Reinforcement Learning on Motion Control
+Quadruped Robot
+Go2 SDK Development Guide
+B2 SDK Development Guide
+Go2-W SDK Development Guide
+Algorithm Practice
+A2 SDK Development Guide
+Robotic Arms
+Z1 SDK Development Guide
+Components
+Motor SDK Development Guide
+SV1-25 development guide
+Dex3-1 Developer
+Dex1-1 Developer
+Perception
+L1 SDK Development Guide
+L2 SDK Development Guide
+AI
+English
+Search
+无搜索结果
+Go2 SDK Development Guide
+About Go2
+Remote Controller
+SDK Concepts
+3
+Architecture Description
+Robot Dog Application
+8
+Basic Application
+Motion Application
+DDS Application
+Image Application
+Network Application
+UWB Application
+LiDAR Application
+SLAM Application
+FAULTS
+Application Development
+7
+Obtain SDK
+Quick Start
+Creating Customer Application
+App Binding
+Payload
+Expansion Dock Configuration
+TouchScreen RC Supporting Instructions
+Software Interface Services
+19
+Motion Services Interface V2.0
+DDS Services Interface
+Avoidance Services Interface
+VuiClient Interface
+RobotStateClient Interface
+Motion Switcher Service Interface
+Sports Services Interface
+AI motion Services interface
+Basic Services Interface
+LiDAR Services Interface
+Multimedia Services Interface
+UWB Services Interface
+Fault Services Interface
+SLAM and Navigation Services Interface
+Aruco Recharge Service Interface
+Odometer Services Interface
+D1 Mechanical Arm Services Interface
+ROS2 Services Interface
+Python Services Interface
+Case reference
+8
+DDS Communication
+High Motion Control
+Basic Motion Control
+Deployment Framework
+Light Control
+Get Remote Control Status
+RL Control Routine
+Exapmle of motor errors
+Debugging Specification
+FAQ
+Case reference
+
+Deployment Framework
+
+Deployment Framework
+
+Last Updated On：2023-10-18 11:05:29
+
+When testing motion control algorithms, the robot needs to first stand up from the ground and then perform control; After the test is completed, the robot needs to return to the lying state; When an accident occurs during testing, the robot needs to exit the testing algorithm in a timely manner and slowly fall down.
+
+In order to meet these requirements, developers need to develop a debugging framework in addition to developing motion control algorithms to achieve the above functions. This article will combine routines under example/state_machine to introduce how to design a debugging framework.
+
+Pre knowledge
+
+Before reading this tutorial, please have a brief understanding of the following content:
+
+Motor control（bottom service interface、Bottom Motion Control - Leg Swing）
+
+Remote control status acquisition（Remote control status acquisition routine）
+
+json parsing (example/jsonize)
+
+State switching
+Damping state
+
+In a damped state, the motor has no driving force when stationary and is subjected to a driving force opposite to the direction of rotation during rotation, simulating the resistance during the rotation process. The pseudo code for motor control is as follows:
+
+motorCmd.q = 0
+motorCmd.dq = 0
+motorCmd.Kp = 0
+motorCmd.Kd = 2.0
+motorCmd.tau = 0
+
+In this mode, all motors of the robot will slowly stop. This mode can be used for the initial state of robot startup, and can also allow the robot to smoothly collapse in case of problems. Generally, the L2 + B combination key of the remote control is defined as the key to enter damping mode, and the robot can enter damping mode from any state.
+
+Standing state
+
+This is the interface between the damping state and the control state. In this state, users can control the robot to stand and lie down through the remote control. A robot in a damping state can stand up through this state and enter the control state, giving the control mode a reasonable initial state for the robot. The standing of this routine is achieved by adjusting the kp/kd parameter, and the pseudo code is as follows:
+
+motorCmd.q = q_stand
+motorCmd.dq = 0
+motorCmd.Kp = kp * pd_ratio
+motorCmd.Kd = kd * pd_ratio
+motorCmd.tau = 0
+
+This routine adjusts the pd_ratio through the R1/R2 button on the remote control to achieve the robot`s standing and lying down.
+
+Control status
+
+The control algorithm that needs to be tested for control state operation. When the robot is in a standing state and the pd_ratio exceeds a certain threshold, it can enter the control state, but other conditions cannot enter the control state.
+
+Switching logic
+
+The switching logic in the routine is shown in the following figure. When the robot starts, it lies on the ground and is in a damping state. Press the remote control R2 to enter the standing state, and press and hold R2 to make the robot stand up. After the robot stabilizes, press the remote control A to enter control mode and conduct testing. After the test is completed, you can press the remote control R2 to return to standing mode. If there are any problems during the test, you can press the remote control L2+B or enter the damping state through the program judgment.
+
+Program implementation
+
+Below is a brief introduction to the main code implementation. Please refer to the source code for specific details.
+
+Overall framework
+
+The debugging program has a total of three sub threads, which are used to receive data, run the controller, and send data. The main class is RobotController<USER_CTRL>, which is used to store data, operate on 3 sub threads, and has built-in open loop control for damping and standing states USER_CTRL is the control algorithm RobotInterface encapsulates the underlying state and instructions Gamepad is an advanced packaging for remote controls SimpleStateMachine is a state machine.
+
+Underlying state class: RobotInterface
+
+RobotInterface vectorizes and encapsulates the underlying state and instructions. Its parent class is BasicRobotInterface, and its member variables include the robot's motor status, IMU information, and motor instructions. The member function GetState() is used to parse the underlying state messages of dds, SetCommand() is used to generate dds messages corresponding to motor commands, and UpdateProjectedGravity() is a kinematic calculation tool used to calculate the projection of the unit vector of gravity direction under body coordinates.
+
+class BasicRobotInterface
+  {
+  public:
+      BasicRobotInterface();
+
+      void GetState(unitree_go::msg::dds_::LowState_ &state);
+
+      virtual void SetCommand(unitree_go::msg::dds_::LowCmd_ &cmd) = 0;
+
+      // motor states
+      std::array<float, 12> jpos, jvel, tau;
+      // IMU
+      std::array<float, 4> quat;
+      std::array<float, 3> rpy, gyro, projected_gravity;
+      // motor commands
+      std::array<float, 12> jpos_des, jvel_des, kp, kd, tau_ff;
+
+  private:
+      inline void UpdateProjectedGravity();
+  };
+
+RobotInterfaceis a subclass ofb BasicRobotInterface, which contains the specific implementation of SetCommand().
+
+class RobotInterface : public BasicRobotInterface
+{
+public:
+    RobotInterface() : BasicRobotInterface();
+
+    void SetCommand(unitree_go::msg::dds_::LowCmd_ &cmd);
+
+private:
+    void InitLowCmd();
+
+    UNITREE_LEGGED_SDK::LowCmd low_cmd_raw;
+};
+
+During use, the thread receiving the underlying state calls the GetState() function to record the robot state in this object; The control algorithm thread reads the robot state from member variables, calculates motor instructions, and stores them back into this object by accessing them; The thread that sends the underlying instruction calls the SetCommand() function to write the instruction to the underlying control message that needs to be sent.
+
+Motion control class:ExampleUserController
+
+ExampleUserController is the motion controller that needs to be tested, and its parent class is BasicUserController.
+
+class BasicUserController
+{
+public:
+    BasicUserController();
+
+    virtual void LoadParam(fs::path &param_folder) = 0;
+
+    virtual void Reset(RobotInterface &robot_interface, Gamepad &gamepad) = 0;
+
+    virtual void GetInput(RobotInterface &robot_interface, Gamepad &gamepad) = 0;
+
+    virtual void Calculate() = 0;
+
+    virtual std::vector<float> GetLog() = 0;
+
+    float dt, kp, kd;
+    std::array<float, 12> init_pos;
+    std::array<float, 12> jpos_des;
+};
+
+The member variable dt stores the time step, kp stores the joint gain, and kd stores the joint damping init_pos stores the initial position of the joint, jpos_des Stores the joint target position. The member function LoadParam() is used to load the configuration file, Reset() is used to reset the controller, GetInput() is used to read the robot status and remote control information, and Calculate() runs the main control logic to calculate the control quantity and store it in the member variable GetLog() is used to generate logs. The above member functions are all virtual functions, and when testing different control algorithms, they are implemented by inheriting BasicUserController.
+
+In the control algorithm thread, when switching to the control state, the main program runs the control algorithm by calling the member function of the class and accessing the member variable to obtain the control quantity.
+
+ExampleUserController is an example of an actual controller that includes a simple implementation of the above virtual function, which can be used as a reference In actual debugging, different subclasses are mainly written to achieve the control algorithms that need to be tested
+
+State machine class: SimpleStateMachine
+
+SimpleStateMachine is a simple state machine that can switch between standing, damping, and controlling states.
+
+enum class STATES
+{
+  DAMPING = 0,
+  STAND = 1,
+  CTRL = 2
+};
+
+class SimpleStateMachine
+{
+public:
+  SimpleStateMachine(double pd_ratio_init = 0.1, double delta_pd = 0.005) : state(STATES::STAND), pd_ratio(pd_ratio_init), delta_pd(delta_pd) {}
+
+  bool Stop()
+  {
+      state = STATES::DAMPING;
+      pd_ratio = 0.0;
+      return true;
+  }
+
+  bool Stand()
+  {
+      if (state == STATES::DAMPING || state == STATES::CTRL)
+      {
+          state = STATES::STAND;
+          return true;
+      }
+      else
+      {
+          return false;
+      }
+  }
+
+  bool Ctrl()
+  {
+      if (state == STATES::STAND && pd_ratio > 0.95)
+      {
+          state = STATES::CTRL;
+          return true;
+      }
+      else
+      {
+          return false;
+      }
+  }
+
+  void Standing(bool up = true)
+  {
+      if (state == STATES::STAND)
+      {
+          if (up)
+          {
+              pd_ratio += delta_pd;
+          }
+          else
+          {
+              pd_ratio -= delta_pd;
+          }
+          pd_ratio = std::max(0.0, std::min(1.0, pd_ratio));
+      }
+  }
+
+  STATES state;
+  double pd_ratio;
+  double delta_pd;
+};
+
+STATES is an enumeration class that defines three states: damping, standing, and control SimpleStateMachine contains the object state of the enumeration class and parameters used to control standing and lying down pd_ratio and delta_pd. Stop(), Stand() and Ctrl() are used to enter three states, respectively. If the entry is successful, it returnstrue, otherwise it returnsfalse.
+
+The Standing() function is used to adjust the kp and kd parameters while standing, achieving control over standing and lying down.
+
+n the main program, the control thread first determines and executes state switching based on the state of the remote control, and then calls different functions based on the state of the state machine to execute different control logic.
+
+Robot control class: RobotController
+
+RobotController<USER_CTRL> is the core class used to control program execution. This is a template class, <USER_CTRL> can be a subclass of the motion control class BasicUserController. In the main function, different motion control algorithms can be debugged by setting different motion control classes.
+
+template <typename USER_CTRL>
+class RobotController
+{
+public:
+    RobotController() {};
+
+    RobotController(fs::path &log_file_name);
+
+    void InitDdsModel(const std::string &networkInterface = "");
+
+    void LoadParam(fs::path &param_folder);
+
+    void StartControl();
+
+protected:
+    ChannelPublisherPtr<unitree_go::msg::dds_::LowCmd_> lowcmd_publisher;
+    ChannelSubscriberPtr<unitree_go::msg::dds_::LowState_> lowstate_subscriber;
+    ThreadPtr low_cmd_write_thread_ptr, control_thread_ptr;
+    unitree_go::msg::dds_::LowCmd_ cmd;
+    unitree_go::msg::dds_::LowState_ state;
+
+    Gamepad gamepad;
+    REMOTE_DATA_RX rx;
+
+    SimpleStateMachine state_machine;
+    USER_CTRL ctrl;
+    RobotInterface robot_interface;
+
+    std::mutex state_mutex, cmd_mutex;
+
+    std::ofstream log_file;
+
+    uint64_t ctrl_dt_micro_sec = 2000;
+
+    std::vector<float> compute_time;
+
+private:
+    void LowStateMessageHandler(const void *message);
+
+    void InteprateGamePad();
+
+    void LowCmdwriteHandler();
+
+    void StartSendCmd();
+    
+    void UpdateStateMachine();
+    
+    void ControlStep();
+
+    void WriteLog();
+
+    void StandCallback();
+
+    void CtrlCallback();
+
+    void Damping(float kd = 2.0);
+
+    void Standing(float kp = 40.0, float kd = 1.0);
+
+    void UserControlStep(bool send = true);
+
+    bool CheckTermination();
+};
+
+In addition to the constructor, the public member functions also include InitDdsModel(), LoadParam(), and StartControl().
+
+Main function
+
+The main logic of the main function is as follows: first, construct the object and set the log path, then load the controller configuration file through LoadParam(), connect the robot through InitDdsModel(), and finally start control through StartControl().
+
+int main(int argc, char const *argv[])
+{
+    // parse command line params
+    std::string param_folder;
+
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string arg = argv[i];
+
+        if (arg == "--param" && i + 1 < argc)
+        {
+            param_folder = argv[i + 1];
+        }
+    }
+    fs::path param = fs::current_path() / param_folder;
+
+    // set log file
+    auto now = std::chrono::system_clock::now();
+    auto time = std::chrono::system_clock::to_time_t(now);
+    std::stringstream ss;
+    ss << std::put_time(std::localtime(&time), "%Y_%m_%d_%H_%M_%S");
+
+    fs::path log_folder = fs::current_path() / "logs" / ss.str();
+    fs::create_directories(log_folder);
+
+    std::ofstream cfg_file(log_folder / "cfg.txt");
+    cfg_file << "param_folder: " << param << std::endl;
+    cfg_file.close();
+
+    fs::path log_file_name = log_folder / "log.txt";
+  
+    // start control
+    RobotController<ExampleUserController> robot_controller(log_file_name);
+  
+    robot_controller.LoadParam(param);
+
+    robot_controller.InitDdsModel();
+
+    robot_controller.StartControl();
+
+    return 0;
+}
+
+The main program first sets the configuration file path through command line parameters; Create a log file based on the current time.
+
+Load Configuration File
+
+The LoadParam() function simply called USER_CTRL.LoadParam() function is used to load the configuration file.
+
+void LoadParam(fs::path &param_folder)
+{
+    ctrl.LoadParam(param_folder);
+}
+Establishing a connection
+
+The content of InitDdsModel() is similar to the previous low-level control routine, used to establish a connection with the robot and set binding and callback functions.
+
+void InitDdsModel(const std::string &networkInterface = "")
+{
+    // init dds
+    ChannelFactory::Instance()->Init(0, networkInterface);
+    lowcmd_publisher.reset(new ChannelPublisher<unitree_go::msg::dds_::LowCmd_>(TOPIC_LOWCMD));
+    lowstate_subscriber.reset(new ChannelSubscriber<unitree_go::msg::dds_::LowState_>(TOPIC_LOWSTATE));
+
+    lowcmd_publisher->InitChannel();
+    lowstate_subscriber->InitChannel(std::bind(&RobotController::LowStateMessageHandler, this, std::placeholders::_1), 1);
+}
+
+In this example program, the callback function LowStateMessageHandler() that receives the message first stores the message object in the member variable state as a backup, and then updates the underlying state interface robot_interface.
+
+void LowStateMessageHandler(const void *message)
+{
+    state = *(unitree_go::msg::dds_::LowState_ *)message;
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        robot_interface.GetState(state);
+    }
+}
+Turn on control
+
+StartControl() is the core function for enabling control, with the main content as follows.
+
+void StartControl()
+{
+    // waiting for gamepad command to start the control thread
+    std::chrono::milliseconds duration(100);
+    // listen to gamepad command
+    while (true)
+    {
+        std::cout << "Press R2 to start!" << std::endl;
+        std::this_thread::sleep_for(duration);
+
+        InteprateGamePad();
+        if (gamepad.R2.on_press)
+        {
+            break;
+        }
+    }
+
+    // prepare for start
+    // ...
+}
+
+After entering this function, the thread enters a dead loop to detect the status of the remote control. When the user pressesR2, it jumps out of the loop for control.
+
+void StartControl()
+{
+    // waiting for gamepad command to start the control thread
+    // ...
+
+    // prepare for start
+    std::cout << "Start!" << std::endl;
+    Damping();
+    ctrl_dt_micro_sec = static_cast<uint64_t>(ctrl.dt * 1000000);
+
+    // Start the control thread
+    control_thread_ptr = CreateRecurrentThreadEx("ctrl", UT_CPU_ID_NONE, ctrl_dt_micro_sec, &RobotController::ControlStep, this);
+
+    // Start the lowlevel command thread
+    std::this_thread::sleep_for(duration);
+    StartSendCmd();
+
+    // keep the main thread alive
+    while (true)
+    {
+        std::this_thread::sleep_for(duration);
+    }
+}
+
+After jumping out of the loop, the program starts the motion control thread and calls the ControlStep() function in a loop; After waiting for a short time, call the StartSendCmd() function to start the underlying instruction thread.
+
+Motion Control Thread
+
+The motion control thread periodically executes the ControlStep() function, executing the actual control logic based on instructions. Each step of control consists of the following steps:
+
+Update remote control status and state machine
+
+Control based on status
+
+Update dds underlying control messages
+
+Record logs and collect performance information
+
+void ControlStep()
+{
+    // main loop
+
+    // update state
+    InteprateGamePad();
+    UpdateStateMachine();
+
+    // select control modes according to the state machine
+    auto start = std::chrono::high_resolution_clock::now();
+    if (state_machine.state == STATES::STAND)
+    {
+        Standing();
+    }
+    if (state_machine.state == STATES::DAMPING)
+    {
+        Damping();
+    }
+    if (state_machine.state == STATES::CTRL)
+    {
+        UserControlStep(true);
+        if (CheckTermination())
+        {
+            state_machine.Stop();
+        }
+    }
+
+    // update low-level command
+    {
+        std::lock_guard<std::mutex> lock(cmd_mutex);
+        robot_interface.SetCommand(cmd);
+    }
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+    compute_time.push_back(duration.count() / 1000.);
+
+    // write log
+    WriteLog();
+
+    if (compute_time.size() == 100)
+    {
+        float sum = 0;
+        for (auto &t : compute_time)
+        {
+            sum += t;
+        }
+        std::cout << "Performance: mean: " << sum / 100
+                  << " ms; max: " << *std::max_element(compute_time.begin(), compute_time.end())
+                  << " ms; min: " << *std::min_element(compute_time.begin(), compute_time.end())
+                  << "ms." << std::endl;
+
+        compute_time.clear();
+
+        std::cout << "Current State: " << static_cast<size_t>(state_machine.state) << std::endl;
+    }
+}
+State switching and callback
+
+This routine uses a very simple state switching logic. When certain buttons are pressed, the program will call the member function in the SimpleStateMachine class for state switching. If successful, the corresponding callback function will be executed. The main implementation methods for state switching are as follows:
+
+void UpdateStateMachine()
+{
+    // R2 -> Stand
+    // A -> Ctrl
+    // L2 + B -> Stop
+    if (gamepad.R2.on_press)
+    {
+        if (state_machine.Stand())
+        {
+            StandCallback();
+        }
+    }
+    if (gamepad.A.on_press)
+    {
+        if (state_machine.Ctrl())
+        {
+            CtrlCallback();
+        }
+    }
+    if (gamepad.L2.pressed && gamepad.B.pressed)
+    {
+        state_machine.Stop();
+    }
+}
+Damping state
+
+When the state machine is in a damping state, the program calls the Damping() function for control, and the control logic is as follows:
+
+void Damping(float kd = 2.0)
+{
+  robot_interface.jpos_des = ctrl.init_pos;
+  robot_interface.jvel_des.fill(0.);
+  robot_interface.kp.fill(0.);
+  robot_interface.kd.fill(kd);
+  robot_interface.tau_ff.fill(0.);
+}
+Control status
+
+When the state machine is in control state, the program will first call UserControlStep() for control, then check the robot status. If protection is needed, it will automatically enter the damping state.
+
+if (state_machine.state == STATES::CTRL)
+{
+    UserControlStep(true);
+    if (CheckTermination())
+    {
+        state_machine.Stop();
+    }
+}
+
+The UserControlStep() function calls the member function of the ExampleUserController class to run the controller that the user needs to test.
+
+void UserControlStep(bool send = true)
+{
+    {
+        std::lock_guard<std::mutex> lock(state_mutex);
+        ctrl.GetInput(robot_interface, gamepad);
+    }
+    ctrl.Calculate();
+
+    if (send)
+    {
+        robot_interface.jpos_des = ctrl.jpos_des;
+    }
+}
+
+The CheckTermination() function in this routine checks whether the robot`s body tilt exceeds 90 degrees. If it exceeds 90 degrees, it triggers the protection to enter a damping state. During the development process, the protection rules can be adjusted according to the actual situation.
+
+bool CheckTermination()
+{
+    if (robot_interface.projected_gravity.at(2) > 0)
+    {
+        return true;
+    }
+    return false;
+}
+Standing state
+
+When the state machine is in a standing state, the program calls the Standing() function for control.
+
+void Standing(float kp = 40.0, float kd = 1.0)
+{
+  if (gamepad.R2.pressed)
+  {
+      state_machine.Standing(true);
+  }
+  if (gamepad.R1.pressed)
+  {
+      state_machine.Standing(false);
+  }
+
+  UserControlStep(false);
+
+  robot_interface.kp.fill(kp * state_machine.pd_ratio);
+  robot_interface.kd.fill(kd * state_machine.pd_ratio);
+}
+
+The main control logic for standing status is to adjust the standing height based on the remote control buttons.
+
+For debugging convenience, the standing mode of this routine will also run the user control logic as a test, which calculates the control amount based on the robot's state, but does not send instructions.
+
+Compile Run
+
+After compiling the entire sdk routine, pass in parameters through --param when using it. The compile and run commands are as follows:
+
+# build the sdk and all examples
+mkdir build
+cd build
+cmake ..
+make
+
+# run
+./state_machine_example --param ../example/state_machine/params
+
+The above is an example of a debugging framework. If you need to directly use this framework, you can directly develop a new controller in user_controller.hpp.
+
+This page contains content
+
+Pre knowledge
+State switching
+Damping state
+Standing state
+Control status
+Switching logic
+Program implementation
+Overall framework
+Underlying state class: RobotInterface
+Motion control class:ExampleUserController
+State machine class: SimpleStateMachine
+Robot control class: RobotController
+Helpful
+Feedback
+Unitree
+Robot
+
+G1
+
+H1
+
+Go2
+
+Go1
+
+B2
+
+B2-W
+
+D1-T
+
+4D LiDAR L1
+
+Z1
+
+GO-M8010-6
+
+B1
+
+Aliengo
+
+A1
+
+A1 Motor
+
+Super Robot Waterproof Joint：B1-16
+
+Fitness
+
+Unitree Fitness PUMP
+
+Industrial Applications
+
+Inspection Project Implementation Plan
+
+Fire And Rescue
+
+Support
+
+Repair Service
+
+Open Source
+
+Store / Cooperate
+
+Terms & Policies
+
+Download
+
+Go1
+
+A1/Aliengo
+
+Go2
+
+Unitree PUMP
+
+B2
+
+Unitree Sim
+
+Book Online
+
+Purchase Online
+
+Explore Unitree
+
+News
+
+About Us
+
+Contact Us
+
+Subscribe Message
+OLOJoin
+Contacts
+Copyright © 2016 - 2024HangZhou YuShu TECHNOLOGY CO.,LTD All Rights Reserved浙ICP备17044557号浙公网安备 33010802011921号
+AI Document Assistant
+
+Hello, I am your AI Document Assistant. You can ask me questions and inquire about the relevant content in the document center.
+
+Here are some examples of what you can ask:
+How do I get the Go2 SDK?
+How to develop with Go2?
+What is the operation method of H1?
+The content is generated by an AI model and may not be entirely accurate; please carefully discern.

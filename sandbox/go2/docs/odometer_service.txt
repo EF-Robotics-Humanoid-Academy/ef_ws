@@ -1,0 +1,559 @@
+Humanoid Robot
+H1 SDK Development Guide
+G1 SDK Development Guide
+R1 SDK Development Guide
+Open Source Adaptation
+Teleoperation
+Reinforcement Learning on Motion Control
+Quadruped Robot
+Go2 SDK Development Guide
+B2 SDK Development Guide
+Go2-W SDK Development Guide
+Algorithm Practice
+A2 SDK Development Guide
+Robotic Arms
+Z1 SDK Development Guide
+Components
+Motor SDK Development Guide
+SV1-25 development guide
+Dex3-1 Developer
+Dex1-1 Developer
+Perception
+L1 SDK Development Guide
+L2 SDK Development Guide
+AI
+English
+Search
+无搜索结果
+Go2 SDK Development Guide
+About Go2
+Remote Controller
+SDK Concepts
+3
+Architecture Description
+Robot Dog Application
+8
+Basic Application
+Motion Application
+DDS Application
+Image Application
+Network Application
+UWB Application
+LiDAR Application
+SLAM Application
+FAULTS
+Application Development
+7
+Obtain SDK
+Quick Start
+Creating Customer Application
+App Binding
+Payload
+Expansion Dock Configuration
+TouchScreen RC Supporting Instructions
+Software Interface Services
+19
+Motion Services Interface V2.0
+DDS Services Interface
+Avoidance Services Interface
+VuiClient Interface
+RobotStateClient Interface
+Motion Switcher Service Interface
+Sports Services Interface
+AI motion Services interface
+Basic Services Interface
+LiDAR Services Interface
+Multimedia Services Interface
+UWB Services Interface
+Fault Services Interface
+SLAM and Navigation Services Interface
+Aruco Recharge Service Interface
+Odometer Services Interface
+D1 Mechanical Arm Services Interface
+ROS2 Services Interface
+Python Services Interface
+Case reference
+8
+DDS Communication
+High Motion Control
+Basic Motion Control
+Deployment Framework
+Light Control
+Get Remote Control Status
+RL Control Routine
+Exapmle of motor errors
+Debugging Specification
+FAQ
+Software Interface Services
+
+Odometer Services Interface
+
+Odometer Services Interface
+
+Last Updated On：2025-12-02 12:12:39
+Legged Fusion Odometry Interface
+
+Go2 provides an odometry interface that fuses legged (motor) data with IMU integration data. By reading the high-level states, you can obtain the robot's pose information from this interface.
+
+For Go2 with software version > V1.1.6, please refer to std::array<float, 3> position() in https://support.unitree.com/home/zh/developer/Motion_Services_Interface_V2.0#heading-9.
+
+For Go2 with software version <= V1.1.6, please refer to std::array<float, 3> position(); in https://support.unitree.com/home/zh/developer/AI_motion_service#heading-6.
+
+Hardware environment
+Name	Environment
+host	Nvidia orin nx + ubuntu20.04 + ros1 noetic
+deivce	realsense D435i(IR1 camera with global shutter)
+Introduction
+
+The high-speed semi direct visual odometer has been successfully deployed locally and adapted to the realsense IR1 monocular camera, which can generate movement trajectories. This article takes the IR1 camera of the Realsense D435i camera as the entity, sends the IR1 camera's topic as the input information of the visual odometer through the ros noeitc, and finally sends the ros topic of the camera's pose.
+
+Usage Guidelines
+
+1, Due to the feature-based matching nature of visual odometry and the computational limitations of hardware deployed on mobile devices, it is recommended to avoid extremely close-range scenes and rapidly changing scene dynamics in the camera feed.
+
+2, The system performs more reliably when the target distance is maintained at least 1 meter or more. This is primarily because a greater number of trackable and distinctive feature points can be observed, which helps to avoid sudden visual disruptions.
+
+3, If you encounter unsatisfactory performance or frequent system crashes despite following the above guidelines, please consider the following options:
+a. Adjust the external environment to a more optimal state.
+b. Refer to the official paper and documentation of SVO and attempt to modify the parameters of SVO in the code and configuration files accordingly. When fine-tuning, it is recommended to focus on adjusting the parameters related to inter-frame matching and system recovery after crashes. Please note that increasing the matching threshold results in higher accuracy but also increases the likelihood of system crashes.
+
+D435i Camera Configuration
+
+1.Install the D435i camera driver for ROS1 version on Ubuntu 20.04 system:
+
+(The default ROS package has been installed)
+
+sudo apt-get install ros-$ROS_DISTRO-realsense2-camera
+sudo apt-get install ros-$ROS_DISTRO-realsense2-description
+
+
+For more information on installation, please refer to: https://github.com/IntelRealSense/realsense-ros/tree/ros1-legacy
+
+2.After successful installation, the default IR camera will not be turned on and you need to modify the configuration yourself:
+
+Enter /opt/ros/noetic/share/realsense2_camera/launch directory, edit rs_camera.launch file:
+
+<launch>
+ <arg name="serial_no"           default=""/>
+ <arg name="usb_port_id"         default=""/>
+ <arg name="device_type"         default=""/>
+ <arg name="json_file_path"      default=""/>
+ <arg name="camera"              default="camera"/>
+ <arg name="tf_prefix"           default="$(arg camera)"/>
+ <arg name="external_manager"    default="false"/>
+ <arg name="manager"             default="realsense2_camera_manager"/>
+ <arg name="output"              default="screen"/>
+ <arg name="respawn"              default="false"/>
+
+ <arg name="fisheye_width"       default="-1"/>
+ <arg name="fisheye_height"      default="-1"/>
+ <arg name="enable_fisheye"      default="false"/>
+
+ <arg name="depth_width"         default="-1"/>
+ <arg name="depth_height"        default="-1"/>
+ <arg name="enable_depth"        default="true"/>
+
+ <arg name="confidence_width"    default="-1"/>
+ <arg name="confidence_height"   default="-1"/>
+ <arg name="enable_confidence"   default="true"/>
+ <arg name="confidence_fps"      default="-1"/>
+
+ <arg name="infra_width"         default="640"/>
+ <arg name="infra_height"        default="480"/>
+ <arg name="enable_infra"        default="true"/>
+ <arg name="enable_infra1"       default="true"/>
+ <arg name="enable_infra2"       default="true"/>
+ <arg name="infra_rgb"           default="false"/>
+
+ <arg name="color_width"         default="-1"/>
+ <arg name="color_height"        default="-1"/>
+ <arg name="enable_color"        default="true"/>
+
+ <arg name="fisheye_fps"         default="-1"/>
+ <arg name="depth_fps"           default="-1"/>
+ <arg name="infra_fps"           default="90"/>
+ <arg name="color_fps"           default="-1"/>
+ <arg name="gyro_fps"            default="-1"/>
+ <arg name="accel_fps"           default="-1"/>
+ <arg name="enable_gyro"         default="false"/>
+ <arg name="enable_accel"        default="false"/>
+
+ <arg name="enable_pointcloud"         default="false"/>
+ <arg name="pointcloud_texture_stream" default="RS2_STREAM_COLOR"/>
+ <arg name="pointcloud_texture_index"  default="0"/>
+ <arg name="allow_no_texture_points"   default="false"/>
+ <arg name="ordered_pc"                default="false"/>
+
+ <arg name="enable_sync"               default="false"/>
+ <arg name="align_depth"               default="false"/>
+
+ <arg name="publish_tf"                default="true"/>
+ <arg name="tf_publish_rate"           default="0"/>
+
+ <arg name="filters"                   default=""/>
+ <arg name="clip_distance"             default="-2"/>
+ <arg name="linear_accel_cov"          default="0.01"/>
+ <arg name="initial_reset"             default="false"/>
+ <arg name="reconnect_timeout"         default="6.0"/>
+ <arg name="wait_for_device_timeout"   default="-1.0"/>
+ <arg name="unite_imu_method"          default=""/>
+ <arg name="topic_odom_in"             default="odom_in"/>
+ <arg name="calib_odom_file"           default=""/>
+ <arg name="publish_odom_tf"           default="true"/>
+
+ <arg name="stereo_module/exposure/1"  default="7500"/>
+ <arg name="stereo_module/gain/1"      default="16"/>
+ <arg name="stereo_module/exposure/2"  default="1"/>
+ <arg name="stereo_module/gain/2"      default="16"/>
+ 
+ 
+
+ <group ns="$(arg camera)">
+   <include file="$(find realsense2_camera)/launch/includes/nodelet.launch.xml">
+     <arg name="tf_prefix"                value="$(arg tf_prefix)"/>
+     <arg name="external_manager"         value="$(arg external_manager)"/>
+     <arg name="manager"                  value="$(arg manager)"/>
+     <arg name="output"                   value="$(arg output)"/>
+     <arg name="respawn"                  value="$(arg respawn)"/>
+     <arg name="serial_no"                value="$(arg serial_no)"/>
+     <arg name="usb_port_id"              value="$(arg usb_port_id)"/>
+     <arg name="device_type"              value="$(arg device_type)"/>
+     <arg name="json_file_path"           value="$(arg json_file_path)"/>
+
+     <arg name="enable_pointcloud"        value="$(arg enable_pointcloud)"/>
+     <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/>
+     <arg name="pointcloud_texture_index"  value="$(arg pointcloud_texture_index)"/>
+     <arg name="enable_sync"              value="$(arg enable_sync)"/>
+     <arg name="align_depth"              value="$(arg align_depth)"/>
+
+     <arg name="fisheye_width"            value="$(arg fisheye_width)"/>
+     <arg name="fisheye_height"           value="$(arg fisheye_height)"/>
+     <arg name="enable_fisheye"           value="$(arg enable_fisheye)"/>
+
+     <arg name="depth_width"              value="$(arg depth_width)"/>
+     <arg name="depth_height"             value="$(arg depth_height)"/>
+     <arg name="enable_depth"             value="$(arg enable_depth)"/>
+
+     <arg name="confidence_width"         value="$(arg confidence_width)"/>
+     <arg name="confidence_height"        value="$(arg confidence_height)"/>
+     <arg name="enable_confidence"        value="$(arg enable_confidence)"/>
+     <arg name="confidence_fps"           value="$(arg confidence_fps)"/>
+
+     <arg name="color_width"              value="$(arg color_width)"/>
+     <arg name="color_height"             value="$(arg color_height)"/>
+     <arg name="enable_color"             value="$(arg enable_color)"/>
+
+     <arg name="infra_width"              value="$(arg infra_width)"/>
+     <arg name="infra_height"             value="$(arg infra_height)"/>
+     <arg name="enable_infra"             value="$(arg enable_infra)"/>
+     <arg name="enable_infra1"            value="$(arg enable_infra1)"/>
+     <arg name="enable_infra2"            value="$(arg enable_infra2)"/>
+     <arg name="infra_rgb"                value="$(arg infra_rgb)"/>
+
+     <arg name="fisheye_fps"              value="$(arg fisheye_fps)"/>
+     <arg name="depth_fps"                value="$(arg depth_fps)"/>
+     <arg name="infra_fps"                value="$(arg infra_fps)"/>
+     <arg name="color_fps"                value="$(arg color_fps)"/>
+     <arg name="gyro_fps"                 value="$(arg gyro_fps)"/>
+     <arg name="accel_fps"                value="$(arg accel_fps)"/>
+     <arg name="enable_gyro"              value="$(arg enable_gyro)"/>
+     <arg name="enable_accel"             value="$(arg enable_accel)"/>
+
+     <arg name="publish_tf"               value="$(arg publish_tf)"/>
+     <arg name="tf_publish_rate"          value="$(arg tf_publish_rate)"/>
+
+     <arg name="filters"                  value="$(arg filters)"/>
+     <arg name="clip_distance"            value="$(arg clip_distance)"/>
+     <arg name="linear_accel_cov"         value="$(arg linear_accel_cov)"/>
+     <arg name="initial_reset"            value="$(arg initial_reset)"/>
+     <arg name="reconnect_timeout"        value="$(arg reconnect_timeout)"/>
+     <arg name="wait_for_device_timeout"  value="$(arg wait_for_device_timeout)"/>
+     <arg name="unite_imu_method"         value="$(arg unite_imu_method)"/>
+     <arg name="topic_odom_in"            value="$(arg topic_odom_in)"/>
+     <arg name="calib_odom_file"          value="$(arg calib_odom_file)"/>
+     <arg name="publish_odom_tf"          value="$(arg publish_odom_tf)"/>
+     <arg name="stereo_module/exposure/1" value="$(arg stereo_module/exposure/1)"/>
+     <arg name="stereo_module/gain/1"     value="$(arg stereo_module/gain/1)"/>
+     <arg name="stereo_module/exposure/2" value="$(arg stereo_module/exposure/2)"/>
+     <arg name="stereo_module/gain/2"     value="$(arg stereo_module/gain/2)"/>
+
+     <arg name="allow_no_texture_points"  value="$(arg allow_no_texture_points)"/>
+     <arg name="ordered_pc"               value="$(arg ordered_pc)"/>
+     
+   </include>
+ </group>
+</launch>
+
+To activate the IR camera topic posting, set their resolution to 640*480 and frame rate to 90.
+
+3.Then run the camera's ROS node in Terminal
+
+roslaunch realsense2_camera rs_camera.launch
+
+
+4.Create a new window and enter the following command:
+
+rostopic list
+
+
+View the list of published topics Successfully published topics:
+
+/camera/infra1/image_rect_raw
+
+5.Create a new window and enter the following command:
+
+rostopic hz /camera/infra1/image_rect_raw
+
+Check that the image transmission frequency is 90.
+
+6.Turn off the laser transmitter for realsense D435i
+
+After the third step is successfully executed, execute the following command
+
+rosrun rqt_reconfigure rqt_reconfigure 
+
+
+Turn off the laser emitter in the pop-up interface:
+
+
+Visual odometer configuration
+
+1.This device is already compatible with the visual odometer, and this document does not state the details of the build project or parameter adjustment. For more information, please refer to the official homepage: https://github.com/uzh-rpg/rpg_svo_pro_open. The various parameter adjustments, project settings, and camera calibration for this project have been completed. The detailed details are presented below for reference. If you are not interested in this process, you can directly skip and enter the project running process.
+
+2.Enter the project folder /home/unitree/unitree/Odometer_service/src/rpg_svo_pro_open/svo_ros/param directory, add the configuration file " rs_camera_param.yaml ":
+
+# Instructions:
+# - Most of the time you will just need to change the basic parameters.
+# - The parameters in this file are set for the resolution of 752x480.
+#   If you use a different resolution, change the parameters for
+#   each module according to the comments.
+
+############################
+##### Basic parameters #####
+############################
+
+# Pipeline type
+pipeline_is_stereo: False
+
+# Feature and keyframe number
+# To run faster, you can decrease `max_fts` and `max_n_kfs`, for example:
+# max_fts: 120
+# max_n_kfs: 5
+max_fts: 180
+max_n_kfs: 30
+
+# Map scale when initialized (not used for stereo)
+# Increase if the initial scene depth is larger
+map_scale: 1.0
+
+# Initial rotation
+T_world_imuinit/qx: 0
+T_world_imuinit/qy: 0
+T_world_imuinit/qz: 0
+T_world_imuinit/qw: 1
+
+# Keyframe selection
+kfselect_criterion: FORWARD    # alterntive: DOWNLOOKING
+# The following kfselect_* ONLY affects FORWARD
+# If the number of features: >upper, no keyframe; <lower, take keyframe
+kfselect_numkfs_upper_thresh: 120
+kfselect_numkfs_lower_thresh: 70
+# If the current frame is within the following range of any visible keyframes,
+
+3.Enter the new camera calibration parameter file " rs_camera_calib.yaml " in the src/rpg_svo_pro_open/svo_ros/param/calib directory:
+
+label: my_stereo_camera
+cameras:
+- camera:
+  label: cam0
+  line-delay-nanoseconds: 0
+  image_height: 480
+  image_width: 640
+  type: pinhole
+  intrinsics:
+    cols: 1
+    rows: 4
+    data: [384.901397705078, 384.901397705078, 321.478607177734, 239.256011962891]
+  distortion:
+    type: radial-tangential  
+    parameters:
+      cols: 1
+      rows: 4
+      data: [0, 0, 0, 0]
+T_B_C:
+  cols: 4
+  rows: 4
+  data: [1, 0.0, 0, 0,
+         0.0, 1, 0, 0,
+         0.0, 0.0, 1.0, 0 ,
+         0.0, 0.0, 0.0, 1.0]
+
+4.Enter directory /unitree/module/Odometer_service/src/rpg_svo_pro_open/svo_ros/launch, add the launch file “rs_camera.launch”:
+
+<launch>
+
+ <node pkg="svo_ros" type="svo_node" name="svo" respawn="true" clear_params="true" output="screen">
+
+ <!-- Camera topic to subscribe to -->
+   <param name="cam0_topic" value="/camera/infra1/image_rect_raw" type="str" />
+
+ <!-- Camera calibration file -->
+   <param name="calib_file" value="$(find svo_ros)/param/calib/rs_camera_calib.yaml" type="str" />
+
+ <!-- Parameters -->
+   <rosparam file="$(find svo_ros)/param/rs_camera_param.yaml" />
+
+ <!-- Initial camera orientation, make it point downwards -->
+   <param name="init_rx" value="3.14" />
+   <param name="init_ry" value="0.00" />
+   <param name="init_rz" value="0.00" />
+ </node>
+
+</launch>
+
+5.Adjust the inter frame matching standard parameters of the project source code to make the project more suitable for the usage scenarios of land walking mobile robots, and reduce the probability of project crashes and restarts.
+
+Running the overall system
+
+1.Open the terminal to run roscore
+
+roscore
+
+2.Open the new terminal to run the camera and raise a topic.
+
+roslaunch realsense2_camera rs_camera.launch
+
+3.Run the terminal and open rviz
+
+rviz
+
+Open the “rviz_config.rviz” configuration file located in the project folder directory /home/unitree/unitree/Odometer_service/src/rpg_svo_pro_open/svo_ros in rviz to book project topics.
+
+4.Run Project
+Before running the project, open the terminal source space in the project root directory /home/unitree/unitree/Odometer_service/:
+
+source devel/setup.bash
+
+The enter the /home/unitree/unitree/Odometer_service/src/rpg_svo_pro_open/svo_ros/launch path in the project folder and open the terminal to input:
+
+roslaunch rs_camera.launch
+
+5.The mobile camera has completed project initialization and the project is running normally.
+
+6.View topics emitted by the project
+
+rostopic list
+
+7.Subscribe to camera pose trajectory
+
+/svo/pose\_cam/0
+
+At this point, users can view the camera position in real-time
+
+8.Reviz View Key Data and Camera Trajectories, Enter the /home/unitree/unitree/Odometer_service/src/rpg_svo_pro_open/svo_ros/ path in the project folder and open the terminal to input:
+
+rviz -d rviz_config_vio.rviz
+
+This page contains content
+
+Legged Fusion Odometry Interface
+Hardware environment
+Introduction
+Usage Guidelines
+D435i Camera Configuration
+Visual odometer configuration
+Running the overall system
+Helpful
+Feedback
+Unitree
+Robot
+
+G1
+
+H1
+
+Go2
+
+Go1
+
+B2
+
+B2-W
+
+D1-T
+
+4D LiDAR L1
+
+Z1
+
+GO-M8010-6
+
+B1
+
+Aliengo
+
+A1
+
+A1 Motor
+
+Super Robot Waterproof Joint：B1-16
+
+Fitness
+
+Unitree Fitness PUMP
+
+Industrial Applications
+
+Inspection Project Implementation Plan
+
+Fire And Rescue
+
+Support
+
+Repair Service
+
+Open Source
+
+Store / Cooperate
+
+Terms & Policies
+
+Download
+
+Go1
+
+A1/Aliengo
+
+Go2
+
+Unitree PUMP
+
+B2
+
+Unitree Sim
+
+Book Online
+
+Purchase Online
+
+Explore Unitree
+
+News
+
+About Us
+
+Contact Us
+
+Subscribe Message
+OLOJoin
+Contacts
+Copyright © 2016 - 2024HangZhou YuShu TECHNOLOGY CO.,LTD All Rights Reserved浙ICP备17044557号浙公网安备 33010802011921号
+AI Document Assistant
+
+Hello, I am your AI Document Assistant. You can ask me questions and inquire about the relevant content in the document center.
+
+Here are some examples of what you can ask:
+How do I get the Go2 SDK?
+How to develop with Go2?
+What is the operation method of H1?
+The content is generated by an AI model and may not be entirely accurate; please carefully discern.
