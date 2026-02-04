@@ -1,6 +1,7 @@
 import time
 import os
 import warnings
+import argparse
 import mujoco
 import mujoco.viewer
 from threading import Thread
@@ -19,6 +20,17 @@ import config
 
 
 locker = threading.Lock()
+
+parser = argparse.ArgumentParser(description="Unitree MuJoCo simulator")
+parser.add_argument(
+    "--hanged",
+    action="store_true",
+    help="Enable elastic band (hanged mode).",
+)
+args, _unknown = parser.parse_known_args()
+
+# Override config to avoid editing config.py for hanged mode.
+config.ENABLE_ELASTIC_BAND = bool(args.hanged)
 
 channel_module.ChannelConfigHasInterface = """<?xml version="1.0" encoding="UTF-8" ?>
     <CycloneDDS>
