@@ -56,6 +56,38 @@ Kd = [
     1, 1, 1, 1, 1, 1, 1   # arms
 ]
 
+# Joint limits from g1_29dof.xml (radians)
+JOINT_LIMITS = [
+    (-2.5307, 2.8798),   # LeftHipPitch
+    (-0.5236, 2.9671),   # LeftHipRoll
+    (-2.7576, 2.7576),   # LeftHipYaw
+    (-0.087267, 2.8798), # LeftKnee
+    (-0.87267, 0.5236),  # LeftAnklePitch
+    (-0.2618, 0.2618),   # LeftAnkleRoll
+    (-2.5307, 2.8798),   # RightHipPitch
+    (-2.9671, 0.5236),   # RightHipRoll
+    (-2.7576, 2.7576),   # RightHipYaw
+    (-0.087267, 2.8798), # RightKnee
+    (-0.87267, 0.5236),  # RightAnklePitch
+    (-0.2618, 0.2618),   # RightAnkleRoll
+    (-2.618, 2.618),     # WaistYaw
+    (-0.52, 0.52),       # WaistRoll
+    (-0.52, 0.52),       # WaistPitch
+    (-3.0892, 2.6704),   # LeftShoulderPitch
+    (-1.5882, 2.2515),   # LeftShoulderRoll
+    (-2.618, 2.618),     # LeftShoulderYaw
+    (-1.0472, 2.0944),   # LeftElbow
+    (-1.97222, 1.97222), # LeftWristRoll
+    (-1.61443, 1.61443), # LeftWristPitch
+    (-1.61443, 1.61443), # LeftWristYaw
+    (-3.0892, 2.6704),   # RightShoulderPitch
+    (-2.2515, 1.5882),   # RightShoulderRoll
+    (-2.618, 2.618),     # RightShoulderYaw
+    (-1.0472, 2.0944),   # RightElbow
+    (-1.97222, 1.97222), # RightWristRoll
+    (-1.61443, 1.61443), # RightWristPitch
+    (-1.61443, 1.61443), # RightWristYaw
+]
 
 class G1JointIndex:
     LeftHipPitch = 0
@@ -107,6 +139,16 @@ class WakeUpController:
         self.phase_index_ = 0
         self.phase_plan_ = []
         self.phase_from_ = None
+        self.last_cmd_q_ = None
+        self.ramp_time_ = 5.0
+
+        # Smoother, safer actuation limits
+        self.max_speed_rad_s_ = 0.25
+        self.soft_limit_margin_ = 0.05
+        self.kp_scale_ = 0.25
+        self.kd_scale_ = 0.25
+        self.arm_enable_phase_ = 2  # hold arms until crouched stand phase
+        self.arm_indices_ = list(range(G1JointIndex.LeftShoulderPitch, G1_NUM_MOTOR))
 
     def LowStateHandler(self, msg: LowState_):
         self.low_state = msg
@@ -170,11 +212,31 @@ class WakeUpController:
         })
 
         self.phase_plan_ = [
-            (1.5, phase1),
-            (2.0, phase2),
-            (2.0, phase3),
-            (2.0, phase4),
+            (5.0, phase1),
+            (5.0, phase2),
+            (5.0, phase3),
+            (5.0, phase4),
         ]
+
+    def _apply_limits(self, q):
+        limited = np.array(q, dtype=float)
+        for i in range(G1_NUM_MOTOR):
+            qmin, qmax = JOINT_LIMITS[i]
+            margin = self.soft_limit_margin_
+            qmin = qmin + margin
+            qmax = qmax - margin
+            if qmin < qmax:
+                limited[i] = float(np.clip(limited[i], qmin, qmax))
+        return limited
+
+    def _rate_limit(self, desired_q, current_q):
+        if self.last_cmd_q_ is None:
+            self.last_cmd_q_ = np.array(current_q, dtype=float)
+        max_step = self.max_speed_rad_s_ * self.control_dt_
+        delta = desired_q - self.last_cmd_q_
+        delta = np.clip(delta, -max_step, max_step)
+        self.last_cmd_q_ = self.last_cmd_q_ + delta
+        return self.last_cmd_q_
 
     def start(self):
         self.thread = RecurrentThread(
@@ -193,6 +255,7 @@ class WakeUpController:
             self.build_plan(base_q)
             self.phase_start_ = self.time_
             self.phase_from_ = np.array(base_q, dtype=float)
+            self.last_cmd_q_ = np.array(base_q, dtype=float)
 
         self.time_ += self.control_dt_
 
@@ -220,6 +283,20 @@ class WakeUpController:
                 dtype=float,
             )
         desired_q = self.phase_from_ * (1.0 - alpha) + phase_target * alpha
+        desired_q = self._apply_limits(desired_q)
+        current_q = np.array(
+            [self.low_state.motor_state[i].q for i in range(G1_NUM_MOTOR)],
+            dtype=float,
+        )
+        if self.phase_index_ < self.arm_enable_phase_:
+            for idx in self.arm_indices_:
+                desired_q[idx] = current_q[idx]
+        desired_q = self._rate_limit(desired_q, current_q)
+
+        # Gain ramp at start to reduce snap.
+        gain_alpha = float(np.clip(self.time_ / self.ramp_time_, 0.0, 1.0))
+        kp_scale = self.kp_scale_ * gain_alpha
+        kd_scale = self.kd_scale_ * gain_alpha
 
         self.low_cmd.mode_pr = Mode.PR
         self.low_cmd.mode_machine = self.mode_machine_
@@ -228,8 +305,12 @@ class WakeUpController:
             self.low_cmd.motor_cmd[i].tau = 0.0
             self.low_cmd.motor_cmd[i].q = float(desired_q[i])
             self.low_cmd.motor_cmd[i].dq = 0.0
-            self.low_cmd.motor_cmd[i].kp = Kp[i]
-            self.low_cmd.motor_cmd[i].kd = Kd[i]
+            if self.phase_index_ < self.arm_enable_phase_ and i in self.arm_indices_:
+                self.low_cmd.motor_cmd[i].kp = 0.0
+                self.low_cmd.motor_cmd[i].kd = 0.0
+            else:
+                self.low_cmd.motor_cmd[i].kp = Kp[i] * kp_scale
+                self.low_cmd.motor_cmd[i].kd = Kd[i] * kd_scale
 
         self.low_cmd.crc = self.crc.Crc(self.low_cmd)
         self.lowcmd_publisher_.Write(self.low_cmd)
