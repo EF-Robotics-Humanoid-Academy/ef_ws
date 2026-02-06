@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import dash
 from dash import dcc, html
@@ -21,12 +22,18 @@ def load_md(path: Path) -> str:
         content = path.read_text(encoding="utf-8")
         # Render direct MP4 links as embedded videos.
         lines = []
+        mp4_re = re.compile(r"(https?://\\S+?\\.mp4)")
         for line in content.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("http") and stripped.endswith(".mp4"):
-                lines.append(f'<video controls src="{stripped}"></video>')
-            else:
+            matches = mp4_re.findall(line)
+            if not matches:
                 lines.append(line)
+                continue
+            # Keep any non-URL text, then add video embeds.
+            stripped_text = mp4_re.sub("", line).strip()
+            if stripped_text:
+                lines.append(stripped_text)
+            for url in matches:
+                lines.append(f'<video controls src="{url}"></video>')
         return "\n".join(lines)
     except FileNotFoundError:
         return f"# Missing file\n\nCould not find `{path.name}`."

@@ -41,7 +41,8 @@ loco.StopMove()
 
 **Video: Basic motor control (Day 2)**
 ![Basic motor control walkthrough](./placeholder.jpg)
-Video file: https://doc-cdn.unitree.com/static/2024/9/23/982715b4258a4acda666792ac8c964f6.mp4
+Video file:
+https://doc-cdn.unitree.com/static/2024/9/23/982715b4258a4acda666792ac8c964f6.mp4
 
 **Parametrized turn example**
 ```python

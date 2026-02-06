@@ -15,7 +15,7 @@ Beginner focus:
 ---
 
 ## Complex motion
-<video controls src="https://www.unitree.com/images/7e51cf20dc6145cf99ae0d0b6ea4d2c5.mp4"></video>
+https://www.unitree.com/images/7e51cf20dc6145cf99ae0d0b6ea4d2c5.mp4
 
 **Hardcoded pick and place (known pose)**
 ```python
