@@ -124,7 +124,7 @@ Beginner notes:
 - Practice entering and exiting debug mode before running scripts.
 - Keep one person focused on the controller while another runs code.
 
-Controller documentation: `https://marketing.unitree.com/article/en/G1/Remote_Control.html`
+Controller documentation: [https://marketing.unitree.com/article/en/G1/Remote_Control.html](https://marketing.unitree.com/article/en/G1/Remote_Control.html)
 
 ### Unitree App
 ![Unitree app overview](https://marketing.unitree.com/article/en/G1/Remote_Control.html)
@@ -133,13 +133,13 @@ Beginner notes:
 - The app is used for quick checks (camera preview, status, battery).
 - We use the app for verification, not for programming.
 
-App documentation: `https://www.unitree.com/app/g1`
+App documentation: [https://www.unitree.com/app/g1](https://www.unitree.com/app/g1)
 
 ---
 
 ## Workspace Setup
 - Ubuntu 24.04: Standard OS for labs and SDK tools.
-- Unitree repos: `unitree_sdk2_python`, `unitree_sdk2`, `unitree_mujoco`, `unitree_ros`, `https://github.com/ahmedgalaief/ef_ws.git`.
+- Unitree repos: `unitree_sdk2_python`, `unitree_sdk2`, `unitree_mujoco`, `unitree_ros`, [https://github.com/ahmedgalaief/ef_ws.git](https://github.com/ahmedgalaief/ef_ws.git).
 - CycloneDDS setup: Configure DDS for reliable pub/sub on the LAN.
 - Python environment: Create a dedicated venv or conda env for SDKs.
 - AI CLIs: Use `codex`, `claude code`, `gemini cli` for scripting support.
