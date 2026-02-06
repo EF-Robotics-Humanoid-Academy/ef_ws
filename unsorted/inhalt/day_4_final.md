@@ -15,7 +15,7 @@ Beginner focus:
 ---
 
 ## Object Detection
-![SLAM overview](https://doc-cdn.unitree.com/static/2025/7/23/ea38cdd7418e4b81852c819a55e7aa2e_1164x1000.jpg)
+![SLAM overview](./placeholder.jpg)
 
 - Basics: input preprocessing, model inference, and binary classification.
 - Target: detect if an object is a soda can.
@@ -27,7 +27,7 @@ Beginner notes:
 ---
 
 ## Decision making
-![Basic motor control overview](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
+![Basic motor control overview](./placeholder.jpg)
 
 - Basics: simple state machine to connect perception to actions.
 - Trigger pick-and-place when detection confidence exceeds a threshold.
@@ -51,7 +51,7 @@ Beginner notes:
 ---
 
 ## Final task
-![G1 component overview](https://www.docs.quadruped.de/projects/g1/html/_images/g1_component_overview.png)
+![G1 component overview](./placeholder.jpg)
 
 - Necessary modules: locomotion, perception, arm control, and basic decision logic.
 - Suggested task: obstacle parcours with object detection and a pick action.

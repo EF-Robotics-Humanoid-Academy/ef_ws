@@ -40,7 +40,7 @@ loco.StopMove()
 ```
 
 **Video: Basic motor control (Day 2)**
-![Basic motor control walkthrough](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
+![Basic motor control walkthrough](./placeholder.jpg)
 Video file: https://doc-cdn.unitree.com/static/2024/9/23/982715b4258a4acda666792ac8c964f6.mp4
 
 **Parametrized turn example**
@@ -61,7 +61,7 @@ loco.StopMove()
 ---
 
 ## Using IMU Data
-![Basic motor control overview](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
+![Basic motor control overview](./placeholder.jpg)
 
 - Use IMU data to correct drift and improve motion accuracy in parametrized scripts.
 - Visualize stability state during gait tests to validate balance.
@@ -73,7 +73,7 @@ Beginner notes:
 ---
 
 ## Multi Step motion sequence
-![Basic motor control overview](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
+![Basic motor control overview](./placeholder.jpg)
 
 ```python
 from unitree_sdk2py.rpc import LocoClient, ArmActionClient

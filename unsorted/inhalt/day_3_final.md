@@ -40,7 +40,7 @@ Beginner notes:
 ---
 
 ## SLAM
-![SLAM overview](https://doc-cdn.unitree.com/static/2025/7/23/ea38cdd7418e4b81852c819a55e7aa2e_1164x1000.jpg)
+![SLAM overview](./placeholder.jpg)
 
 **Create and save map**
 ```json
@@ -59,7 +59,7 @@ Beginner notes:
 ---
 
 ## Path planning
-![SLAM overview](https://doc-cdn.unitree.com/static/2025/7/23/ea38cdd7418e4b81852c819a55e7aa2e_1164x1000.jpg)
+![SLAM overview](./placeholder.jpg)
 
 **Example goal**
 ```json
