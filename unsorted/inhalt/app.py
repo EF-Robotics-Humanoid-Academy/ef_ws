@@ -45,6 +45,17 @@ for day, path in DAY_FILES.items():
 
 app.layout = dbc.Container(
     [
+        html.Style(
+            """
+            img {
+                max-height: 420px;
+                height: auto;
+                width: auto;
+                max-width: 100%;
+                display: block;
+            }
+            """
+        ),
         html.H1("Unitree G1 Academy - Course Days", className="mt-3"),
         html.P(
             "Browse each day of the course. Content is loaded from the local markdown files.",
