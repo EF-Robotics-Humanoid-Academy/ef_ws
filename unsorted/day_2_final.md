@@ -9,12 +9,20 @@
 - Multi Step motion sequence
 - Troubleshooting
 
+Beginner focus:
+- You will build confidence with short, low-speed walking commands.
+
 ---
 
 ## High Level Gait
-![Placeholder](./placeholder.jpg)
+![Basic motor control overview](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
 
 Measurement: define target speed, distance, time, or number of steps before commanding motion.
+
+Beginner notes:
+- Start with low speed and short duration (e.g., 0.1–0.2 m/s for 2–3 seconds).
+- Always send a stop command after each motion segment.
+- No obstacle avoidance is active in low-level velocity control.
 
 **Parametrized walk example**
 ```python
@@ -30,6 +38,10 @@ loco.Init()
 loco.SetVelocity(0.2, 0.0, 0.0, 3.0)
 loco.StopMove()
 ```
+
+**Video: Basic motor control (Day 2)**
+![Basic motor control walkthrough](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
+Video file: https://doc-cdn.unitree.com/static/2024/9/23/982715b4258a4acda666792ac8c964f6.mp4
 
 **Parametrized turn example**
 ```python
@@ -49,15 +61,19 @@ loco.StopMove()
 ---
 
 ## Using IMU Data
-![Placeholder](./placeholder.jpg)
+![Basic motor control overview](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
 
 - Use IMU data to correct drift and improve motion accuracy in parametrized scripts.
 - Visualize stability state during gait tests to validate balance.
 
+Beginner notes:
+- The IMU tells you if the robot is tilting or drifting.
+- If you see large pitch/roll changes, reduce speed and shorten the step duration.
+
 ---
 
 ## Multi Step motion sequence
-![Placeholder](./placeholder.jpg)
+![Basic motor control overview](https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054_830x986.jpg)
 
 ```python
 from unitree_sdk2py.rpc import LocoClient, ArmActionClient
@@ -92,10 +108,15 @@ loco.SetVelocity(0.2, 0.0, 0.0, 3.0)
 loco.StopMove()
 ```
 
+Beginner notes:
+- Sequence each action clearly: walk, stop, turn, stop, walk.
+- Insert short pauses if the robot looks unstable.
+- Keep arm actions short and simple while walking.
+
 ---
 
 ## Troubleshooting
-![Placeholder](./placeholder.jpg)
+![Debug mode on controller](https://doc-cdn.unitree.com/static/2024/9/29/236fa93a8fae4eaa8815004f42e87ede_1065x1419.jpg)
 
 **Recovery procedure (balanced stand)**
 ```python
@@ -115,3 +136,7 @@ loco.StopMove()
 - Try an invalid parameter range and observe errors.
 - Correct parameter ranges and retry.
 - Confirm debug mode before low-level commands.
+
+Beginner notes:
+- If the robot does not move, verify network interface and debug mode.
+- If motion is jerky, reduce speed and duration first, then retry.
