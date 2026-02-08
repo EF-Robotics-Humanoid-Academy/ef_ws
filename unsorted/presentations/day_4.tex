@@ -1,0 +1,197 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{verbatim}
+
+% Define custom colors from the CSS
+\definecolor{AccentColor2}{HTML}{FA1C63}
+\definecolor{AccentColor1}{HTML}{222222}
+
+% Theme settings - SWAPPED ASSIGNMENTS
+\usetheme{default}
+\setbeamercolor{palette primary}{bg=AccentColor1,fg=white}
+\setbeamercolor{palette secondary}{bg=AccentColor2,fg=white}
+\setbeamercolor{palette tertiary}{bg=AccentColor2,fg=white}
+\setbeamercolor{title}{bg=AccentColor1,fg=white}
+\setbeamercolor{frametitle}{bg=AccentColor1,fg=white}
+\setbeamercolor{structure}{fg=AccentColor2}
+
+% Paths for local images
+\graphicspath{{../inhalt/}{../inhalt/assets/}}
+
+\title[Day 4: Perception and Project Challenge]{Day 4: Perception and Project Challenge}
+\author{Unitree G1 Academy}
+\date{February 2026}
+\logo{\includegraphics[height=1cm]{Logo_1.jpg}}
+
+\begin{document}
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Day 4 outline}
+\vfill
+\end{frame}
+
+\begin{frame}{Day 4 outline}
+\begin{itemize}
+\item Object Detection
+\item Decision making
+\item Lunch break
+\item Reinforcement Learning
+\item Final task
+\end{itemize}
+Beginner focus:
+\begin{itemize}
+\item Start with simple perception and a small decision loop, then scale up.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Lunch Break}
+\vfill
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Schedule (Tag 4 -- Do 19.02.2026)}
+\vfill
+\end{frame}
+
+\begin{frame}{Schedule (Tag 4 -- Do 19.02.2026)}
+\begin{itemize}
+\item 08.00 Uhr Crew
+\item 08:30 Einfinden der Teilnehmer
+\item 09:00 Schulungsblock 1
+\item 10:30 Kaffee- und Teepause
+\item 10:45 Schulungsblock 2
+\item 12:00 Mittagessen
+\item 13:00 Schulungsblock 3
+\item 14:30 Kaffee- und Teepause mit Snacks
+\item 15:00 Schulungsblock 4
+\item 17:00 Ende Tag 4
+\item Ab 17:00 Abbau (nur Tag 4)
+\item Abbau \& Verladung
+\item Abschluss-Recap
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Object Detection}
+\vfill
+\end{frame}
+
+\begin{frame}{Object Detection}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\begin{itemize}
+\item Basics: input preprocessing, model inference, and binary classification.
+\item Target: detect if an object is a soda can.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item Start with a small, well-lit dataset (positive and negative examples).
+\item Use a single object class first, then add more classes later.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/obj\_detection/soda\_can\_detect.py} captures a JPEG frame from the robot via \texttt{VideoClient.GetImageSample()}, decodes it with OpenCV, then runs CLIP zero-shot classification with labels \texttt{["a soda can", "no soda can, an empty scene"]}.
+\item The script exposes \texttt{--threshold} (default 0.6), \texttt{--timeout} for the RPC, and \texttt{--save} or \texttt{--show} to visualize results. It runs fully on the development laptop over DDS, not on the robot.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Decision making}
+\vfill
+\end{frame}
+
+\begin{frame}{Decision making}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\begin{itemize}
+\item Basics: simple state machine to connect perception to actions.
+\item Trigger pick-and-place when detection confidence exceeds a threshold.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item Keep the state machine small: \texttt{search} → \texttt{approach} → \texttt{pick} → \texttt{place}.
+\item Add timeouts so the robot can recover if a step fails.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/obstacle\_parcour/pattern\_1.py} is the reference decision loop. It executes a multi-phase pipeline: navigate to point B, wave, navigate to point C, run soda-can detection, then conditionally run pick-and-place.
+\item Each phase is isolated so you can set per-phase timeouts and handle failures independently. Navigation phases use the same A* + replanning logic as \texttt{obstacle\_avoidance/navigate.py}.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Reinforcement Learning}
+\vfill
+\end{frame}
+
+\begin{frame}{Reinforcement Learning}
+\href{https://doc-cdn.unitree.com/static/2024/6/20/ad293ca6260b4c09b915e4adc39637e6\_1590x924.png}{RL and simulators}
+\begin{itemize}
+\item Short theory: policy, reward, and sim-to-real transfer.
+\item IsaacLab/Isaac Gym intro and example workflow for G1.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item Treat RL as an advanced option; start with scripted behaviors first.
+\item Use simulation to test many variations safely before trying on the real robot.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Final task}
+\vfill
+\end{frame}
+
+\begin{frame}{Final task}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\begin{itemize}
+\item Necessary modules: locomotion, perception, arm control, and basic decision logic.
+\item Suggested task: obstacle parcours with object detection and a pick action.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item Break the final task into small checklists and verify each step.
+\item Keep goals short and repeatable for consistent demos.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/pick\_and\_place/g1\_pick\_place\_hardcoded.py} publishes low-level arm and hand commands to \texttt{rt/arm\_sdk} and \texttt{rt/dex3/right/cmd}, interpolating joint targets over time and applying CRC checks for each frame.
+\item The script uses fixed joint pose dictionaries (\texttt{POSES}) and soft-grip parameters (low \texttt{kp} and small \texttt{tau}) to reduce the chance of crushing the object during grasp.
+\end{itemize}
+\end{frame}
+
+\end{document}

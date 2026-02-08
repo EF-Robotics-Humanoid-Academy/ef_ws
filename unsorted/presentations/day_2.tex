@@ -1,0 +1,262 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{verbatim}
+
+% Define custom colors from the CSS
+\definecolor{AccentColor2}{HTML}{FA1C63}
+\definecolor{AccentColor1}{HTML}{222222}
+
+% Theme settings - SWAPPED ASSIGNMENTS
+\usetheme{default}
+\setbeamercolor{palette primary}{bg=AccentColor1,fg=white}
+\setbeamercolor{palette secondary}{bg=AccentColor2,fg=white}
+\setbeamercolor{palette tertiary}{bg=AccentColor2,fg=white}
+\setbeamercolor{title}{bg=AccentColor1,fg=white}
+\setbeamercolor{frametitle}{bg=AccentColor1,fg=white}
+\setbeamercolor{structure}{fg=AccentColor2}
+
+% Paths for local images
+\graphicspath{{../inhalt/}{../inhalt/assets/}}
+
+\title[Bring robot to a safe stop and balanced stand]{Bring robot to a safe stop and balanced stand}
+\author{Unitree G1 Academy}
+\date{February 2026}
+\logo{\includegraphics[height=1cm]{Logo_1.jpg}}
+
+\begin{document}
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Day 2 outline}
+\vfill
+\end{frame}
+
+\begin{frame}{Day 2 outline}
+\begin{itemize}
+\item High Level Gait
+\item Using IMU Data
+\item Lunch break
+\item Multi Step motion sequence
+\item Troubleshooting
+\end{itemize}
+Beginner focus:
+\begin{itemize}
+\item You will build confidence with short, low-speed walking commands.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Lunch Break}
+\vfill
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Schedule (Tag 2 -- Di 17.02.2026)}
+\vfill
+\end{frame}
+
+\begin{frame}{Schedule (Tag 2 -- Di 17.02.2026)}
+\begin{itemize}
+\item 08.00 Crew
+\item 08:30 Einfinden der Teilnehmer
+\item 09:00 Schulungsblock 1
+\item 10:30 Kaffee- und Teepause
+\item 10:45 Schulungsblock 2
+\item 12:00 Mittagessen
+\item 13:00 Schulungsblock 3
+\item 14:30 Kaffee- und Teepause mit Snacks
+\item 15:00 Schulungsblock 4
+\item 17:00 Ende Tag 2
+\item 17:00 -- 17:30 Podcast / Testimonials
+\item 17:30 -- 17:45 Puffer
+\item 17:45 -- 18:15 Tages-Recap
+\item 18:15 -- 18:30 Tagesabschluss
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{High Level Gait}
+\vfill
+\end{frame}
+
+\begin{frame}{High Level Gait}
+\href{https://doc-cdn.unitree.com/static/2024/9/19/66d93f622b6a4ce2a962be2dc2c91054\_830x986.jpg}{Basic motor control overview}
+Measurement: define target speed, distance, time, or number of steps before commanding motion.
+Beginner notes:
+\begin{itemize}
+\item Start with low speed and short duration (e.g., 0.1--0.2 m/s for 2--3 seconds).
+\item Always send a stop command after each motion segment.
+\item No obstacle avoidance is active in low-level velocity control.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/basic/g1\_hl\_gait\_measure.py} subscribes to \texttt{rt/sportmodestate}, samples position and \texttt{foot\_force}, and computes total path length plus step count. Contact steps are detected by thresholding each foot force signal and counting rising edges.
+\item The script supports \texttt{--no-command} for measurement-only runs, \texttt{--force-threshold} to tune contact detection, and \texttt{--csv} to log time, pose, gait type, and foot force for analysis.
+\end{itemize}
+\textbf{Parametrized walk example}
+\begin{verbatim}
+from unitree_sdk2py.rpc import LocoClient
+from unitree_sdk2py.dds import ChannelFactory
+
+ChannelFactory.Instance().Init(0, "enp3s0")
+
+loco = LocoClient()
+loco.Init()
+
+loco.SetVelocity(0.2, 0.0, 0.0, 3.0)
+loco.StopMove()
+\end{verbatim}
+\textbf{Video: Basic motor control (Day 2)}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+Video file: \href{https://doc-cdn.unitree.com/static/2024/9/23/982715b4258a4acda666792ac8c964f6.mp4}{https://doc-cdn.unitree.com/static/2024/9/23/982715b4258a4acda666792ac8c964f6.mp4}
+\textbf{Parametrized turn example}
+\begin{verbatim}
+from unitree_sdk2py.rpc import LocoClient
+from unitree_sdk2py.dds import ChannelFactory
+
+ChannelFactory.Instance().Init(0, "enp3s0")
+
+loco = LocoClient()
+loco.Init()
+
+loco.SetVelocity(0.0, 0.0, 0.6, 2.0)
+loco.StopMove()
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Using IMU Data}
+\vfill
+\end{frame}
+
+\begin{frame}{Using IMU Data}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\begin{itemize}
+\item Use IMU data to correct drift and improve motion accuracy in parametrized scripts.
+\item Visualize stability state during gait tests to validate balance.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item The IMU tells you if the robot is tilting or drifting.
+\item If you see large pitch/roll changes, reduce speed and shorten the step duration.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/sensors/g1\_stability\_view.py} subscribes to \texttt{rt/lowstate} for IMU \texttt{rpy} and to \texttt{rt/odom} for position, then plots roll/pitch/yaw, tilt magnitude, and a stability score in real time.
+\item The stability score is computed as \texttt{1.0 - (tilt\_deg / max\_tilt\_deg)} and can be tuned with \texttt{--max-tilt-deg}. Use \texttt{--history} to control the rolling window length.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Multi Step motion sequence}
+\vfill
+\end{frame}
+
+\begin{frame}[fragile]{Multi Step motion sequence}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\begin{verbatim}
+from unitree_sdk2py.rpc import LocoClient, ArmActionClient
+from unitree_sdk2py.dds import ChannelFactory
+
+ChannelFactory.Instance().Init(0, "enp3s0")
+
+loco = LocoClient()
+loco.Init()
+
+arm = ArmActionClient()
+arm.Init()
+
+loco.SetVelocity(0.2, 0.0, 0.0, 3.0)
+
+loco.SetVelocity(0.0, 0.0, 0.6, 1.5)
+
+loco.SetVelocity(0.2, 0.0, 0.0, 3.0)
+
+arm.DoAction(26)
+
+loco.SetVelocity(0.0, 0.0, 0.6, 1.5)
+
+loco.SetVelocity(0.2, 0.0, 0.0, 3.0)
+
+loco.StopMove()
+\end{verbatim}
+Beginner notes:
+\begin{itemize}
+\item Sequence each action clearly: walk, stop, turn, stop, walk.
+\item Insert short pauses if the robot looks unstable.
+\item Keep arm actions short and simple while walking.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/basic/g1\_hl\_motion\_sequence.py} computes walk and turn durations from \texttt{--walk-m}, \texttt{--walk-v}, \texttt{--turn-deg}, and \texttt{--turn-vyaw}, then sends velocities at a fixed \texttt{--cmd-hz} rate using a \texttt{Move/SetVelocity} loop with explicit \texttt{StopMove} between segments.
+\item The script attempts a right-hand wave via whichever arm/hand client exists and skips the wave if no supported method is present.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Troubleshooting}
+\vfill
+\end{frame}
+
+\begin{frame}[fragile]{Troubleshooting}
+\href{https://doc-cdn.unitree.com/static/2024/9/29/236fa93a8fae4eaa8815004f42e87ede\_1065x1419.jpg}{Debug mode on controller}
+\textbf{Recovery procedure (balanced stand)}
+\begin{verbatim}
+from unitree_sdk2py.rpc import LocoClient
+from unitree_sdk2py.dds import ChannelFactory
+
+ChannelFactory.Instance().Init(0, "enp3s0")
+
+loco = LocoClient()
+loco.Init()
+
+loco.StopMove()
+\end{verbatim}
+\textbf{Intentional error handling}
+\begin{itemize}
+\item Try an invalid parameter range and observe errors.
+\item Correct parameter ranges and retry.
+\item Confirm debug mode before low-level commands.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item If the robot does not move, verify network interface and debug mode.
+\item If motion is jerky, reduce speed and duration first, then retry.
+\end{itemize}
+\end{frame}
+
+\end{document}

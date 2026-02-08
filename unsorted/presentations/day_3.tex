@@ -1,0 +1,350 @@
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{verbatim}
+
+% Define custom colors from the CSS
+\definecolor{AccentColor2}{HTML}{FA1C63}
+\definecolor{AccentColor1}{HTML}{222222}
+
+% Theme settings - SWAPPED ASSIGNMENTS
+\usetheme{default}
+\setbeamercolor{palette primary}{bg=AccentColor1,fg=white}
+\setbeamercolor{palette secondary}{bg=AccentColor2,fg=white}
+\setbeamercolor{palette tertiary}{bg=AccentColor2,fg=white}
+\setbeamercolor{title}{bg=AccentColor1,fg=white}
+\setbeamercolor{frametitle}{bg=AccentColor1,fg=white}
+\setbeamercolor{structure}{fg=AccentColor2}
+
+% Paths for local images
+\graphicspath{{../inhalt/}{../inhalt/assets/}}
+
+\title[Day 3: Navigation and Environment Awareness]{Day 3: Navigation and Environment Awareness}
+\author{Unitree G1 Academy}
+\date{February 2026}
+\logo{\includegraphics[height=1cm]{Logo_1.jpg}}
+
+\begin{document}
+\begin{frame}
+    \titlepage
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Day 3 outline}
+\vfill
+\end{frame}
+
+\begin{frame}{Day 3 outline}
+\begin{itemize}
+\item Complex motion
+\item SLAM
+\item Lunch break
+\item Path planning
+\item Obstacle avoidance
+\end{itemize}
+Beginner focus:
+\begin{itemize}
+\item We keep navigation goals small and predictable before attempting complex routes.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Lunch Break}
+\vfill
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Schedule (Tag 3 -- Mi 18.02.2026)}
+\vfill
+\end{frame}
+
+\begin{frame}{Schedule (Tag 3 -- Mi 18.02.2026)}
+\begin{itemize}
+\item 08.00 Uhr Crew
+\item 08:30 Einfinden der Teilnehmer
+\item 09:00 Schulungsblock 1
+\item 10:30 Kaffee- und Teepause
+\item 10:45 Schulungsblock 2
+\item 12:00 Mittagessen
+\item 13:00 Schulungsblock 3
+\item 14:30 Kaffee- und Teepause mit Snacks
+\item 15:00 Schulungsblock 4
+\item 17:00 Ende Tag 3
+\item 17:00 -- 17:30 Podcast / Testimonials
+\item 17:30 -- 17:45 Puffer
+\item 17:45 -- 18:15 Tages-Recap
+\item 18:15 -- 18:30 Tagesabschluss
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Complex motion}
+\vfill
+\end{frame}
+
+\begin{frame}[fragile]{Complex motion}
+\href{https://www.unitree.com/images/7e51cf20dc6145cf99ae0d0b6ea4d2c5.mp4}{https://www.unitree.com/images/7e51cf20dc6145cf99ae0d0b6ea4d2c5.mp4}
+\textbf{Hardcoded pick and place (known pose)}
+\begin{verbatim}
+from unitree_sdk2py.arm import ArmSdk  # Replace with actual SDK module
+
+arm = ArmSdk(side="right")
+
+pick_pose = {"x": 0.45, "y": -0.10, "z": 0.35, "roll": 0.0, "pitch": 1.57, "yaw": 0.0}
+place_pose = {"x": 0.30, "y": 0.20, "z": 0.40, "roll": 0.0, "pitch": 1.57, "yaw": 0.0}
+
+arm.MoveToPose(pick_pose)
+arm.CloseGripper()
+arm.MoveToPose(place_pose)
+arm.OpenGripper()
+\end{verbatim}
+Beginner notes:
+\begin{itemize}
+\item Start with a known object pose and slow arm motion.
+\item Keep the robot in a stable stand during the pick-and-place.
+\item Use small, testable changes to poses (5--10 cm at a time).
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{SLAM}
+\vfill
+\end{frame}
+
+\begin{frame}{SLAM}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\end{frame}
+
+\begin{frame}{SLAM Navigation Service Interface (Beginner Flow)}
+Before you start:
+\begin{itemize}
+\item Ensure your PC and the robot are on the same LAN segment.
+\item Turn on \texttt{unitree\_slam} and \texttt{lidar\_driver} in the App.
+\item Do not use App navigation at the same time as API calls.
+\end{itemize}
+\textbf{Coordinate frame (important)}
+\begin{itemize}
+\item Origin: MID360-IMU coordinate system.
+\item +X forward, +Z up.
+\end{itemize}
+\textbf{Recommended scope}
+\begin{itemize}
+\item Static indoor, flat scenes with rich features.
+\item X/Y map size under 45 m.
+\item Avoid violent movements to prevent localization loss.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Network check (quick)}
+\begin{enumerate}
+\item Set your PC to \texttt{192.168.123.XXX} (no IP conflicts).
+\item Test connections:
+\end{enumerate}
+\begin{verbatim}
+ssh unitree@192.168.123.164
+ping 192.168.123.120
+\end{verbatim}
+\end{frame}
+
+\begin{frame}{Core API IDs}
+\begin{tabular}{lll}
+\toprule
+Action & API ID & Purpose \\
+\midrule
+Start mapping & 1801 & Begin SLAM map creation \\
+End mapping & 1802 & Save the map (PCD file) \\
+Initialize pose & 1804 & Load map + set start pose \\
+Pose navigation & 1102 & Navigate to a target pose \\
+Pause navigation & 1201 & Pause current nav \\
+Resume navigation & 1202 & Resume current nav \\
+Close SLAM & 1901 & Stop SLAM service \\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}[fragile]{Create a map (start → explore → save)}
+\textbf{1) Start mapping}
+\begin{verbatim}
+{
+  "api_id": 1801,
+  "data": {
+    "slam_type": "indoor"
+  }
+}
+\end{verbatim}
+\textbf{2) Explore slowly}
+\begin{itemize}
+\item Walk the robot around the space at low speed.
+\item Try to close a loop for a clean map.
+\end{itemize}
+\textbf{3) End mapping and save}
+\begin{verbatim}
+{
+  "api_id": 1802,
+  "data": {
+    "address": "/home/unitree/test1.pcd"
+  }
+}
+\end{verbatim}
+Note:
+\begin{itemize}
+\item Reuse file names like \texttt{test1.pcd} to \texttt{test10.pcd} to avoid filling disk.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Use a saved map (localize → navigate)}
+\textbf{1) Initialize pose with the map}
+\begin{verbatim}
+{
+  "api_id": 1804,
+  "data": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0,
+    "q_x": 0.0,
+    "q_y": 0.0,
+    "q_z": 0.0,
+    "q_w": 1.0,
+    "address": "/home/unitree/test1.pcd"
+  }
+}
+\end{verbatim}
+\textbf{2) Send a navigation goal}
+\begin{verbatim}
+{
+  "api_id": 1102,
+  "data": {
+    "targetPose": {
+      "x": 2.0,
+      "y": 0.0,
+      "z": 0.0,
+      "q_x": 0.0,
+      "q_y": 0.0,
+      "q_z": 0.0,
+      "q_w": 1.0
+    },
+    "mode": 1
+  }
+}
+\end{verbatim}
+Notes:
+\begin{itemize}
+\item Target distance must be within 10 m.
+\item Robot moves in a straight line.
+\item Obstacles should be at least 50 cm tall.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Topics to watch (optional, for debugging)}
+\begin{tabular}{ll}
+\toprule
+Topic & Data \\
+\midrule
+\texttt{rt/unitree/slam\_mapping/points} & Mapping point cloud \\
+\texttt{rt/unitree/slam\_mapping/odom} & Mapping odometry \\
+\texttt{rt/unitree/slam\_relocation/points} & Relocation point cloud \\
+\texttt{rt/unitree/slam\_relocation/odom} & Relocation odometry \\
+\texttt{rt/slam\_info} & Status broadcast (JSON) \\
+\texttt{rt/slam\_key\_info} & Task result (JSON) \\
+\bottomrule
+\end{tabular}
+Beginner notes:
+\begin{itemize}
+\item Start in a simple room before trying corridors or clutter.
+\item Keep speed low while building the map.
+\item Save the map immediately after a clean loop.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Path planning}
+\vfill
+\end{frame}
+
+\begin{frame}[fragile]{Path planning}
+\begin{center}
+\includegraphics[width=0.8\linewidth]{./placeholder.jpg}
+\end{center}
+\textbf{Example goal}
+\begin{verbatim}
+{
+  "api_id": 1102,
+  "data": {
+    "targetPose": {
+      "x": 2.0,
+      "y": 1.0,
+      "z": 0.0,
+      "q_x": 0.0,
+      "q_y": 0.0,
+      "q_z": 0.0,
+      "q_w": 1.0
+    },
+    "mode": 1
+  }
+}
+\end{verbatim}
+Beginner notes:
+\begin{itemize}
+\item Use short, easy goals first (1--2 meters).
+\item Confirm localization is stable before sending a goal.
+\item If planning fails, remap or reduce map size.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Obstacle avoidance}
+\vfill
+\end{frame}
+
+\begin{frame}{Obstacle avoidance}
+\href{https://doc-cdn.unitree.com/static/2025/7/23/ea38cdd7418e4b81852c819a55e7aa2e\_1164x1000.jpg}{SLAM overview}
+\begin{itemize}
+\item Enable obstacle avoidance in the same navigation task after map initialization.
+\item Use the navigation stack to replan when new obstacles appear.
+\end{itemize}
+Beginner notes:
+\begin{itemize}
+\item Place one or two obstacles first, then increase complexity.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[plain]
+\centering
+\vfill
+\Huge{Implementation details (from repo scripts)}
+\vfill
+\end{frame}
+
+\begin{frame}{Implementation details (from repo scripts)}
+\begin{itemize}
+\item \texttt{g1/scripts/obstacle\_avoidance/navigate.py} is the orchestration entry point. It initializes DDS, starts \texttt{LocoClient}, spins up \texttt{ObstacleDetector}, creates or loads an \texttt{OccupancyGrid}, then repeatedly plans (A*), smooths, and executes waypoints. It replans when \texttt{front\_blocked()} is true or when a waypoint times out.
+\item \texttt{g1/scripts/obstacle\_avoidance/obstacle\_detection.py} subscribes to \texttt{rt/sportmodestate} and reads \texttt{range\_obstacle[4]} plus \texttt{imu\_state.rpy} to compute pose and obstacle directions (front, right, rear, left). It exposes thread-safe getters and a stale-data check.
+\item \texttt{g1/scripts/obstacle\_avoidance/create\_map.py} implements a 2D grid with world-to-grid conversion, obstacle marking from range data, and inflation (via binary dilation) for safe planning margins.
+\item \texttt{g1/scripts/obstacle\_avoidance/path\_planner.py} runs A* on the inflated grid, then smooths the path using line-of-sight checks and converts it into world-coordinate waypoints spaced by \texttt{--spacing} (default 0.5 m).
+\item \texttt{g1/scripts/obstacle\_avoidance/locomotion.py} provides a proportional controller: turn-in-place until heading error is below \texttt{yaw\_tolerance}, then move forward with bounded \texttt{vx} and \texttt{vyaw}. It accepts a \texttt{check\_obstacle} callback so the planner can abort and replan cleanly.
+\item \texttt{g1/scripts/obstacle\_avoidance/map\_viewer.py} renders a live OpenCV map (optional \texttt{--viz}) showing inflated cells, planned path, waypoints, and sensor rays for debug sessions.
+\end{itemize}
+\end{frame}
+
+\end{document}
