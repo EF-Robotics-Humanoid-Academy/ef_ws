@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<!--
+Software License Agreement (BSD)
+
+@author    Salman Omar Sohail <support@mybotshop.de>
+@copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+-->
+
+<head>
+    <title>Navigation - Robot Webserver</title>
+    <link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../static/css/all.min.css" type="text/css" /> <!-- Font Awesome -->
+    <script src="../static/scripts/common_script.js" defer></script>
+    <script src="../static/scripts/console_script.js" defer></script>
+    <script src="../static/scripts/navi_outdoor_script.js" defer></script>
+</head>
+
+<body>
+    <div class="navbar"> </div>
+
+    <div class="container">
+
+        <!-- Background Media -->
+        <div class="background-media">
+            <img src="../static/media/wallpaper/wallpaper.webp" alt="Background GIF">
+        </div>
+
+        <!-- Main Panels -->
+        <div class="panel-container">
+
+            <!-- Outdoor Navi -->
+            <div class="panel map-panel">
+                <!-- World Map Panel -->
+                <div id="map">
+
+                    <!-- Sidebar -->
+                    <div class="map-sidebar expanded" id="mapSidebar">
+                        <!-- Map Controls -->
+
+                        <div class="map-control-group">
+                            <h4>Waypoint <span style="color: var(--project-color);">Management</span></h4>
+                            <button id="waypointToolToggle" onclick="toggleWaypointTool()">Activate Tool</button>
+                            <button onclick="saveWaypoints()">Save Waypoints</button>
+                            <button class="config-btn" onclick="loadWaypoints()">Load Waypoints</button>
+                            <button class="deactivate-btn" onclick="clearWaypoints()">Clear Waypoints</button>
+                        </div>
+
+                        <div class="map-control-group">
+                            <h4>No-Go <span style="color: var(--project-color);">Zones</span></h4>
+                            <button id="noGoZoneToggle" onclick="toggleNoGoZoneCreation()">Create No Go Zone</button>
+                            <button onclick="saveNoGoZones()">Save No-Go Zones</button>
+                            <button class="config-btn" onclick="loadNoGoZones()">Load No-Go Zones</button>
+                            <button class="deactivate-btn" onclick="clearNoGoZones()">Clear No-Go Zone</button>
+                        </div>
+
+                        <div class="map-control-group">
+                            <h4>Waypoint <span style="color: var(--project-color);">Navigation</span></h4>
+                            <button onclick="loadWaypoints()">Follow Waypoint</button>
+                            <button class="config-btn" onclick="clearWaypoints()">Pause Waypoint</button>
+                            <button class="deactivate-btn" onclick="clearWaypoints()">Cancel Waypoint</button>
+                        </div>
+
+                        <div class="map-control-group">
+                            <h4>Nav2 <span style="color: var(--project-color);">Controls</span></h4>
+                            <button onclick="webButton('gps_navi_start')">Nav2 Start</button>
+                            <button class="deactivate-btn" onclick="webButton('gps_navi_stop')">Nav2 Stop</button>
+                        </div>
+
+                        <div class="map-control-group">
+                            <h4>Map <span style="color: var(--project-color);">Type</span></h4>
+                            <button onclick="switchMapType('satellite')">Satellite</button>
+                            <button onclick="switchMapType('street')">Street</button>
+                            <button onclick="switchMapType('dark')">Dark</button>
+                        </div>
+
+                        <div class="map-control-group">
+                            <h4>Web <span style="color: var(--project-color);">Response</span></h4>
+                            <span id="responseMessage">Awaiting commands</span>
+                        </div>
+                        <!-- /Map Controls -->
+                    </div>
+                    <!-- /Sidebar -->
+
+                    <!-- Toggle Button -->
+                    <div class="map-sidebar-toggle" onclick="toggleMapSidebar()">☰</div>
+
+                    <!-- /Outdoor  -->
+
+                </div>
+                <!-- /World Map Panel -->
+            </div>
+            <!-- /Outdoor Navi -->
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer_"> </div>
+</body>
+
+</html>

@@ -1,0 +1,32 @@
+
+<!--
+  This Behavior Tree replans the global path periodically at 1 Hz and it also has
+  recovery actions.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+
+    <!-- Try the short pipeline; on failure, run RecoveryActions, then retry (up to N times) -->
+    <RecoveryNode name="NavigateWithRecovery" number_of_retries="6">
+      
+      <!-- SHORT PIPELINE (unchanged behavior, just explicit ids) -->
+      <PipelineSequence name="NavigateShort">
+        <DistanceController distance="1.0">
+          <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+        </DistanceController>
+        <FollowPath path="{path}" controller_id="FollowPath"/>
+      </PipelineSequence>
+
+      <!-- RECOVERY: clear local & global costmaps, then wait -->
+      <SequenceStar name="RecoveryActions">
+        <ClearEntireCostmap name="ClearLocalCostmap"
+                            service_name="local_costmap/clear_entirely_local_costmap"/>
+        <ClearEntireCostmap name="ClearGlobalCostmap"
+                            service_name="global_costmap/clear_entirely_global_costmap"/>
+        <Wait wait_duration="5"/>
+      </SequenceStar>
+
+    </RecoveryNode>
+
+  </BehaviorTree>
+</root>

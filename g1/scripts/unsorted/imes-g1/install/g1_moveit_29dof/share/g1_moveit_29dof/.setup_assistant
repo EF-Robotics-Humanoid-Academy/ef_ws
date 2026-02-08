@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: go2_description
+    relative_path: xacro/robot.xacro
+  srdf:
+    relative_path: config/go2_om_li.srdf
+  package_settings:
+    author_name: Salman Omar Sohail
+    author_email: support@mybotshop.de
+    generated_timestamp: 1663146822
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity

@@ -1,0 +1,216 @@
+-- The C compiler identification is GNU 9.4.0
+-- The CXX compiler identification is GNU 9.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+-- Using PYTHON_EXECUTABLE: /usr/bin/python3
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found std_srvs: 2.0.5 (/opt/ros/foxy/share/std_srvs/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)
+-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  
+-- Found FastRTPS: /opt/ros/foxy/include  
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)
+-- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") 
+-- Found ament_cmake_ros: 0.9.2 (/opt/ros/foxy/share/ament_cmake_ros/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3.5") 
+-- Found python_cmake_module: 0.8.1 (/opt/ros/foxy/share/python_cmake_module/cmake)
+-- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.8.so (found suitable version "3.8.10", minimum required is "3.5") 
+-- Using PYTHON_EXECUTABLE: /usr/bin/python3
+-- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8
+-- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so
+-- Found PythonExtra: .so  
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/unitree/imes-g1/build/g1_interface
+[  2%] [34m[1mGenerating C code for ROS interfaces[0m
+[  4%] [34m[1mGenerating C++ code for ROS interfaces[0m
+[  4%] Built target g1_interface__cpp
+[  6%] [34m[1mGenerating C++ type support dispatch for ROS interfaces[0m
+[  8%] [34m[1mGenerating C++ type support for eProsima Fast-RTPS[0m
+[ 10%] [34m[1mGenerating C++ introspection for ROS interfaces[0m
+[ 12%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_generator_c.dir/rosidl_generator_c/g1_interface/srv/detail/g1_light__functions.c.o[0m
+[ 14%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_generator_c.dir/rosidl_generator_c/g1_interface/srv/detail/g1_modes__functions.c.o[0m
+[ 17%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_generator_c.dir/rosidl_generator_c/g1_interface/srv/detail/g1_volume__functions.c.o[0m
+[ 19%] [32m[1mLinking C shared library libg1_interface__rosidl_generator_c.so[0m
+[ 19%] Built target g1_interface__rosidl_generator_c
+[ 21%] [34m[1mGenerating C introspection for ROS interfaces[0m
+[ 23%] [34m[1mGenerating C type support dispatch for ROS interfaces[0m
+[ 25%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/g1_interface/srv/g1_modes__type_support.cpp.o[0m
+[ 27%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/g1_interface/srv/g1_light__type_support.cpp.o[0m
+[ 29%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/g1_interface/srv/g1_volume__type_support.cpp.o[0m
+[ 31%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/g1_interface/srv/detail/g1_modes__type_support.cpp.o[0m
+[ 34%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/g1_interface/srv/detail/g1_light__type_support.cpp.o[0m
+[ 36%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/g1_interface/srv/detail/dds_fastrtps/g1_modes__type_support.cpp.o[0m
+[ 38%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_c.dir/rosidl_typesupport_c/g1_interface/srv/g1_modes__type_support.cpp.o[0m
+[ 40%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/g1_interface/srv/detail/g1_modes__type_support.c.o[0m
+[ 42%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_c.dir/rosidl_typesupport_c/g1_interface/srv/g1_light__type_support.cpp.o[0m
+[ 44%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/g1_interface/srv/detail/g1_light__type_support.c.o[0m
+[ 46%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_c.dir/rosidl_typesupport_c/g1_interface/srv/g1_volume__type_support.cpp.o[0m
+[ 48%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/g1_interface/srv/detail/g1_volume__type_support.c.o[0m
+[ 51%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/g1_interface/srv/detail/dds_fastrtps/g1_light__type_support.cpp.o[0m
+[ 53%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/g1_interface/srv/detail/g1_volume__type_support.cpp.o[0m
+[ 55%] [32m[1mLinking C shared library libg1_interface__rosidl_typesupport_introspection_c.so[0m
+[ 57%] [32m[1mLinking CXX shared library libg1_interface__rosidl_typesupport_c.so[0m
+[ 57%] Built target g1_interface__rosidl_typesupport_introspection_c
+[ 59%] [32m[1mLinking CXX shared library libg1_interface__rosidl_typesupport_cpp.so[0m
+[ 61%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/g1_interface/srv/detail/dds_fastrtps/g1_volume__type_support.cpp.o[0m
+[ 61%] Built target g1_interface__rosidl_typesupport_c
+[ 61%] Built target g1_interface__rosidl_typesupport_cpp
+[ 63%] [32m[1mLinking CXX shared library libg1_interface__rosidl_typesupport_introspection_cpp.so[0m
+[ 63%] Built target g1_interface__rosidl_typesupport_introspection_cpp
+[ 65%] [32m[1mLinking CXX shared library libg1_interface__rosidl_typesupport_fastrtps_cpp.so[0m
+[ 65%] Built target g1_interface__rosidl_typesupport_fastrtps_cpp
+[ 68%] [34m[1mGenerating C type support for eProsima Fast-RTPS[0m
+[ 70%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/g1_interface/srv/detail/g1_modes__type_support_c.cpp.o[0m
+[ 72%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/g1_interface/srv/detail/g1_light__type_support_c.cpp.o[0m
+[ 74%] [32mBuilding CXX object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/g1_interface/srv/detail/g1_volume__type_support_c.cpp.o[0m
+[ 76%] [32m[1mLinking CXX shared library libg1_interface__rosidl_typesupport_fastrtps_c.so[0m
+[ 76%] Built target g1_interface__rosidl_typesupport_fastrtps_c
+[ 76%] Built target g1_interface
+[ 78%] [34m[1mGenerating Python code for ROS interfaces[0m
+[ 78%] Built target g1_interface__py
+[ 80%] [32mBuilding C object CMakeFiles/g1_interface__python.dir/rosidl_generator_py/g1_interface/srv/_g1_modes_s.c.o[0m
+[ 85%] [32mBuilding C object CMakeFiles/g1_interface__python.dir/rosidl_generator_py/g1_interface/srv/_g1_volume_s.c.o[0m
+[ 82%] [32mBuilding C object CMakeFiles/g1_interface__python.dir/rosidl_generator_py/g1_interface/srv/_g1_light_s.c.o[0m
+[ 87%] [32m[1mLinking C shared library rosidl_generator_py/g1_interface/libg1_interface__python.so[0m
+[ 87%] Built target g1_interface__python
+[ 89%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_typesupport_fastrtps_c__pyext.dir/rosidl_generator_py/g1_interface/_g1_interface_s.ep.rosidl_typesupport_fastrtps_c.c.o[0m
+[ 91%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_typesupport_introspection_c__pyext.dir/rosidl_generator_py/g1_interface/_g1_interface_s.ep.rosidl_typesupport_introspection_c.c.o[0m
+[ 93%] [32mBuilding C object CMakeFiles/g1_interface__rosidl_typesupport_c__pyext.dir/rosidl_generator_py/g1_interface/_g1_interface_s.ep.rosidl_typesupport_c.c.o[0m
+[ 95%] [32m[1mLinking C shared library rosidl_generator_py/g1_interface/g1_interface_s__rosidl_typesupport_c.cpython-38-aarch64-linux-gnu.so[0m
+[ 97%] [32m[1mLinking CXX shared library rosidl_generator_py/g1_interface/g1_interface_s__rosidl_typesupport_fastrtps_c.cpython-38-aarch64-linux-gnu.so[0m
+[100%] [32m[1mLinking C shared library rosidl_generator_py/g1_interface/g1_interface_s__rosidl_typesupport_introspection_c.cpython-38-aarch64-linux-gnu.so[0m
+[100%] Built target g1_interface__rosidl_typesupport_c__pyext
+[100%] Built target g1_interface__rosidl_typesupport_introspection_c__pyext
+[100%] Built target g1_interface__rosidl_typesupport_fastrtps_c__pyext
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/rosidl_interfaces/g1_interface
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_generator_c__visibility_control.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__functions.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__struct.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__type_support.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__functions.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__struct.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__type_support.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__functions.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__struct.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__type_support.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_light.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_modes.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_volume.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/library_path.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/library_path.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_fastrtps_c.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_fastrtps_c.so
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_fastrtps_cpp.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_fastrtps_cpp.so
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_typesupport_introspection_c__visibility_control.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_introspection_c.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_introspection_c.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_introspection_c.h
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_generator_cpp__visibility_control.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__builder.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__struct.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__traits.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__type_support.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__builder.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__struct.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__traits.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__type_support.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__builder.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__struct.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__traits.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__type_support.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_light.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_modes.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_volume.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_introspection_cpp.hpp
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/pythonpath.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/pythonpath.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/__init__.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/__init__.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/_g1_light.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/_g1_modes.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/_g1_volume.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/g1_interface_s__rosidl_typesupport_fastrtps_c.cpython-38-aarch64-linux-gnu.so
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/g1_interface_s__rosidl_typesupport_introspection_c.cpython-38-aarch64-linux-gnu.so
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/g1_interface_s__rosidl_typesupport_c.cpython-38-aarch64-linux-gnu.so
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__python.so
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes.idl
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light.idl
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume.idl
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes.srv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes_Request.msg
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes_Response.msg
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light.srv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light_Request.msg
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light_Response.msg
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume.srv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume_Request.msg
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume_Response.msg
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/package_run_dependencies/g1_interface
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/parent_prefix_path/g1_interface
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/ament_prefix_path.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/ament_prefix_path.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/path.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/path.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.bash
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.zsh
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/package.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/packages/g1_interface
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/rosidl_cmake-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_libraries-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_targets-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interfaceConfig.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interfaceConfig-version.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/package.xml
+-- Installing: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_generator_c.so
+-- Set runtime path of "/home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_generator_c.so" to ""
+-- Installing: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_introspection_c.so
+-- Set runtime path of "/home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_introspection_c.so" to ""
+-- Installing: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_c.so
+-- Set runtime path of "/home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_c.so" to ""
+-- Installing: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_introspection_cpp.so
+-- Set runtime path of "/home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_introspection_cpp.so" to ""
+-- Installing: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_cpp.so
+-- Set runtime path of "/home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_cpp.so" to ""
+Compiling '/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/__init__.py'...
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_generator_cExport.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_generator_cExport-noconfig.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cExport.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cExport-noconfig.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cExport.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cExport-noconfig.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_generator_cppExport.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cppExport.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cppExport.cmake
+-- Installing: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cppExport-noconfig.cmake

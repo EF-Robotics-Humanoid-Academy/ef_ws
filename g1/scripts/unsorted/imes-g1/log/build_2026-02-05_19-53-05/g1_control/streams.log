@@ -1,0 +1,51 @@
+[0.080s] Invoking command in '/home/unitree/imes-g1/build/g1_control': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_control -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_control
+[1.348s] -- The C compiler identification is GNU 9.4.0
+[1.348s] -- The CXX compiler identification is GNU 9.4.0
+[1.348s] -- Detecting C compiler ABI info
+[1.348s] -- Detecting C compiler ABI info - done
+[1.348s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.348s] -- Detecting C compile features
+[1.348s] -- Detecting C compile features - done
+[1.349s] -- Detecting CXX compiler ABI info
+[1.349s] -- Detecting CXX compiler ABI info - done
+[1.349s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[1.349s] -- Detecting CXX compile features
+[1.349s] -- Detecting CXX compile features - done
+[1.349s] -- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+[1.349s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+[1.349s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[1.349s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.349s] -- Found rclpy: 1.0.13 (/opt/ros/foxy/share/rclpy/cmake)
+[1.349s] -- Configuring done
+[1.350s] -- Generating done
+[1.350s] -- Build files have been written to: /home/unitree/imes-g1/build/g1_control
+[1.359s] Invoked command in '/home/unitree/imes-g1/build/g1_control' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_control -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_control
+[1.361s] Invoking command in '/home/unitree/imes-g1/build/g1_control': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_control -- -j8 -l8
+[1.535s] Invoked command in '/home/unitree/imes-g1/build/g1_control' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_control -- -j8 -l8
+[1.537s] Invoking command in '/home/unitree/imes-g1/build/g1_control': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_control
+[1.730s] -- Install configuration: ""
+[1.732s] -- Execute custom install script
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/config/localization.yaml
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/config/teleop.yaml
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/control.launch.py
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/ekf_localization.launch.py
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/odom_fastlio.launch.py
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/odom_rf2o.launch.py
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/teleop.launch.py
+[1.732s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/twistmux.launch.py
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/package_run_dependencies/g1_control
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/parent_prefix_path/g1_control
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/ament_prefix_path.sh
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/ament_prefix_path.dsv
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/path.sh
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/path.dsv
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.bash
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.sh
+[1.733s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.zsh
+[1.734s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.dsv
+[1.734s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/package.dsv
+[1.734s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/packages/g1_control
+[1.734s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/cmake/g1_controlConfig.cmake
+[1.734s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/cmake/g1_controlConfig-version.cmake
+[1.734s] -- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/package.xml
+[1.819s] Invoked command in '/home/unitree/imes-g1/build/g1_control' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_control

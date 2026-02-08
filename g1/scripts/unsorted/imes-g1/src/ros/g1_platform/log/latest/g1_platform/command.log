@@ -1,0 +1,2 @@
+Invoking command in '/root/ros2_ws/imes-g1/src/ros/g1_platform/build/g1_platform': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake /root/ros2_ws/imes-g1/src/ros/g1_platform -DCMAKE_INSTALL_PREFIX=/root/ros2_ws/imes-g1/src/ros/g1_platform/install/g1_platform
+Invoked command in '/root/ros2_ws/imes-g1/src/ros/g1_platform/build/g1_platform' returned '1': CMAKE_PREFIX_PATH=/opt/ros/foxy /usr/bin/cmake /root/ros2_ws/imes-g1/src/ros/g1_platform -DCMAKE_INSTALL_PREFIX=/root/ros2_ws/imes-g1/src/ros/g1_platform/install/g1_platform

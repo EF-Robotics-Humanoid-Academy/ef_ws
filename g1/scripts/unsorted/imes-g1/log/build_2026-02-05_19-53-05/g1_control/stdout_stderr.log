@@ -1,0 +1,45 @@
+-- The C compiler identification is GNU 9.4.0
+-- The CXX compiler identification is GNU 9.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+-- Using PYTHON_EXECUTABLE: /usr/bin/python3
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found rclpy: 1.0.13 (/opt/ros/foxy/share/rclpy/cmake)
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/unitree/imes-g1/build/g1_control
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/config/localization.yaml
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/config/teleop.yaml
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/control.launch.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/ekf_localization.launch.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/odom_fastlio.launch.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/odom_rf2o.launch.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/teleop.launch.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/twistmux.launch.py
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/package_run_dependencies/g1_control
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/parent_prefix_path/g1_control
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/ament_prefix_path.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/ament_prefix_path.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/path.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/path.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.bash
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.sh
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.zsh
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/package.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/packages/g1_control
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/cmake/g1_controlConfig.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/cmake/g1_controlConfig-version.cmake
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/package.xml

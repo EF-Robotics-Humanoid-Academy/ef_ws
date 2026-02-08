@@ -1,0 +1,1 @@
+Invoking command in '/home/unitree/imes-g1/build/g1_control': CONDA_PROMPT_MODIFIER=(base) /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_control -- -j8 -l8

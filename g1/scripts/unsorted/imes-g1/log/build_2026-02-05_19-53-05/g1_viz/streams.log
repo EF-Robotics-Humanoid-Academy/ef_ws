@@ -1,0 +1,45 @@
+[0.100s] Invoking command in '/home/unitree/imes-g1/build/g1_viz': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_viz -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_viz
+[4.019s] -- The C compiler identification is GNU 9.4.0
+[4.020s] -- The CXX compiler identification is GNU 9.4.0
+[4.020s] -- Detecting C compiler ABI info
+[4.026s] -- Detecting C compiler ABI info - done
+[4.027s] -- Check for working C compiler: /usr/bin/cc - skipped
+[4.027s] -- Detecting C compile features
+[4.027s] -- Detecting C compile features - done
+[4.027s] -- Detecting CXX compiler ABI info
+[4.027s] -- Detecting CXX compiler ABI info - done
+[4.027s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[4.027s] -- Detecting CXX compile features
+[4.027s] -- Detecting CXX compile features - done
+[4.028s] -- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+[4.028s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+[4.028s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[4.028s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[4.576s] -- Configuring done
+[4.594s] -- Generating done
+[4.597s] -- Build files have been written to: /home/unitree/imes-g1/build/g1_viz
+[4.649s] Invoked command in '/home/unitree/imes-g1/build/g1_viz' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_viz -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_viz
+[4.650s] Invoking command in '/home/unitree/imes-g1/build/g1_viz': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_viz -- -j8 -l8
+[5.758s] Invoked command in '/home/unitree/imes-g1/build/g1_viz' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_viz -- -j8 -l8
+[5.759s] Invoking command in '/home/unitree/imes-g1/build/g1_viz': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_viz
+[8.164s] -- Install configuration: ""
+[8.164s] -- Execute custom install script
+[8.164s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/launch/view_robot.launch.py
+[8.164s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/rviz/model.rviz
+[8.164s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/rviz/robot.rviz
+[8.164s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/ament_index/resource_index/package_run_dependencies/g1_viz
+[8.164s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/ament_index/resource_index/parent_prefix_path/g1_viz
+[8.164s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/environment/ament_prefix_path.sh
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/environment/ament_prefix_path.dsv
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/environment/path.sh
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/environment/path.dsv
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/local_setup.bash
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/local_setup.sh
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/local_setup.zsh
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/local_setup.dsv
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/package.dsv
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/ament_index/resource_index/packages/g1_viz
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/cmake/g1_vizConfig.cmake
+[8.165s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/cmake/g1_vizConfig-version.cmake
+[8.166s] -- Symlinking: /home/unitree/imes-g1/install/g1_viz/share/g1_viz/package.xml
+[8.407s] Invoked command in '/home/unitree/imes-g1/build/g1_viz' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_viz

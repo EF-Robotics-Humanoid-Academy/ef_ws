@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<!--
+Software License Agreement (BSD)
+
+@author    Salman Omar Sohail <support@mybotshop.de>
+@copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+-->
+
+<head>
+    <title>Safety Instructions - Robot Webserver</title>
+    <meta name="author" content="MYBOTSHOP - Salman Omar Sohail">
+    <link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../static/css/all.min.css" type="text/css" /> <!-- Font Awesome -->
+    <script src="../static/scripts/common_script.js" defer></script>
+</head>
+
+<body>
+    <div class="navbar"> </div>
+    <div class="container">
+        <!-- Background Media -->
+        <div class="background-media">
+            <img src="../static/media/wallpaper/wallpaper.webp" alt="Background GIF">
+        </div>
+
+        <div class="panel-container">
+            <div class="panel safety-panel">
+                <h3>Additional <span style="color: var(--project-color);">Notes </span></h3>
+                <ul>
+                    <li>WebGUI Experimental</li>
+                    <li>WebGUI LLM disabled</li>
+                    <li>WebGUI SLAM disabled</li>
+                    <li>WebGUI Indoor  Navi disabled</li>
+                    <li>WebGUI Outdoor Navi disabled</li>
+                </ul>
+            </div>
+
+            <div class="panel safety-panel">
+                <h3>Relevant <span style="color: var(--project-color);">Standards </span>& <span
+                        style="color: var(--project-color);">Guidelines</span></h3>
+                <ul>
+                    <li><a href="https://www.iso.org/search.html?PROD_isoorg_en%5Bquery%5D=robotics" target="_blank">ISO
+                            Robotic Standards</a> –
+                    </li>
+
+                    <li><a href="https://www.osha.gov/robotics" target="_blank">OSHA Robotics Safety Page</a> – US
+                        safety
+                        practices for robot operation in the workplace.</li>
+
+                    <li><a href="https://www.iso.org/standard/75539.html" target="_blank">ISO 8373:2021</a> – Robotics —
+                        Vocabulary</li>
+
+                    <li><a href="https://www.iso.org/standard/73933.html" target="_blank">ISO 10218-1:2025</a> –
+                        Robotics — Safety requirements
+                        Part 1: Industrial robots</li>
+
+                    <li><a href="https://www.iso.org/standard/73933.html" target="_blank">ISO 10218-2:2025</a> –
+                        Robotics — Safety requirements
+                        Part 2: Industrial robot applications and robot cells</li>
+
+                    <li><a href="https://www.iso.org/standard/76769.html" target="_blank">ISO 23725:2024</a> –
+                        Autonomous system and fleet management system interoperability</li>
+                </ul>
+            </div>
+        </div>
+
+
+        <div class="panel-container">
+            <div class="panel safety-panel">
+                <h2>Robotic <span style="color: var(--project-color);">Manipulator</span> Safety</h2>
+                <hr class="heading-line">
+                <ul>
+                    <li>When deploying robotic manipulators, it is imperative to prioritize safety procedures to
+                        mitigate
+                        risks and ensure secure operations. The following guidelines delineate key safety measures when
+                        working with robotic manipulators.</li>
+                </ul>
+
+                <h3>Work <span style="color: var(--project-color);">Area</span> Safety</h3>
+                <ul>
+                    <li>Maintain a clean and well-organized work area. Cluttered or inadequately lit spaces can impede
+                        the
+                        proper functioning of sensors and hinder precise manipulation.</li>
+                    <li>Avoid operating robotic manipulators in hazardous environments, such as those containing
+                        corrosive
+                        substances, extreme temperatures, or sharp objects that may damage the manipulator.</li>
+                    <li>Ensure that only authorized personnel are present in the vicinity during manipulator operation
+                        to
+                        prevent interference and ensure a safe working environment.</li>
+                </ul>
+
+                <h3>Electrical <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Ensure the manipulator’s power system adheres to IEC and ISO electrical safety standards. Use
+                        grounded enclosures, overcurrent protection, and certified connectors.</li>
+                    <li>Implement safeguards to protect the manipulator from adverse environmental conditions, such as
+                        exposure to moisture or extreme temperatures.</li>
+                    <li>Regularly inspect power cables and connections, promptly replacing damaged components to
+                        minimize
+                        the risk of electrical issues.</li>
+                </ul>
+
+                <h3>Manipulation <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Implement collision detection systems to prevent unintended contact with objects, humans, or
+                        other
+                        equipment during manipulation tasks.</li>
+                    <li>Define and enforce safety zones around the manipulator’s workspace to minimize the risk of
+                        unintended interactions with personnel or other objects.</li>
+                    <li>Regularly calibrate and test the manipulator’s sensors and systems to ensure precise and
+                        reliable
+                        performance during manipulation tasks.</li>
+                </ul>
+
+                <h3>Emergency <span style="color: var(--project-color);">Response</span></h3>
+                <ul>
+                    <li>Install an emergency stop mechanism to swiftly halt manipulator operation in unforeseen
+                        circumstances or emergencies.</li>
+                    <li>Clearly mark and communicate emergency stop locations within the manipulator’s operational area.
+                    </li>
+                    <li>Conduct regular emergency response drills to ensure personnel are familiar with procedures for
+                        handling unexpected situations during manipulator operation.</li>
+                </ul>
+
+                <h3>Data Security and <span style="color: var(--project-color);">Privacy</span></h3>
+                <ul>
+                    <li>Implement robust cybersecurity measures to safeguard the manipulator’s control systems and data
+                        from
+                        unauthorized access or manipulation.</li>
+                    <li>Ensure compliance with privacy regulations when collecting, storing, or transmitting data
+                        captured
+                        by the manipulator’s sensors.</li>
+                </ul>
+
+                <h3>Human Interaction <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Integrate sensors and communication systems to detect and respond to the presence of humans in
+                        the
+                        manipulator’s vicinity.</li>
+                    <li>Clearly communicate the manipulator’s operational status and intentions using visual and audible
+                        signals to alert nearby individuals.</li>
+                    <li>Establish protocols for safe human-robot collaboration, particularly in shared workspaces where
+                        manipulators are in operation.</li>
+                </ul>
+
+                <h3>Residual <span style="color: var(--project-color);">Risks</span></h3>
+                <ul>
+                    <li>Despite the implementation of safety measures, certain residual risks may persist. These
+                        include:
+                    </li>
+                    <li>Impairment of sensor functionality.</li>
+                    <li>Risk of collisions during complex manipulation tasks.</li>
+                    <li>Cybersecurity vulnerabilities.</li>
+                    <li>Unintended human interactions due to unforeseen circumstances.</li>
+                    <li>Robotic manipulators are sophisticated technologies that demand correct usage to avoid accidents
+                        and
+                        ensure a secure environment. Please adhere to proper procedures diligently, prioritizing both
+                        precision and safety.</li>
+                </ul>
+            </div>
+            <div class="panel safety-panel">
+                <h2>Autonomous <span style="color: var(--project-color);">Robot</span> Safety</h2>
+                <hr class="heading-line">
+                <ul>
+                    <li>When deploying autonomous mobile robots, prioritizing safety procedures is essential to prevent
+                        accidents and ensure secure operations. The following guidelines outline key safety measures
+                        when
+                        working with an autonomous mobile robot:</li>
+                </ul>
+
+                <h3>Work Area <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Maintain a clean and well-lit work area. Cluttered or poorly illuminated spaces can impede the
+                        proper functioning of sensors and navigation systems.</li>
+                    <li>Avoid operating autonomous mobile robots in explosive atmospheres, such as areas with flammable
+                        liquids, gases, or dust. The robot’s components may pose a risk in such environments.</li>
+                    <li>Keep bystanders and unauthorized personnel at a safe distance during robot operation to prevent
+                        interference with autonomous navigation.</li>
+                </ul>
+
+                <h3>Electrical <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Ensure the robot’s power system adheres to electrical safety standards. Regularly inspect and
+                        maintain power components to prevent malfunctions.</li>
+                    <li>Implement mechanisms to protect the robot from adverse weather conditions, such as rain or wet
+                        environments.</li>
+                    <li>Regularly inspect power cables and connections and replace damaged components promptly to
+                        minimize
+                        the risk of electrical issues.</li>
+                </ul>
+
+                <h3>Navigation <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Implement obstacle detection and avoidance systems to prevent collisions with objects, people,
+                        or
+                        other robots.</li>
+                    <li>Define and enforce safety zones within the robot’s operational area to minimize the risk of
+                        unintended interactions with personnel or other equipment.</li>
+                    <li>Regularly calibrate and test the robot’s navigation sensors and systems to ensure accurate and
+                        reliable performance.</li>
+                </ul>
+
+                <h3>Emergency <span style="color: var(--project-color);">Response</span></h3>
+                <ul>
+                    <li>Install an emergency stop mechanism to quickly halt the robot’s operation in case of unforeseen
+                        circumstances or emergencies.</li>
+                    <li>Clearly mark and communicate emergency stop locations throughout the robot’s operational area.
+                    </li>
+                    <li>Conduct regular emergency response drills to ensure personnel are familiar with procedures for
+                        handling unexpected situations.</li>
+                </ul>
+
+                <h3>Data Security and <span style="color: var(--project-color);">Privacy</span></h3>
+                <ul>
+                    <li>Implement robust cybersecurity measures to protect the robot’s control systems and data from
+                        unauthorized access or manipulation.</li>
+                    <li>Ensure compliance with privacy regulations when collecting, storing, or transmitting data
+                        captured
+                        by the robot’s sensors.</li>
+                </ul>
+
+                <h3>Human Interaction <span style="color: var(--project-color);">Safety</span></h3>
+                <ul>
+                    <li>Integrate sensors and communication systems to detect and respond to the presence of humans in
+                        the
+                        robot’s vicinity.</li>
+                    <li>Clearly communicate the robot’s operational status and intentions using visual and audible
+                        signals
+                        to alert nearby individuals.</li>
+                    <li>Establish protocols for safe human-robot collaboration, especially in shared workspaces where
+                        one or more mobile robots are in operation.</li>
+                </ul>
+
+                <h3>Residual <span style="color: var(--project-color);">Risks</span></h3>
+                <ul>
+                    <li>Despite the implementation of safety measures, certain residual risks may persist. These
+                        include:
+                    </li>
+                    <li>Impairment of sensor functionality.</li>
+                    <li>Risk of collisions in crowded or dynamic environments.</li>
+                    <li>Cybersecurity vulnerabilities.</li>
+                    <li>Unintended human interactions due to unforeseen circumstances.</li>
+                    <li>Autonomous Mobile Robots (AMR) are advanced technologies that require correct usage to avoid
+                        accidents and ensure a secure environment. Learn and follow the proper procedures diligently;
+                        prioritize both quality and safety.</li>
+                </ul>
+
+            </div>
+        </div>
+
+        <button onclick="window.scrollTo({top: 0, behavior: 'smooth'});" class="back-to-top"><i
+                class="fas fa-arrow-up"></i> Top</button>
+
+        <script>
+            window.onscroll = function () {
+                const button = document.querySelector('.back-to-top');
+                if (document.documentElement.scrollTop > 200) {
+                    button.style.display = 'block';
+                } else {
+                    button.style.display = 'none';
+                }
+            };
+
+        </script>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer_"> </div>
+
+</body>
+
+</html>

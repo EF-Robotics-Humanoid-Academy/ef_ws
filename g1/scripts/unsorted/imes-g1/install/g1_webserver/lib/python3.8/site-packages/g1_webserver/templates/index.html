@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" class="light-theme">
+<!--
+Software License Agreement (BSD)
+
+@author    Salman Omar Sohail <support@mybotshop.de>
+@copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+-->
+
+<head>
+    <title>Robot Webserver</title>
+    <link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../static/css/all.min.css" type="text/css" /> <!-- Font Awesome -->
+    <script src="../static/scripts/common_script.js" defer></script>
+    <script src="../static/scripts/system_script.js" defer></script>
+    <script type="module" src="../static/scripts/chart.min.js"></script>
+    <script type="module" src="../static/scripts/model_scripts.js" defer></script>
+</head>
+
+<body>
+
+    <div class="navbar"> </div>
+    <div class="nav-hover-zone">
+        <i class="fa-solid fa-chevron-down nav-indicator"></i>
+    </div>
+    <nav class="top-nav">
+        <ul>
+            <li><a href="#robot-software">Software</a></li>
+            <li><a href="#robot-internet">Internet Protocol</a></li>
+            <li><a href="#system-panel">System Panel</a></li>
+            <li><a href="#system-status">System Status</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+        <!-- Background Media -->
+        <div class="background-media">
+            <img src="../static/media/wallpaper/wallpaper.webp" alt="Background GIF">
+        </div>
+
+        <!-- Main Panels -->
+        <div class="panel-container">
+
+            <!-- Robot Information -->
+            <div class="panel information-panel">
+                <h2>Robot <span style="color: var(--project-color);">Information</span></h2>
+                <hr class="heading-line">
+
+                <!-- Software -->
+                <h3 id="robot-software">Robot <span style="color: var(--project-color);">Software</span></h3>
+                <table>
+                    <tbody>
+                        <tr>
+                            <td>Model Type</td>
+                            <td>Research</td>
+                        </tr>
+
+                        <tr>
+                            <td>Order Number</td>
+                            <td>AU202507221316</td>
+                        </tr>
+
+                        <tr>
+                            <td>Unitree G1 S/N</td>
+                            <td>G1-5849</td>
+                        </tr>
+
+                        <tr>
+                            <td>ROS Distribution</td>
+                            <td>Foxy</td>
+                        </tr>
+
+                    </tbody>
+                </table>
+                <!-- /Software -->
+
+                <!-- IPs -->
+                <h3 id="robot-internet">Robot <span style="color: var(--project-color);">Internet</span> Protocol</span>
+                </h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>IP</th>
+                            <th>Username</th>
+                            <th>Password</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>G1 MCU</td>
+                            <td><a href="http://192.168.123.161" target="_blank">192.168.123.161</a></td>
+                            <td>x</td>
+                            <td>x</td>
+                        </tr>
+                        <tr>
+                            <td>G1 Nvidia</td>
+                            <td><a href="http://192.168.123.164" target="_blank">192.168.123.164</a></td>
+                            <td>unitree</td>
+                            <td>123</td>
+                        </tr>
+                        <tr>
+                            <td>G1 Nvidia Webserver</td>
+                            <td><a href="http://192.168.123.164:9000" target="_blank">192.168.123.164:9000</a></td>
+                            <td>admin</td>
+                            <td>mybotshop</td>
+                        </tr>
+                        <tr>
+                            <td>G1 Access Point</td>
+                            <td><a href="http://192.168.123.200" target="_blank">192.168.123.200</a></td>
+                            <td>G1-5G</td>
+                            <td>mybotshop</td>
+                        </tr>
+                        <tr>
+                            <td>G1 Access Point (Web)</td>
+                            <td><a href="http://192.168.123.200" target="_blank">192.168.123.200</a></td>
+                            <td>admin</td>
+                            <td>Admin123</td>
+                        </tr>
+                        <tr>
+                            <td>G1 Steamdeck</td>
+                            <td><a href="http://192.168.123.150" target="_blank">192.168.123.150</a></td>
+                            <td>deck</td>
+                            <td>mybotshop</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- /IPs -->
+
+            </div>
+            <!-- /Robot Information -->
+
+            <!-- Robot Model -->
+            <div class="panel information-panel">
+                <h2>Quadruped <span style="color: var(--project-color);">G1</span></h2>
+                <hr class="heading-line">
+                <!-- Model Viewer -->
+                <div class="model-viewer-container">
+                    <model-viewer src="../static/models/g1.glb" alt="MYBOTSHOP ROBOT" auto-rotate camera-controls
+                        shadow-intensity="1" exposure="0.5" camera-orbit="45deg 65deg" auto-rotate-speed="2"
+                        environment-image="neutral" style="width: 90%; height: 600px; border-radius: 20px;">
+                    </model-viewer>
+                </div>
+                <!-- Model Viewer -->
+            </div>
+            <!-- /Robot Model -->
+        </div>
+        <!-- /Main Panels -->
+
+        <!-- Secondary Panel -->
+        <div class="panel-container">
+
+            <!-- Info Board -->
+            <div class="panel system-panel">
+                <h2>
+                    <div class="loading">
+                        <svg width="60px" height="44px">
+                            <polyline points="0.157 23.954, 14 23.954, 21.843 44, 43 0, 50 24, 60 24" id="back">
+                            </polyline>
+                            <polyline points="0.157 23.954, 14 23.954, 21.843 44, 43 0, 50 24, 60 24" id="front">
+                            </polyline>
+                        </svg>
+                    </div>System <span style="color: var(--project-color);">Alerts</span>
+                </h2>
+                <hr class="heading-line">
+
+                <!-- System Information -->
+                <h3 id="system-panel">System <span style="color: var(--project-color);">Panel</span></h3>
+                <div id="systemInfo">Fetching system status...</div>
+
+                <!-- Health Alerts -->
+                <h3 id="health-alerts">System <span style="color: var(--project-color);">Status</span></h3>
+                <div id="healthAlerts">Fetching health alerts...</div>
+
+            </div>
+            <!-- /Info Board -->
+
+            <!-- System Monitoring Graphs -->
+            <div class="panel graphs-panel">
+                <h2 id="system-status">System <span style="color: var(--project-color);">Monitoring</span></h2>
+                <hr class="heading-line">
+
+                <div class="graphs-container">
+                    <div class="graph-item">
+                        <div class="graph-title">CPU Usage</div>
+                        <canvas id="cpuChart" class="graph-canvas"></canvas>
+                    </div>
+
+                    <div class="graph-item">
+                        <div class="graph-title">Memory Usage</div>
+                        <canvas id="memoryChart" class="graph-canvas"></canvas>
+                    </div>
+
+                    <div class="graph-item">
+                        <div class="graph-title">Network Usage</div>
+                        <canvas id="networkChart" class="graph-canvas"></canvas>
+                    </div>
+
+                    <div class="graph-item">
+                        <div class="graph-title">CPU Temperature</div>
+                        <canvas id="temperatureChart" class="graph-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+            <!-- /System Monitoring Graphs -->
+        </div>
+        <!-- /Secondary Panel -->
+    </div>
+    <!-- /Container -->
+
+    <!-- Footer -->
+    <div class="footer_"> </div>
+
+</body>
+
+</html>

@@ -1,0 +1,4 @@
+Invoking command in '/home/unitree/imes-g1/build/g1_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_navigation -- -j8 -l8
+Invoked command in '/home/unitree/imes-g1/build/g1_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_navigation -- -j8 -l8
+Invoking command in '/home/unitree/imes-g1/build/g1_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_navigation
+Invoked command in '/home/unitree/imes-g1/build/g1_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_navigation

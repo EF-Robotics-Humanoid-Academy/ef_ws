@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<!--
+Software License Agreement (BSD)
+
+@author    Salman Omar Sohail <support@mybotshop.de>
+@copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+-->
+
+<head>
+    <title>Login - Robot Webserver</title>
+    <link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../static/css/all.min.css" type="text/css" /> <!-- Font Awesome -->
+    <script src="../static/scripts/common_script.js" defer></script>
+</head>
+
+<body>
+    <div class="navbar"> </div>
+    <div class="container">
+        <!-- Background Media -->
+        <div class="background-media">
+            <img src="../static/media/wallpaper/wallpaper.webp" alt="Background GIF">
+        </div>
+
+        <div class="panel-container-login">
+
+            <!-- Single Panel -->
+            <div class="panellogin system-panel">
+                <h2>Robot <span style="color: var(--project-color);">Access</span></h2>
+                <hr class="heading-line">
+
+                <!-- Login Panel -->
+                <div style="display: flex; justify-content: center; align-items: center;">
+                    <form action="{{ url_for('login') }}" method="POST">
+                        <div class="form-group">
+                            <label for="username">Username:</label>
+                            <input type="text" id="username" name="username" placeholder="admin" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password:</label>
+                            <input type="password" id="password" name="password" placeholder="mybotshop" required>
+                        </div>
+                        <button type="submit" class="login-button">Submit</button>
+                    </form>
+                </div>
+                <!-- /Login Panel -->
+
+                <br>
+
+                <!-- Disclaimer -->
+                <blockquote>
+                    <strong>Disclaimer</strong><br>
+                    <p>
+                        The reader acknowledges and agrees that any information or materials provided by
+                        <a href="https://www.mybotshop.de/">MYBOTSHOP GmbH</a> are for <strong>R&amp;D purposes</strong>
+                        only.
+                        Any kind of services are provided "AS IS" and without any representation or warranty of any
+                        kind, express or implied, including but not limited to any warranty of merchantability, fitness
+                        for a particular purpose, non-infringement, or any other warranty.
+                        <a href="https://www.mybotshop.de/">MYBOTSHOP GmbH</a> shall not be liable for any damages,
+                        including but not limited to direct, indirect, special, incidental, or consequential
+                        damages, arising out of or in connection with the use or inability to use the information or
+                        materials provided. This limitation on liability shall apply regardless of the form of action,
+                        whether in
+                        contract, tort, or otherwise.
+                    </p>
+                </blockquote>
+
+                <div class="noteblockquote">
+                    <strong>Update Robot Panel</strong><br>
+                    <span>• Username and Password can be updated in <span
+                            style="color: rgb(182, 159, 59);">(robot)_webserver</span> config file.</span><br>
+                    <span>• To apply the changes, execute the command <span style="color: rgb(182, 159, 59);">ros2 run
+                            (robot_bringup) startup_installer.py</span></span><br>
+                </div>
+
+                <div class="warningblockquote">
+                    <strong>Warning:</strong><br>
+                    <span>• Click buttons once.</span><br>
+                    <span>• Do not spam click! </span><br>
+                    <span>• Button activation may take +2 seconds to a minute to complete.</span><br>
+                </div>
+                <!-- /Access Panel Information -->
+            </div>
+
+            <!-- /Single Panel -->
+        </div>
+    </div>
+
+    <!-- Popup -->
+    <div class="popup_"> </div>
+
+    <!-- Footer -->
+    <div class="footer_"> </div>
+
+</body>
+
+</html>

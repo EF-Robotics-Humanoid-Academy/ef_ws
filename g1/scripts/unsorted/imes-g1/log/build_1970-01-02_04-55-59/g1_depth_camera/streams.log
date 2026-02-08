@@ -1,0 +1,24 @@
+[0.105s] Invoking command in '/home/unitree/imes-g1/build/g1_depth_camera': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble CONDA_PROMPT_MODIFIER=(base_copy) PS1=(base_copy) \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ /usr/bin/cmake --build /home/unitree/imes-g1/build/g1_depth_camera -- -j8 -l8
+[0.530s] -- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.530s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.531s] -- Found ament_lint_auto: 0.12.11 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[0.531s] -- Configuring incomplete, errors occurred!
+[0.531s] See also "/home/unitree/imes-g1/build/g1_depth_camera/CMakeFiles/CMakeOutput.log".
+[0.531s] make: Warning: File 'Makefile' has modification time 1770221319 s in the future
+[0.531s] Traceback (most recent call last):
+[0.531s]   File "/opt/ros/humble/share/ament_cmake_core/cmake/core/package_xml_2_cmake.py", line 22, in <module>
+[0.531s]     from catkin_pkg.package import parse_package_string
+[0.531s] ModuleNotFoundError: No module named 'catkin_pkg'
+[0.531s] [31mCMake Error at /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:95 (message):
+[0.532s]   execute_process(/home/unitree/miniconda3/bin/python3
+[0.532s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/package_xml_2_cmake.py
+[0.532s]   /home/unitree/imes-g1/src/ros/g1_depth_camera/package.xml
+[0.532s]   /home/unitree/imes-g1/build/g1_depth_camera/ament_cmake_core/package.cmake)
+[0.532s]   returned error code 1
+[0.532s] Call Stack (most recent call first):
+[0.532s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:49 (_ament_package_xml)
+[0.532s]   /opt/ros/humble/share/ament_lint_auto/cmake/ament_lint_auto_find_test_dependencies.cmake:31 (ament_package_xml)
+[0.532s]   CMakeLists.txt:23 (ament_lint_auto_find_test_dependencies)
+[0.532s] 
+[0.532s] [0m
+[0.532s] make: *** [Makefile:226: cmake_check_build_system] Error 1

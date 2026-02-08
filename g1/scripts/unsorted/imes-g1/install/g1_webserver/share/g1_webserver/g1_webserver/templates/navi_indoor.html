@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<!--
+Software License Agreement (BSD)
+
+@author    Salman Omar Sohail <support@mybotshop.de>
+@copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+-->
+
+<head>
+    <title>Navigation - Robot Webserver</title>
+    <link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../static/css/all.min.css" type="text/css" /> <!-- Font Awesome -->
+    <script src="../static/scripts/common_script.js" defer></script>
+    <script src="../static/scripts/console_script.js" defer></script>
+    <script src="../static/scripts/navi_indoor_script.js" defer></script>
+</head>
+
+<body>
+    <div class="navbar"> </div>
+
+    <div class="container">
+
+        <!-- Background Media -->
+        <div class="background-media">
+            <img src="../static/media/wallpaper/wallpaper.webp" alt="Background GIF">
+        </div>
+
+        <!-- Main Panels -->
+        <div class="panel-container">
+
+            <!-- Nav2 Map Panel -->
+            <div class="panel map-panel">
+                <h2>Indoor <span style="color: var(--project-color);">Navigation</span></h2>
+                <hr class="heading-line">
+
+                <div class="dual-container">
+                    <div class="dual-block">
+                        <!-- SLAM -->
+                        <h3>SLAM <span style="color: var(--project-color);">Control</span></h3>
+                        <div class="control-block-buttons-canvas">
+                            <button onclick="webButton('start_slam')">SLAM Start</button>
+                            <button class="deactivate-btn" onclick="webButton('stop_slam')">SLAM Stop</button>
+                            <button class="config-btn" onclick="webButton('save_map')">SLAM Save</button>
+                        </div>
+                        <br>
+                        <br>
+                        <!-- Nav2 -->
+                        <h3>Nav2 <span style="color: var(--project-color);">Control</span></h3>
+                        <div class="control-block-buttons-canvas">
+                            <button onclick="webButton('start_map_navi')">Nav2 Start</button>
+                            <button class="deactivate-btn" onclick="webButton('stop_map_navi')">Nav2 Stop</button>
+                        </div>
+                    </div>
+                    <!-- Response -->
+                    <div class="dual-right-block">
+                        <h3>Web <span style="color: var(--project-color);">Log</span></h3>
+                        <span style="color: var(--project-color); font-weight: bolder;">Server Response:</span>
+                        <span id="responseMessage">Awaiting commands</span>
+                    </div>
+                </div>
+            </div>
+            <!-- /Nav2 Panel -->
+
+            <!-- Map Panel -->
+            <div class="panel map-panel">
+                <h2>Indoor <span style="color: var(--project-color);">Map</span></h2>
+                <hr class="heading-line">
+
+                <div id="mapLoader" class="loading_scanner">
+                    <span></span>
+                </div>
+                <!-- Indoor Map -->
+                <div class="map-wrapper">
+                    <img id="mapImage" src="" alt="Map will load here..."
+                        style="width: 600px; height: 600px; border-radius: 10px; display: none;">
+                </div>
+                <!-- /Indoor Map -->
+            </div>
+            <!-- /Map Panel -->
+        </div>
+        <!-- /Main Panel -->
+    </div>
+
+    <!-- Footer -->
+    <div class="footer_"> </div>
+</body>
+
+</html>

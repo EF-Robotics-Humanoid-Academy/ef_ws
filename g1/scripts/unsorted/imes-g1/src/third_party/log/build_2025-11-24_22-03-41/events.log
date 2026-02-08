@@ -1,0 +1,834 @@
+[0.000000] (-) TimerEvent: {}
+[0.000378] (domain_bridge) JobQueued: {'identifier': 'domain_bridge', 'dependencies': OrderedDict()}
+[0.000619] (kiss_icp) JobQueued: {'identifier': 'kiss_icp', 'dependencies': OrderedDict()}
+[0.000768] (livox_ros_driver2) JobQueued: {'identifier': 'livox_ros_driver2', 'dependencies': OrderedDict()}
+[0.001171] (unitree_api) JobQueued: {'identifier': 'unitree_api', 'dependencies': OrderedDict()}
+[0.001211] (unitree_go) JobQueued: {'identifier': 'unitree_go', 'dependencies': OrderedDict()}
+[0.001416] (unitree_hg) JobQueued: {'identifier': 'unitree_hg', 'dependencies': OrderedDict()}
+[0.001613] (unitree_ros2_example) JobQueued: {'identifier': 'unitree_ros2_example', 'dependencies': OrderedDict([('unitree_api', '/home/unitree/imes-g1/src/third_party/install/unitree_api'), ('unitree_go', '/home/unitree/imes-g1/src/third_party/install/unitree_go'), ('unitree_hg', '/home/unitree/imes-g1/src/third_party/install/unitree_hg')])}
+[0.001712] (unitree_api) JobStarted: {'identifier': 'unitree_api'}
+[0.019054] (unitree_go) JobStarted: {'identifier': 'unitree_go'}
+[0.033220] (unitree_hg) JobStarted: {'identifier': 'unitree_hg'}
+[0.046919] (domain_bridge) JobStarted: {'identifier': 'domain_bridge'}
+[0.060970] (kiss_icp) JobStarted: {'identifier': 'kiss_icp'}
+[0.074365] (livox_ros_driver2) JobStarted: {'identifier': 'livox_ros_driver2'}
+[0.092923] (unitree_api) JobProgress: {'identifier': 'unitree_api', 'progress': 'cmake'}
+[0.093763] (unitree_api) Command: {'cmd': ['/home/unitree/.local/bin/cmake', '/home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/cyclonedds_ws/src/unitree/unitree_api', '-DROS_EDITION=ROS2', '-DHUMBLE_ROS=', '-DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/unitree_api'], 'cwd': '/home/unitree/imes-g1/src/third_party/build/unitree_api', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'unitree'), ('SSH_CLIENT', '192.168.123.51 46248 22'), ('LC_TIME', 'en_US.UTF-8'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/local/lib:/home/unitree/imes-g1/install/g1_platform/lib:/home/unitree/imes-g1/install/unitree_hg/lib:/home/unitree/imes-g1/install/unitree_go/lib:/home/unitree/imes-g1/install/unitree_api/lib:/home/unitree/imes-g1/install/livox_ros_driver2/lib:/home/unitree/imes-g1/install/kiss_icp/lib:/home/unitree/imes-g1/install/g1_interface/lib:/home/unitree/imes-g1/install/domain_bridge/lib:/usr/lib/aarch64-linux-gnu/gazebo-11/plugins:/opt/ros/foxy/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/lib/aarch64-linux-gnu:/opt/ros/foxy/lib:/usr/local/cuda-11.4/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/unitree'), ('CONDA_SHLVL', '0'), ('CYCLONEDDS_URI', '/home/unitree/cyclonedds_ws/cyclonedds.xml'), ('OLDPWD', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('LC_MONETARY', 'en_US.UTF-8'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/unitree/imes-g1/install:/home/unitree/cyclonedds_ws/install'), ('ROS_DISTRO', 'foxy'), ('LOGNAME', 'unitree'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', 'ROS2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '4'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/unitree/.local/bin:/home/unitree/miniconda3/condabin:/home/unitree/imes-g1/install/unitree_ros2_example/bin:/opt/ros/foxy/bin:/usr/local/cuda-11.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('PAPERSIZE', 'letter'), ('LC_ADDRESS', 'en_US.UTF-8'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LC_TELEPHONE', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy'), ('CONDA_PYTHON_EXE', '/home/unitree/miniconda3/bin/python'), ('SHELL', '/bin/bash'), ('LC_NAME', 'en_US.UTF-8'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('G1_NS', 'g1_unit_5849'), ('LC_MEASUREMENT', 'en_US.UTF-8'), ('LC_IDENTIFICATION', 'en_US.UTF-8'), ('PWD', '/home/unitree/imes-g1/src/third_party/build/unitree_api'), ('CONDA_EXE', '/home/unitree/miniconda3/bin/conda'), ('SSH_CONNECTION', '192.168.123.51 46248 192.168.123.164 22'), ('XDG_DATA_DIRS', '/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/unitree/imes-g1/install/g1_platform/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_hg/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_go/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages:/home/unitree/imes-g1/install/livox_ros_driver2/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_webserver/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_host/lib/python3.8/site-packages:/home/unitree/imes-g1/install/domain_bridge/lib/python3.8/site-packages:/opt/ros/foxy/lib/python3.8/site-packages'), ('LC_NUMERIC', 'en_US.UTF-8'), ('LC_PAPER', 'en_US.UTF-8'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy')]), 'shell': False}
+[0.100554] (-) TimerEvent: {}
+[0.105528] (unitree_go) JobProgress: {'identifier': 'unitree_go', 'progress': 'cmake'}
+[0.107274] (unitree_go) Command: {'cmd': ['/home/unitree/.local/bin/cmake', '/home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/cyclonedds_ws/src/unitree/unitree_go', '-DROS_EDITION=ROS2', '-DHUMBLE_ROS=', '-DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/unitree_go'], 'cwd': '/home/unitree/imes-g1/src/third_party/build/unitree_go', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'unitree'), ('SSH_CLIENT', '192.168.123.51 46248 22'), ('LC_TIME', 'en_US.UTF-8'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/local/lib:/home/unitree/imes-g1/install/g1_platform/lib:/home/unitree/imes-g1/install/unitree_hg/lib:/home/unitree/imes-g1/install/unitree_go/lib:/home/unitree/imes-g1/install/unitree_api/lib:/home/unitree/imes-g1/install/livox_ros_driver2/lib:/home/unitree/imes-g1/install/kiss_icp/lib:/home/unitree/imes-g1/install/g1_interface/lib:/home/unitree/imes-g1/install/domain_bridge/lib:/usr/lib/aarch64-linux-gnu/gazebo-11/plugins:/opt/ros/foxy/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/lib/aarch64-linux-gnu:/opt/ros/foxy/lib:/usr/local/cuda-11.4/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/unitree'), ('CONDA_SHLVL', '0'), ('CYCLONEDDS_URI', '/home/unitree/cyclonedds_ws/cyclonedds.xml'), ('OLDPWD', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('LC_MONETARY', 'en_US.UTF-8'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/unitree/imes-g1/install:/home/unitree/cyclonedds_ws/install'), ('ROS_DISTRO', 'foxy'), ('LOGNAME', 'unitree'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', 'ROS2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '4'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/unitree/.local/bin:/home/unitree/miniconda3/condabin:/home/unitree/imes-g1/install/unitree_ros2_example/bin:/opt/ros/foxy/bin:/usr/local/cuda-11.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('PAPERSIZE', 'letter'), ('LC_ADDRESS', 'en_US.UTF-8'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LC_TELEPHONE', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy'), ('CONDA_PYTHON_EXE', '/home/unitree/miniconda3/bin/python'), ('SHELL', '/bin/bash'), ('LC_NAME', 'en_US.UTF-8'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('G1_NS', 'g1_unit_5849'), ('LC_MEASUREMENT', 'en_US.UTF-8'), ('LC_IDENTIFICATION', 'en_US.UTF-8'), ('PWD', '/home/unitree/imes-g1/src/third_party/build/unitree_go'), ('CONDA_EXE', '/home/unitree/miniconda3/bin/conda'), ('SSH_CONNECTION', '192.168.123.51 46248 192.168.123.164 22'), ('XDG_DATA_DIRS', '/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/unitree/imes-g1/install/g1_platform/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_hg/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_go/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages:/home/unitree/imes-g1/install/livox_ros_driver2/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_webserver/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_host/lib/python3.8/site-packages:/home/unitree/imes-g1/install/domain_bridge/lib/python3.8/site-packages:/opt/ros/foxy/lib/python3.8/site-packages'), ('LC_NUMERIC', 'en_US.UTF-8'), ('LC_PAPER', 'en_US.UTF-8'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy')]), 'shell': False}
+[0.112529] (unitree_hg) JobProgress: {'identifier': 'unitree_hg', 'progress': 'cmake'}
+[0.113399] (unitree_hg) Command: {'cmd': ['/home/unitree/.local/bin/cmake', '/home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/cyclonedds_ws/src/unitree/unitree_hg', '-DROS_EDITION=ROS2', '-DHUMBLE_ROS=', '-DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/unitree_hg'], 'cwd': '/home/unitree/imes-g1/src/third_party/build/unitree_hg', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'unitree'), ('SSH_CLIENT', '192.168.123.51 46248 22'), ('LC_TIME', 'en_US.UTF-8'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/local/lib:/home/unitree/imes-g1/install/g1_platform/lib:/home/unitree/imes-g1/install/unitree_hg/lib:/home/unitree/imes-g1/install/unitree_go/lib:/home/unitree/imes-g1/install/unitree_api/lib:/home/unitree/imes-g1/install/livox_ros_driver2/lib:/home/unitree/imes-g1/install/kiss_icp/lib:/home/unitree/imes-g1/install/g1_interface/lib:/home/unitree/imes-g1/install/domain_bridge/lib:/usr/lib/aarch64-linux-gnu/gazebo-11/plugins:/opt/ros/foxy/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/lib/aarch64-linux-gnu:/opt/ros/foxy/lib:/usr/local/cuda-11.4/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/unitree'), ('CONDA_SHLVL', '0'), ('CYCLONEDDS_URI', '/home/unitree/cyclonedds_ws/cyclonedds.xml'), ('OLDPWD', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('LC_MONETARY', 'en_US.UTF-8'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/unitree/imes-g1/install:/home/unitree/cyclonedds_ws/install'), ('ROS_DISTRO', 'foxy'), ('LOGNAME', 'unitree'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', 'ROS2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '4'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/unitree/.local/bin:/home/unitree/miniconda3/condabin:/home/unitree/imes-g1/install/unitree_ros2_example/bin:/opt/ros/foxy/bin:/usr/local/cuda-11.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('PAPERSIZE', 'letter'), ('LC_ADDRESS', 'en_US.UTF-8'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LC_TELEPHONE', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy'), ('CONDA_PYTHON_EXE', '/home/unitree/miniconda3/bin/python'), ('SHELL', '/bin/bash'), ('LC_NAME', 'en_US.UTF-8'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('G1_NS', 'g1_unit_5849'), ('LC_MEASUREMENT', 'en_US.UTF-8'), ('LC_IDENTIFICATION', 'en_US.UTF-8'), ('PWD', '/home/unitree/imes-g1/src/third_party/build/unitree_hg'), ('CONDA_EXE', '/home/unitree/miniconda3/bin/conda'), ('SSH_CONNECTION', '192.168.123.51 46248 192.168.123.164 22'), ('XDG_DATA_DIRS', '/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/unitree/imes-g1/install/g1_platform/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_hg/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_go/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages:/home/unitree/imes-g1/install/livox_ros_driver2/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_webserver/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_host/lib/python3.8/site-packages:/home/unitree/imes-g1/install/domain_bridge/lib/python3.8/site-packages:/opt/ros/foxy/lib/python3.8/site-packages'), ('LC_NUMERIC', 'en_US.UTF-8'), ('LC_PAPER', 'en_US.UTF-8'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy')]), 'shell': False}
+[0.118839] (domain_bridge) JobProgress: {'identifier': 'domain_bridge', 'progress': 'cmake'}
+[0.119800] (domain_bridge) Command: {'cmd': ['/home/unitree/.local/bin/cmake', '/home/unitree/imes-g1/src/third_party/tools/05Jun2025_domain_bridge_foxy', '-DROS_EDITION=ROS2', '-DHUMBLE_ROS=', '-DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/domain_bridge'], 'cwd': '/home/unitree/imes-g1/src/third_party/build/domain_bridge', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'unitree'), ('SSH_CLIENT', '192.168.123.51 46248 22'), ('LC_TIME', 'en_US.UTF-8'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/local/lib:/home/unitree/imes-g1/install/g1_platform/lib:/home/unitree/imes-g1/install/unitree_hg/lib:/home/unitree/imes-g1/install/unitree_go/lib:/home/unitree/imes-g1/install/unitree_api/lib:/home/unitree/imes-g1/install/livox_ros_driver2/lib:/home/unitree/imes-g1/install/kiss_icp/lib:/home/unitree/imes-g1/install/g1_interface/lib:/home/unitree/imes-g1/install/domain_bridge/lib:/usr/lib/aarch64-linux-gnu/gazebo-11/plugins:/opt/ros/foxy/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/lib/aarch64-linux-gnu:/opt/ros/foxy/lib:/usr/local/cuda-11.4/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/unitree'), ('CONDA_SHLVL', '0'), ('CYCLONEDDS_URI', '/home/unitree/cyclonedds_ws/cyclonedds.xml'), ('OLDPWD', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('LC_MONETARY', 'en_US.UTF-8'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/unitree/imes-g1/install:/home/unitree/cyclonedds_ws/install'), ('ROS_DISTRO', 'foxy'), ('LOGNAME', 'unitree'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', 'ROS2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '4'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/unitree/.local/bin:/home/unitree/miniconda3/condabin:/home/unitree/imes-g1/install/unitree_ros2_example/bin:/opt/ros/foxy/bin:/usr/local/cuda-11.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('PAPERSIZE', 'letter'), ('LC_ADDRESS', 'en_US.UTF-8'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LC_TELEPHONE', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy'), ('CONDA_PYTHON_EXE', '/home/unitree/miniconda3/bin/python'), ('SHELL', '/bin/bash'), ('LC_NAME', 'en_US.UTF-8'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('G1_NS', 'g1_unit_5849'), ('LC_MEASUREMENT', 'en_US.UTF-8'), ('LC_IDENTIFICATION', 'en_US.UTF-8'), ('PWD', '/home/unitree/imes-g1/src/third_party/build/domain_bridge'), ('CONDA_EXE', '/home/unitree/miniconda3/bin/conda'), ('SSH_CONNECTION', '192.168.123.51 46248 192.168.123.164 22'), ('XDG_DATA_DIRS', '/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/unitree/imes-g1/install/g1_platform/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_hg/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_go/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages:/home/unitree/imes-g1/install/livox_ros_driver2/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_webserver/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_host/lib/python3.8/site-packages:/home/unitree/imes-g1/install/domain_bridge/lib/python3.8/site-packages:/opt/ros/foxy/lib/python3.8/site-packages'), ('LC_NUMERIC', 'en_US.UTF-8'), ('LC_PAPER', 'en_US.UTF-8'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy')]), 'shell': False}
+[0.126264] (kiss_icp) JobProgress: {'identifier': 'kiss_icp', 'progress': 'cmake'}
+[0.127239] (kiss_icp) Command: {'cmd': ['/home/unitree/.local/bin/cmake', '/home/unitree/imes-g1/src/third_party/tools/28Aug2025_kiss-icp/ros', '-DROS_EDITION=ROS2', '-DHUMBLE_ROS=', '-DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/kiss_icp'], 'cwd': '/home/unitree/imes-g1/src/third_party/build/kiss_icp', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'unitree'), ('SSH_CLIENT', '192.168.123.51 46248 22'), ('LC_TIME', 'en_US.UTF-8'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/local/lib:/home/unitree/imes-g1/install/g1_platform/lib:/home/unitree/imes-g1/install/unitree_hg/lib:/home/unitree/imes-g1/install/unitree_go/lib:/home/unitree/imes-g1/install/unitree_api/lib:/home/unitree/imes-g1/install/livox_ros_driver2/lib:/home/unitree/imes-g1/install/kiss_icp/lib:/home/unitree/imes-g1/install/g1_interface/lib:/home/unitree/imes-g1/install/domain_bridge/lib:/usr/lib/aarch64-linux-gnu/gazebo-11/plugins:/opt/ros/foxy/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/lib/aarch64-linux-gnu:/opt/ros/foxy/lib:/usr/local/cuda-11.4/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/unitree'), ('CONDA_SHLVL', '0'), ('CYCLONEDDS_URI', '/home/unitree/cyclonedds_ws/cyclonedds.xml'), ('OLDPWD', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('LC_MONETARY', 'en_US.UTF-8'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/unitree/imes-g1/install:/home/unitree/cyclonedds_ws/install'), ('ROS_DISTRO', 'foxy'), ('LOGNAME', 'unitree'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', 'ROS2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '4'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/unitree/.local/bin:/home/unitree/miniconda3/condabin:/home/unitree/imes-g1/install/unitree_ros2_example/bin:/opt/ros/foxy/bin:/usr/local/cuda-11.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('PAPERSIZE', 'letter'), ('LC_ADDRESS', 'en_US.UTF-8'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LC_TELEPHONE', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy'), ('CONDA_PYTHON_EXE', '/home/unitree/miniconda3/bin/python'), ('SHELL', '/bin/bash'), ('LC_NAME', 'en_US.UTF-8'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('G1_NS', 'g1_unit_5849'), ('LC_MEASUREMENT', 'en_US.UTF-8'), ('LC_IDENTIFICATION', 'en_US.UTF-8'), ('PWD', '/home/unitree/imes-g1/src/third_party/build/kiss_icp'), ('CONDA_EXE', '/home/unitree/miniconda3/bin/conda'), ('SSH_CONNECTION', '192.168.123.51 46248 192.168.123.164 22'), ('XDG_DATA_DIRS', '/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/unitree/imes-g1/install/g1_platform/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_hg/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_go/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages:/home/unitree/imes-g1/install/livox_ros_driver2/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_webserver/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_host/lib/python3.8/site-packages:/home/unitree/imes-g1/install/domain_bridge/lib/python3.8/site-packages:/opt/ros/foxy/lib/python3.8/site-packages'), ('LC_NUMERIC', 'en_US.UTF-8'), ('LC_PAPER', 'en_US.UTF-8'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy')]), 'shell': False}
+[0.136125] (livox_ros_driver2) JobProgress: {'identifier': 'livox_ros_driver2', 'progress': 'cmake'}
+[0.137270] (livox_ros_driver2) Command: {'cmd': ['/home/unitree/.local/bin/cmake', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2', '-DROS_EDITION=ROS2', '-DHUMBLE_ROS=', '-DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/livox_ros_driver2'], 'cwd': '/home/unitree/imes-g1/src/third_party/build/livox_ros_driver2', 'env': OrderedDict([('LESSOPEN', '| /usr/bin/lesspipe %s'), ('USER', 'unitree'), ('SSH_CLIENT', '192.168.123.51 46248 22'), ('LC_TIME', 'en_US.UTF-8'), ('XDG_SESSION_TYPE', 'tty'), ('SHLVL', '2'), ('LD_LIBRARY_PATH', '/usr/local/lib:/home/unitree/imes-g1/install/g1_platform/lib:/home/unitree/imes-g1/install/unitree_hg/lib:/home/unitree/imes-g1/install/unitree_go/lib:/home/unitree/imes-g1/install/unitree_api/lib:/home/unitree/imes-g1/install/livox_ros_driver2/lib:/home/unitree/imes-g1/install/kiss_icp/lib:/home/unitree/imes-g1/install/g1_interface/lib:/home/unitree/imes-g1/install/domain_bridge/lib:/usr/lib/aarch64-linux-gnu/gazebo-11/plugins:/opt/ros/foxy/opt/yaml_cpp_vendor/lib:/opt/ros/foxy/opt/rviz_ogre_vendor/lib:/opt/ros/foxy/lib/aarch64-linux-gnu:/opt/ros/foxy/lib:/usr/local/cuda-11.4/lib64:'), ('MOTD_SHOWN', 'pam'), ('HOME', '/home/unitree'), ('CONDA_SHLVL', '0'), ('CYCLONEDDS_URI', '/home/unitree/cyclonedds_ws/cyclonedds.xml'), ('OLDPWD', '/home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2'), ('SSH_TTY', '/dev/pts/0'), ('ROS_PYTHON_VERSION', '3'), ('LC_MONETARY', 'en_US.UTF-8'), ('DBUS_SESSION_BUS_ADDRESS', 'unix:path=/run/user/1000/bus'), ('COLCON_PREFIX_PATH', '/home/unitree/imes-g1/install:/home/unitree/cyclonedds_ws/install'), ('ROS_DISTRO', 'foxy'), ('LOGNAME', 'unitree'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', 'ROS2'), ('XDG_SESSION_CLASS', 'user'), ('TERM', 'xterm-256color'), ('XDG_SESSION_ID', '4'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/home/unitree/.local/bin:/home/unitree/miniconda3/condabin:/home/unitree/imes-g1/install/unitree_ros2_example/bin:/opt/ros/foxy/bin:/usr/local/cuda-11.4/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin'), ('PAPERSIZE', 'letter'), ('LC_ADDRESS', 'en_US.UTF-8'), ('XDG_RUNTIME_DIR', '/run/user/1000'), ('LANG', 'en_US.UTF-8'), ('LC_TELEPHONE', 'en_US.UTF-8'), ('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp'), ('LS_COLORS', 'rs=0:di=01;34:ln=01;36:mh=00:pi=40;33:so=01;35:do=01;35:bd=40;33;01:cd=40;33;01:or=40;31;01:mi=00:su=37;41:sg=30;43:ca=30;41:tw=30;42:ow=34;42:st=37;44:ex=01;32:*.tar=01;31:*.tgz=01;31:*.arc=01;31:*.arj=01;31:*.taz=01;31:*.lha=01;31:*.lz4=01;31:*.lzh=01;31:*.lzma=01;31:*.tlz=01;31:*.txz=01;31:*.tzo=01;31:*.t7z=01;31:*.zip=01;31:*.z=01;31:*.dz=01;31:*.gz=01;31:*.lrz=01;31:*.lz=01;31:*.lzo=01;31:*.xz=01;31:*.zst=01;31:*.tzst=01;31:*.bz2=01;31:*.bz=01;31:*.tbz=01;31:*.tbz2=01;31:*.tz=01;31:*.deb=01;31:*.rpm=01;31:*.jar=01;31:*.war=01;31:*.ear=01;31:*.sar=01;31:*.rar=01;31:*.alz=01;31:*.ace=01;31:*.zoo=01;31:*.cpio=01;31:*.7z=01;31:*.rz=01;31:*.cab=01;31:*.wim=01;31:*.swm=01;31:*.dwm=01;31:*.esd=01;31:*.jpg=01;35:*.jpeg=01;35:*.mjpg=01;35:*.mjpeg=01;35:*.gif=01;35:*.bmp=01;35:*.pbm=01;35:*.pgm=01;35:*.ppm=01;35:*.tga=01;35:*.xbm=01;35:*.xpm=01;35:*.tif=01;35:*.tiff=01;35:*.png=01;35:*.svg=01;35:*.svgz=01;35:*.mng=01;35:*.pcx=01;35:*.mov=01;35:*.mpg=01;35:*.mpeg=01;35:*.m2v=01;35:*.mkv=01;35:*.webm=01;35:*.ogm=01;35:*.mp4=01;35:*.m4v=01;35:*.mp4v=01;35:*.vob=01;35:*.qt=01;35:*.nuv=01;35:*.wmv=01;35:*.asf=01;35:*.rm=01;35:*.rmvb=01;35:*.flc=01;35:*.avi=01;35:*.fli=01;35:*.flv=01;35:*.gl=01;35:*.dl=01;35:*.xcf=01;35:*.xwd=01;35:*.yuv=01;35:*.cgm=01;35:*.emf=01;35:*.ogv=01;35:*.ogx=01;35:*.aac=00;36:*.au=00;36:*.flac=00;36:*.m4a=00;36:*.mid=00;36:*.midi=00;36:*.mka=00;36:*.mp3=00;36:*.mpc=00;36:*.ogg=00;36:*.ra=00;36:*.wav=00;36:*.oga=00;36:*.opus=00;36:*.spx=00;36:*.xspf=00;36:'), ('AMENT_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge:/opt/ros/foxy'), ('CONDA_PYTHON_EXE', '/home/unitree/miniconda3/bin/python'), ('SHELL', '/bin/bash'), ('LC_NAME', 'en_US.UTF-8'), ('LESSCLOSE', '/usr/bin/lesspipe %s %s'), ('G1_NS', 'g1_unit_5849'), ('LC_MEASUREMENT', 'en_US.UTF-8'), ('LC_IDENTIFICATION', 'en_US.UTF-8'), ('PWD', '/home/unitree/imes-g1/src/third_party/build/livox_ros_driver2'), ('CONDA_EXE', '/home/unitree/miniconda3/bin/conda'), ('SSH_CONNECTION', '192.168.123.51 46248 192.168.123.164 22'), ('XDG_DATA_DIRS', '/usr/local/share:/usr/share:/var/lib/snapd/desktop'), ('PYTHONPATH', '/home/unitree/imes-g1/install/g1_platform/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_hg/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_go/lib/python3.8/site-packages:/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages:/home/unitree/imes-g1/install/livox_ros_driver2/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_webserver/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages:/home/unitree/imes-g1/install/g1_host/lib/python3.8/site-packages:/home/unitree/imes-g1/install/domain_bridge/lib/python3.8/site-packages:/opt/ros/foxy/lib/python3.8/site-packages'), ('LC_NUMERIC', 'en_US.UTF-8'), ('LC_PAPER', 'en_US.UTF-8'), ('COLCON', '1'), ('CMAKE_PREFIX_PATH', '/home/unitree/imes-g1/install/unitree_ros2_example:/home/unitree/imes-g1/install/g1_platform:/home/unitree/imes-g1/install/unitree_hg:/home/unitree/imes-g1/install/unitree_go:/home/unitree/imes-g1/install/unitree_api:/home/unitree/imes-g1/install/livox_ros_driver2:/home/unitree/imes-g1/install/kiss_icp:/home/unitree/imes-g1/install/g1_webserver:/home/unitree/imes-g1/install/g1_viz:/home/unitree/imes-g1/install/g1_obstacle_avoidance:/home/unitree/imes-g1/install/g1_navigation:/home/unitree/imes-g1/install/g1_moveit_29dof:/home/unitree/imes-g1/install/g1_llm:/home/unitree/imes-g1/install/g1_lidar:/home/unitree/imes-g1/install/g1_interface:/home/unitree/imes-g1/install/g1_host:/home/unitree/imes-g1/install/g1_description:/home/unitree/imes-g1/install/g1_depth_camera:/home/unitree/imes-g1/install/g1_control:/home/unitree/imes-g1/install/g1_bringup:/home/unitree/imes-g1/install/domain_bridge')]), 'shell': False}
+[0.200727] (-) TimerEvent: {}
+[0.301458] (-) TimerEvent: {}
+[0.322216] (unitree_hg) StdoutLine: {'line': b'-- The C compiler identification is GNU 9.4.0\n'}
+[0.326188] (livox_ros_driver2) StdoutLine: {'line': b'-- The C compiler identification is GNU 9.4.0\n'}
+[0.326677] (unitree_go) StdoutLine: {'line': b'-- The C compiler identification is GNU 9.4.0\n'}
+[0.326973] (domain_bridge) StdoutLine: {'line': b'-- The C compiler identification is GNU 9.4.0\n'}
+[0.328962] (unitree_api) StdoutLine: {'line': b'-- The C compiler identification is GNU 9.4.0\n'}
+[0.349181] (kiss_icp) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 9.4.0\n'}
+[0.370019] (kiss_icp) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.401655] (-) TimerEvent: {}
+[0.425733] (unitree_api) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 9.4.0\n'}
+[0.426357] (unitree_go) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 9.4.0\n'}
+[0.426544] (livox_ros_driver2) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 9.4.0\n'}
+[0.426696] (domain_bridge) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 9.4.0\n'}
+[0.427219] (unitree_hg) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 9.4.0\n'}
+[0.443463] (unitree_api) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.444108] (unitree_hg) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.445026] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.445396] (unitree_go) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.445597] (domain_bridge) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[0.483559] (kiss_icp) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.497890] (kiss_icp) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.498576] (kiss_icp) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.499731] (kiss_icp) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.501841] (-) TimerEvent: {}
+[0.541513] (unitree_hg) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.542432] (unitree_go) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.543042] (domain_bridge) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.543195] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.545452] (unitree_api) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[0.553920] (unitree_hg) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.554280] (unitree_hg) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.554977] (unitree_hg) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.557923] (unitree_api) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.558317] (unitree_api) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.558963] (unitree_api) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.559774] (unitree_go) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.560239] (domain_bridge) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.560657] (livox_ros_driver2) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[0.560846] (unitree_go) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.561044] (unitree_hg) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.561302] (unitree_go) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.561434] (domain_bridge) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.561572] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[0.561688] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.561860] (domain_bridge) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[0.564563] (unitree_api) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.566547] (unitree_go) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.566935] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.567087] (domain_bridge) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[0.602029] (-) TimerEvent: {}
+[0.672728] (unitree_api) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.673317] (unitree_go) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.674125] (unitree_hg) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.675618] (domain_bridge) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.678219] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[0.687103] (unitree_api) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.687776] (unitree_api) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.687985] (unitree_hg) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.688173] (unitree_go) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.688527] (unitree_api) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.688688] (unitree_hg) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.688803] (unitree_go) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.689235] (domain_bridge) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.689477] (unitree_go) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.689631] (unitree_hg) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.689991] (domain_bridge) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.691112] (domain_bridge) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.693377] (livox_ros_driver2) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[0.693921] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[0.694861] (livox_ros_driver2) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[0.696830] (livox_ros_driver2) StdoutLine: {'line': b'-- livox_ros_driver2 version: 1.0.0\n'}
+[0.699226] (unitree_api) StdoutLine: {'line': b'-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)\n'}
+[0.699476] (unitree_go) StdoutLine: {'line': b'-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)\n'}
+[0.699615] (unitree_hg) StdoutLine: {'line': b'-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)\n'}
+[0.699738] (domain_bridge) StdoutLine: {'line': b'-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)\n'}
+[0.702067] (-) TimerEvent: {}
+[0.704423] (livox_ros_driver2) StdoutLine: {'line': b'-- Found ament_cmake_auto: 0.9.12 (/opt/ros/foxy/share/ament_cmake_auto/cmake)\n'}
+[0.756643] (domain_bridge) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") \n'}
+[0.757286] (unitree_hg) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") \n'}
+[0.757483] (unitree_api) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") \n'}
+[0.757638] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[0.757752] (unitree_hg) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[0.757855] (unitree_go) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") \n'}
+[0.757976] (unitree_go) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[0.758069] (unitree_api) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[0.769818] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") \n'}
+[0.770101] (livox_ros_driver2) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[0.802213] (-) TimerEvent: {}
+[0.902791] (-) TimerEvent: {}
+[1.003344] (-) TimerEvent: {}
+[1.103942] (-) TimerEvent: {}
+[1.183202] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0mCMake Error: File /home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2/package.xml does not exist.\x1b[0m\n'}
+[1.183726] (livox_ros_driver2) StderrLine: {'line': b'\x1b[31mCMake Error at /opt/ros/foxy/share/ament_cmake_core/cmake/core/stamp.cmake:24 (configure_file):\n'}
+[1.183873] (livox_ros_driver2) StderrLine: {'line': b'  configure_file Problem configuring file\n'}
+[1.183984] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[1.184086] (livox_ros_driver2) StderrLine: {'line': b'  /opt/ros/foxy/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:73 (stamp)\n'}
+[1.184186] (livox_ros_driver2) StderrLine: {'line': b'  /opt/ros/foxy/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:49 (_ament_package_xml)\n'}
+[1.184282] (livox_ros_driver2) StderrLine: {'line': b'  /opt/ros/foxy/share/ament_cmake_auto/cmake/ament_auto_find_build_dependencies.cmake:42 (ament_package_xml)\n'}
+[1.184374] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:37 (ament_auto_find_build_dependencies)\n'}
+[1.184463] (livox_ros_driver2) StderrLine: {'line': b'\n'}
+[1.184548] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[1.187731] (unitree_api) StdoutLine: {'line': b'-- Found geometry_msgs: 2.0.5 (/opt/ros/foxy/share/geometry_msgs/cmake)\n'}
+[1.188010] (unitree_hg) StdoutLine: {'line': b'-- Found geometry_msgs: 2.0.5 (/opt/ros/foxy/share/geometry_msgs/cmake)\n'}
+[1.188247] (domain_bridge) StdoutLine: {'line': b'-- Found rcl: 1.1.14 (/opt/ros/foxy/share/rcl/cmake)\n'}
+[1.204115] (-) TimerEvent: {}
+[1.209846] (livox_ros_driver2) StdoutLine: {'line': b"-- Checking for module 'eigen3'\n"}
+[1.224628] (unitree_go) StdoutLine: {'line': b'-- Found geometry_msgs: 2.0.5 (/opt/ros/foxy/share/geometry_msgs/cmake)\n'}
+[1.244726] (livox_ros_driver2) StdoutLine: {'line': b'--   Found eigen3, version 3.3.7\n'}
+[1.278514] (domain_bridge) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[1.278956] (unitree_api) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[1.279116] (unitree_hg) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[1.301472] (domain_bridge) StdoutLine: {'line': b'-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)\n'}
+[1.301910] (unitree_hg) StdoutLine: {'line': b'-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)\n'}
+[1.302072] (unitree_api) StdoutLine: {'line': b'-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)\n'}
+[1.304185] (-) TimerEvent: {}
+[1.304794] (unitree_go) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[1.315004] (livox_ros_driver2) StdoutLine: {'line': b'-- Found Eigen: /usr/include/eigen3 (Required is at least version "3.1") \n'}
+[1.315468] (livox_ros_driver2) StdoutLine: {'line': b'-- Eigen found (include: /usr/include/eigen3, version: 3.3.7)\n'}
+[1.325315] (unitree_go) StdoutLine: {'line': b'-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)\n'}
+[1.368837] (kiss_icp) StdoutLine: {'line': b'-- The C compiler identification is GNU 9.4.0\n'}
+[1.381401] (kiss_icp) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[1.404394] (-) TimerEvent: {}
+[1.461253] (livox_ros_driver2) StdoutLine: {'line': b'-- Found Boost: /usr/include (found suitable version "1.71.0", minimum required is "1.55.0") found components: system filesystem date_time iostreams regex \n'}
+[1.472843] (kiss_icp) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[1.485853] (kiss_icp) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[1.486406] (kiss_icp) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[1.486843] (kiss_icp) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[1.492976] (livox_ros_driver2) StdoutLine: {'line': b"-- Checking for module 'flann'\n"}
+[1.493976] (unitree_api) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  \n'}
+[1.494255] (unitree_hg) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  \n'}
+[1.494403] (domain_bridge) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  \n'}
+[1.504535] (-) TimerEvent: {}
+[1.510504] (unitree_go) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  \n'}
+[1.524389] (livox_ros_driver2) StdoutLine: {'line': b'--   Found flann, version 1.9.1\n'}
+[1.556875] (domain_bridge) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/foxy/include  \n'}
+[1.557441] (unitree_api) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/foxy/include  \n'}
+[1.557601] (unitree_hg) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/foxy/include  \n'}
+[1.571037] (unitree_go) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/foxy/include  \n'}
+[1.604716] (-) TimerEvent: {}
+[1.616268] (livox_ros_driver2) StdoutLine: {'line': b'-- Found FLANN: /usr/lib/aarch64-linux-gnu/libflann_cpp.so  \n'}
+[1.678705] (livox_ros_driver2) StdoutLine: {'line': b'-- The imported target "vtkParseOGLExt" references the file\n'}
+[1.679152] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/bin/vtkParseOGLExt-7.1"\n'}
+[1.679475] (livox_ros_driver2) StdoutLine: {'line': b'but this file does not exist.  Possible reasons include:\n'}
+[1.679671] (livox_ros_driver2) StdoutLine: {'line': b'* The file was deleted, renamed, or moved to another location.\n'}
+[1.679781] (livox_ros_driver2) StdoutLine: {'line': b'* An install or uninstall procedure did not complete successfully.\n'}
+[1.679884] (livox_ros_driver2) StdoutLine: {'line': b'* The installation package was faulty and contained\n'}
+[1.679982] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/lib/cmake/vtk-7.1/VTKTargets.cmake"\n'}
+[1.680077] (livox_ros_driver2) StdoutLine: {'line': b'but not all the files it references.\n'}
+[1.680170] (livox_ros_driver2) StdoutLine: {'line': b'\n'}
+[1.680392] (livox_ros_driver2) StdoutLine: {'line': b'-- The imported target "vtkRenderingPythonTkWidgets" references the file\n'}
+[1.680558] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/lib/aarch64-linux-gnu/libvtkRenderingPythonTkWidgets.so"\n'}
+[1.680679] (livox_ros_driver2) StdoutLine: {'line': b'but this file does not exist.  Possible reasons include:\n'}
+[1.680789] (livox_ros_driver2) StdoutLine: {'line': b'* The file was deleted, renamed, or moved to another location.\n'}
+[1.680893] (livox_ros_driver2) StdoutLine: {'line': b'* An install or uninstall procedure did not complete successfully.\n'}
+[1.680992] (livox_ros_driver2) StdoutLine: {'line': b'* The installation package was faulty and contained\n'}
+[1.681086] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/lib/cmake/vtk-7.1/VTKTargets.cmake"\n'}
+[1.681178] (livox_ros_driver2) StdoutLine: {'line': b'but not all the files it references.\n'}
+[1.681271] (livox_ros_driver2) StdoutLine: {'line': b'\n'}
+[1.681362] (livox_ros_driver2) StdoutLine: {'line': b'-- The imported target "vtk" references the file\n'}
+[1.681453] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/bin/vtk"\n'}
+[1.681542] (livox_ros_driver2) StdoutLine: {'line': b'but this file does not exist.  Possible reasons include:\n'}
+[1.681632] (livox_ros_driver2) StdoutLine: {'line': b'* The file was deleted, renamed, or moved to another location.\n'}
+[1.681723] (livox_ros_driver2) StdoutLine: {'line': b'* An install or uninstall procedure did not complete successfully.\n'}
+[1.681814] (livox_ros_driver2) StdoutLine: {'line': b'* The installation package was faulty and contained\n'}
+[1.681904] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/lib/cmake/vtk-7.1/VTKTargets.cmake"\n'}
+[1.681993] (livox_ros_driver2) StdoutLine: {'line': b'but not all the files it references.\n'}
+[1.682081] (livox_ros_driver2) StdoutLine: {'line': b'\n'}
+[1.682168] (livox_ros_driver2) StdoutLine: {'line': b'-- The imported target "pvtk" references the file\n'}
+[1.682284] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/bin/pvtk"\n'}
+[1.682378] (livox_ros_driver2) StdoutLine: {'line': b'but this file does not exist.  Possible reasons include:\n'}
+[1.682486] (livox_ros_driver2) StdoutLine: {'line': b'* The file was deleted, renamed, or moved to another location.\n'}
+[1.682577] (livox_ros_driver2) StdoutLine: {'line': b'* An install or uninstall procedure did not complete successfully.\n'}
+[1.682667] (livox_ros_driver2) StdoutLine: {'line': b'* The installation package was faulty and contained\n'}
+[1.682757] (livox_ros_driver2) StdoutLine: {'line': b'   "/usr/lib/cmake/vtk-7.1/VTKTargets.cmake"\n'}
+[1.682846] (livox_ros_driver2) StdoutLine: {'line': b'but not all the files it references.\n'}
+[1.682934] (livox_ros_driver2) StdoutLine: {'line': b'\n'}
+[1.704825] (-) TimerEvent: {}
+[1.720223] (livox_ros_driver2) StdoutLine: {'line': b"-- Checking for module 'libusb-1.0'\n"}
+[1.730879] (unitree_api) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[1.731338] (unitree_hg) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[1.731505] (domain_bridge) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[1.731643] (unitree_go) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[1.753587] (livox_ros_driver2) StdoutLine: {'line': b'--   Found libusb-1.0, version 1.0.23\n'}
+[1.805017] (-) TimerEvent: {}
+[1.837633] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[1.838265] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (USB_10)\n'}
+[1.838434] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (OpenNI).  This can lead to\n'}
+[1.838735] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[1.838851] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[1.838953] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[1.839074] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/Modules/FindOpenNI.cmake:28 (find_package_handle_standard_args)\n'}
+[1.839172] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:179 (find_package)\n'}
+[1.839320] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:322 (find_openni)\n'}
+[1.839469] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:548 (find_external_library)\n'}
+[1.839570] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[1.839731] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[1.839847] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[1.839944] (livox_ros_driver2) StdoutLine: {'line': b'-- Found USB_10: /usr/lib/aarch64-linux-gnu/libusb-1.0.so  \n'}
+[1.856490] (domain_bridge) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 1.0.4 (/opt/ros/foxy/share/rmw_implementation_cmake/cmake)\n'}
+[1.861006] (domain_bridge) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_cyclonedds_cpp' as default\n"}
+[1.863104] (domain_bridge) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[1.880081] (unitree_hg) StdoutLine: {'line': b'-- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)\n'}
+[1.880515] (unitree_api) StdoutLine: {'line': b'-- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)\n'}
+[1.880670] (unitree_go) StdoutLine: {'line': b'-- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)\n'}
+[1.905208] (-) TimerEvent: {}
+[1.912456] (unitree_go) StdoutLine: {'line': b'-- Found rosidl_generator_dds_idl: 0.7.1 (/opt/ros/foxy/share/rosidl_generator_dds_idl/cmake)\n'}
+[1.912886] (unitree_api) StdoutLine: {'line': b'-- Found rosidl_generator_dds_idl: 0.7.1 (/opt/ros/foxy/share/rosidl_generator_dds_idl/cmake)\n'}
+[1.913061] (unitree_hg) StdoutLine: {'line': b'-- Found rosidl_generator_dds_idl: 0.7.1 (/opt/ros/foxy/share/rosidl_generator_dds_idl/cmake)\n'}
+[1.960937] (livox_ros_driver2) StdoutLine: {'line': b'-- Found OpenNI: /usr/lib/libOpenNI.so  \n'}
+[1.961420] (livox_ros_driver2) StdoutLine: {'line': b'-- OpenNI found (include: /usr/include/ni, lib: /usr/lib/libOpenNI.so)\n'}
+[1.962444] (unitree_hg) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") \n'}
+[1.964519] (unitree_api) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") \n'}
+[1.970739] (domain_bridge) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n'}
+[1.971214] (domain_bridge) StdoutLine: {'line': b'-- Looking for pthread_create in pthreads\n'}
+[1.971798] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[1.972053] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (USB_10)\n'}
+[1.972173] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (OpenNI2).  This can lead to\n'}
+[1.972276] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[1.972373] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[1.972465] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[1.972555] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/Modules/FindOpenNI2.cmake:28 (find_package_handle_standard_args)\n'}
+[1.972645] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:193 (find_package)\n'}
+[1.972734] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:324 (find_openni2)\n'}
+[1.972822] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:548 (find_external_library)\n'}
+[1.972913] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[1.972999] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[1.973083] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[1.977456] (unitree_go) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") \n'}
+[2.005358] (-) TimerEvent: {}
+[2.055915] (domain_bridge) StdoutLine: {'line': b'-- Looking for pthread_create in pthreads - not found\n'}
+[2.056467] (domain_bridge) StdoutLine: {'line': b'-- Looking for pthread_create in pthread\n'}
+[2.102604] (livox_ros_driver2) StdoutLine: {'line': b'-- Found OpenNI2: /usr/lib/libOpenNI2.so  \n'}
+[2.103037] (livox_ros_driver2) StdoutLine: {'line': b'-- OpenNI2 found (include: /usr/include/openni2, lib: /usr/lib/libOpenNI2.so)\n'}
+[2.103933] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m** WARNING ** io features related to pcap will be disabled\x1b[0m\n'}
+[2.104293] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m** WARNING ** io features related to png will be disabled\x1b[0m\n'}
+[2.105445] (-) TimerEvent: {}
+[2.129449] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.129867] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (libusb-1.0)\n'}
+[2.130020] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.130130] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.130232] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.130495] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.130614] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:291 (find_package_handle_standard_args)\n'}
+[2.130716] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:338 (find_libusb)\n'}
+[2.130807] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:548 (find_external_library)\n'}
+[2.130898] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.130985] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.131074] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.131158] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m** WARNING ** io features related to libusb-1.0 will be disabled\x1b[0m\n'}
+[2.131269] (livox_ros_driver2) StdoutLine: {'line': b'-- Found libusb-1.0: /usr/include  \n'}
+[2.141074] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.141504] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (USB_10)\n'}
+[2.141629] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (OpenNI).  This can lead to\n'}
+[2.141734] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.141832] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.141926] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.142021] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/Modules/FindOpenNI.cmake:28 (find_package_handle_standard_args)\n'}
+[2.142152] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:179 (find_package)\n'}
+[2.142248] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:322 (find_openni)\n'}
+[2.142339] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:548 (find_external_library)\n'}
+[2.142427] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.142511] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.142598] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.144451] (livox_ros_driver2) StdoutLine: {'line': b'-- OpenNI found (include: /usr/include/ni, lib: /usr/lib/libOpenNI.so)\n'}
+[2.152609] (domain_bridge) StdoutLine: {'line': b'-- Looking for pthread_create in pthread - found\n'}
+[2.154961] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.155426] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (USB_10)\n'}
+[2.155576] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (OpenNI2).  This can lead to\n'}
+[2.155696] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.155827] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.155940] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.156035] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/Modules/FindOpenNI2.cmake:28 (find_package_handle_standard_args)\n'}
+[2.156127] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:193 (find_package)\n'}
+[2.156215] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:324 (find_openni2)\n'}
+[2.156305] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:548 (find_external_library)\n'}
+[2.156394] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.156481] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.156568] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.156653] (domain_bridge) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[2.157703] (livox_ros_driver2) StdoutLine: {'line': b'-- OpenNI2 found (include: /usr/include/openni2, lib: /usr/lib/libOpenNI2.so)\n'}
+[2.160939] (kiss_icp) StdoutLine: {'line': b'-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)\n'}
+[2.205602] (-) TimerEvent: {}
+[2.213114] (kiss_icp) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") \n'}
+[2.213579] (kiss_icp) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[2.219001] (domain_bridge) StdoutLine: {'line': b'-- Found rclcpp: 2.4.3 (/opt/ros/foxy/share/rclcpp/cmake)\n'}
+[2.226183] (livox_ros_driver2) StdoutLine: {'line': b'-- Found Qhull: optimized;/usr/lib/aarch64-linux-gnu/libqhull.so;debug;/usr/lib/aarch64-linux-gnu/libqhull.so  \n'}
+[2.226470] (livox_ros_driver2) StdoutLine: {'line': b'-- QHULL found (include: /usr/include, lib: optimized;/usr/lib/aarch64-linux-gnu/libqhull.so;debug;/usr/lib/aarch64-linux-gnu/libqhull.so)\n'}
+[2.237459] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.237874] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (USB_10)\n'}
+[2.238003] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (OpenNI).  This can lead to\n'}
+[2.238108] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.238209] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.238305] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.238395] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/Modules/FindOpenNI.cmake:28 (find_package_handle_standard_args)\n'}
+[2.238485] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:179 (find_package)\n'}
+[2.238573] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:322 (find_openni)\n'}
+[2.238660] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:548 (find_external_library)\n'}
+[2.238750] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.238836] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.238926] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.239886] (livox_ros_driver2) StdoutLine: {'line': b'-- OpenNI found (include: /usr/include/ni, lib: /usr/lib/libOpenNI.so)\n'}
+[2.260207] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_COMMON\n'}
+[2.262278] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.262566] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_COMMON)\n'}
+[2.262688] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.262794] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.262931] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.263033] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.265122] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.265461] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.265578] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.265682] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.265778] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_COMMON: /usr/lib/aarch64-linux-gnu/libpcl_common.so  \n'}
+[2.265897] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_KDTREE\n'}
+[2.265994] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_KDTREE: /usr/lib/aarch64-linux-gnu/libpcl_kdtree.so  \n'}
+[2.266085] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_OCTREE\n'}
+[2.266176] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.266277] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_KDTREE)\n'}
+[2.266365] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.266451] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.266538] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.266625] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.266710] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.266799] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.266885] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.266969] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.267223] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.267466] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_OCTREE)\n'}
+[2.267569] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.267725] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.267821] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.267911] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.267999] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.268118] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.268207] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.268310] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.268403] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_OCTREE: /usr/lib/aarch64-linux-gnu/libpcl_octree.so  \n'}
+[2.268527] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_SEARCH\n'}
+[2.269522] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.269800] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_SEARCH)\n'}
+[2.269906] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.270061] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.270156] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.270247] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.270336] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.270426] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.270512] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.270599] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.270686] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_SEARCH: /usr/lib/aarch64-linux-gnu/libpcl_search.so  \n'}
+[2.270819] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_SAMPLE_CONSENSUS\n'}
+[2.271311] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.271537] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.271647] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_SAMPLE_CONSENSUS) does not match the name of the calling package\n'}
+[2.271740] (livox_ros_driver2) StderrLine: {'line': b'  (PCL).  This can lead to problems in calling code that expects\n'}
+[2.271904] (livox_ros_driver2) StderrLine: {'line': b'  `find_package` result variables (e.g., `_FOUND`) to follow a certain\n'}
+[2.271998] (livox_ros_driver2) StderrLine: {'line': b'  pattern.\n'}
+[2.272085] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.272169] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.272253] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.272337] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.272422] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.272506] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_SAMPLE_CONSENSUS: /usr/lib/aarch64-linux-gnu/libpcl_sample_consensus.so  \n'}
+[2.272605] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_FILTERS\n'}
+[2.273200] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.273430] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.273540] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_FILTERS) does not match the name of the calling package (PCL).  This\n'}
+[2.273634] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.273789] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.273882] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.273998] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.274274] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.274373] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.274465] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.274551] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_FILTERS: /usr/lib/aarch64-linux-gnu/libpcl_filters.so  \n'}
+[2.274648] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_2D\n'}
+[2.274741] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.274834] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_2D)\n'}
+[2.274923] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.275010] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.275152] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.275267] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.275368] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:619 (find_package_handle_standard_args)\n'}
+[2.275583] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.275731] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.275857] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.275953] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_2D: /usr/include/pcl-1.10  \n'}
+[2.276054] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_GEOMETRY\n'}
+[2.276148] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.276240] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.276329] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_GEOMETRY) does not match the name of the calling package (PCL).  This\n'}
+[2.276417] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.276503] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.276589] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.276672] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:619 (find_package_handle_standard_args)\n'}
+[2.276756] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.276841] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.276926] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.277013] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_GEOMETRY: /usr/include/pcl-1.10  \n'}
+[2.277103] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_IO\n'}
+[2.277376] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.277564] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_IO)\n'}
+[2.277662] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.277754] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.277862] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.278019] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.278110] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.278197] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.278301] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.278388] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.278472] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_IO: /usr/lib/aarch64-linux-gnu/libpcl_io.so  \n'}
+[2.278577] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_FEATURES\n'}
+[2.279526] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.279797] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.279899] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_FEATURES) does not match the name of the calling package (PCL).  This\n'}
+[2.279990] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.280142] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.280239] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.280328] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.280417] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.280502] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.280615] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.280706] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_FEATURES: /usr/lib/aarch64-linux-gnu/libpcl_features.so  \n'}
+[2.280812] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_ML\n'}
+[2.281680] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.283723] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_ML)\n'}
+[2.283939] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.284052] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.284155] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.284252] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.284419] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.284515] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.284607] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.284697] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.284784] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_ML: /usr/lib/aarch64-linux-gnu/libpcl_ml.so  \n'}
+[2.284893] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_SEGMENTATION\n'}
+[2.284985] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_SEGMENTATION: /usr/lib/aarch64-linux-gnu/libpcl_segmentation.so  \n'}
+[2.285074] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_VISUALIZATION\n'}
+[2.285982] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_VISUALIZATION: /usr/lib/aarch64-linux-gnu/libpcl_visualization.so  \n'}
+[2.286482] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_SURFACE\n'}
+[2.288299] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_SURFACE: /usr/lib/aarch64-linux-gnu/libpcl_surface.so  \n'}
+[2.288642] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_REGISTRATION\n'}
+[2.290321] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_REGISTRATION: /usr/lib/aarch64-linux-gnu/libpcl_registration.so  \n'}
+[2.290782] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_KEYPOINTS\n'}
+[2.292441] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_KEYPOINTS: /usr/lib/aarch64-linux-gnu/libpcl_keypoints.so  \n'}
+[2.292877] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_TRACKING\n'}
+[2.294436] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_TRACKING: /usr/lib/aarch64-linux-gnu/libpcl_tracking.so  \n'}
+[2.294837] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_RECOGNITION\n'}
+[2.295585] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.295772] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.295874] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_SEGMENTATION) does not match the name of the calling package (PCL).\n'}
+[2.295966] (livox_ros_driver2) StderrLine: {'line': b'  This can lead to problems in calling code that expects `find_package`\n'}
+[2.296055] (livox_ros_driver2) StderrLine: {'line': b'  result variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.296143] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.296312] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.296411] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.296582] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.296675] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.296762] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.296852] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.296937] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_VISUALIZATION) does not match the name of the calling package (PCL).\n'}
+[2.297070] (livox_ros_driver2) StderrLine: {'line': b'  This can lead to problems in calling code that expects `find_package`\n'}
+[2.297159] (livox_ros_driver2) StderrLine: {'line': b'  result variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.297245] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.297330] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.297414] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.297498] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.297619] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.297705] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.297793] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.297878] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_SURFACE) does not match the name of the calling package (PCL).  This\n'}
+[2.297961] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.298060] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.298145] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.298228] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.298313] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.298398] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.298636] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.298730] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.298820] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.298908] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_REGISTRATION) does not match the name of the calling package (PCL).\n'}
+[2.299034] (livox_ros_driver2) StderrLine: {'line': b'  This can lead to problems in calling code that expects `find_package`\n'}
+[2.299121] (livox_ros_driver2) StderrLine: {'line': b'  result variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.299208] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.299320] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.299408] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.299508] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.299592] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.299674] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.299759] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.299842] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_KEYPOINTS) does not match the name of the calling package (PCL).  This\n'}
+[2.299926] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.300009] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.300091] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.300173] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.300257] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.300360] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.300463] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.300686] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.300777] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.300864] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_TRACKING) does not match the name of the calling package (PCL).  This\n'}
+[2.300949] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.301034] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.301118] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.301223] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.301308] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.301391] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.301473] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.301555] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.301713] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.301802] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_RECOGNITION) does not match the name of the calling package (PCL).\n'}
+[2.301887] (livox_ros_driver2) StderrLine: {'line': b'  This can lead to problems in calling code that expects `find_package`\n'}
+[2.301973] (livox_ros_driver2) StderrLine: {'line': b'  result variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.302059] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.302161] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.302413] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.302503] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.302593] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.302678] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_RECOGNITION: /usr/lib/aarch64-linux-gnu/libpcl_recognition.so  \n'}
+[2.302779] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_STEREO\n'}
+[2.302915] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.303006] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_STEREO)\n'}
+[2.303092] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.303177] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.303282] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.303377] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.303462] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.303567] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.303651] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.303737] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.303821] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_STEREO: /usr/lib/aarch64-linux-gnu/libpcl_stereo.so  \n'}
+[2.303912] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_APPS\n'}
+[2.304012] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_APPS: /usr/lib/aarch64-linux-gnu/libpcl_apps.so  \n'}
+[2.304103] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.304192] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_APPS)\n'}
+[2.304279] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.304362] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.304562] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.304700] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.304788] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.304917] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.305006] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.305091] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.305177] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_IN_HAND_SCANNER\n'}
+[2.305266] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.305355] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.305444] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_IN_HAND_SCANNER) does not match the name of the calling package (PCL).\n'}
+[2.305530] (livox_ros_driver2) StderrLine: {'line': b'  This can lead to problems in calling code that expects `find_package`\n'}
+[2.305613] (-) TimerEvent: {}
+[2.305857] (livox_ros_driver2) StderrLine: {'line': b'  result variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.305971] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.306066] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:619 (find_package_handle_standard_args)\n'}
+[2.306157] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.306266] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.306355] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.306441] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_IN_HAND_SCANNER: /usr/include/pcl-1.10  \n'}
+[2.306535] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_POINT_CLOUD_EDITOR\n'}
+[2.306814] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.306914] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.307005] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_POINT_CLOUD_EDITOR) does not match the name of the calling package\n'}
+[2.307094] (livox_ros_driver2) StderrLine: {'line': b'  (PCL).  This can lead to problems in calling code that expects\n'}
+[2.307229] (livox_ros_driver2) StderrLine: {'line': b'  `find_package` result variables (e.g., `_FOUND`) to follow a certain\n'}
+[2.307348] (livox_ros_driver2) StderrLine: {'line': b'  pattern.\n'}
+[2.307438] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.307524] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:619 (find_package_handle_standard_args)\n'}
+[2.307611] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.307702] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.307791] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.307877] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_POINT_CLOUD_EDITOR: /usr/include/pcl-1.10  \n'}
+[2.307969] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_OUTOFCORE\n'}
+[2.308059] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.308148] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args`\n'}
+[2.308255] (livox_ros_driver2) StderrLine: {'line': b'  (PCL_OUTOFCORE) does not match the name of the calling package (PCL).  This\n'}
+[2.308343] (livox_ros_driver2) StderrLine: {'line': b'  can lead to problems in calling code that expects `find_package` result\n'}
+[2.308428] (livox_ros_driver2) StderrLine: {'line': b'  variables (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.308514] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.308603] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.308821] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.308963] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.309058] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.309144] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_OUTOFCORE: /usr/lib/aarch64-linux-gnu/libpcl_outofcore.so  \n'}
+[2.309240] (livox_ros_driver2) StdoutLine: {'line': b'-- looking for PCL_PEOPLE\n'}
+[2.309333] (livox_ros_driver2) StderrLine: {'line': b'\x1b[33mCMake Warning (dev) at /home/unitree/.local/lib/python3.8/site-packages/cmake/data/share/cmake-3.24/Modules/FindPackageHandleStandardArgs.cmake:438 (message):\n'}
+[2.309424] (livox_ros_driver2) StderrLine: {'line': b'  The package name passed to `find_package_handle_standard_args` (PCL_PEOPLE)\n'}
+[2.309513] (livox_ros_driver2) StderrLine: {'line': b'  does not match the name of the calling package (PCL).  This can lead to\n'}
+[2.309600] (livox_ros_driver2) StderrLine: {'line': b'  problems in calling code that expects `find_package` result variables\n'}
+[2.309686] (livox_ros_driver2) StderrLine: {'line': b'  (e.g., `_FOUND`) to follow a certain pattern.\n'}
+[2.309771] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[2.309858] (livox_ros_driver2) StderrLine: {'line': b'  /usr/lib/aarch64-linux-gnu/cmake/pcl/PCLConfig.cmake:616 (find_package_handle_standard_args)\n'}
+[2.309963] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:38 (find_package)\n'}
+[2.310056] (livox_ros_driver2) StderrLine: {'line': b'This warning is for project developers.  Use -Wno-dev to suppress it.\n'}
+[2.310142] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[2.310228] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL_PEOPLE: /usr/lib/aarch64-linux-gnu/libpcl_people.so  \n'}
+[2.310541] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PCL: pcl_common;pcl_kdtree;pcl_octree;pcl_search;pcl_sample_consensus;pcl_filters;pcl_io;pcl_features;pcl_ml;pcl_segmentation;pcl_visualization;pcl_surface;pcl_registration;pcl_keypoints;pcl_tracking;pcl_recognition;pcl_stereo;pcl_apps;pcl_outofcore;pcl_people;/usr/lib/aarch64-linux-gnu/libboost_system.so;/usr/lib/aarch64-linux-gnu/libboost_filesystem.so;/usr/lib/aarch64-linux-gnu/libboost_date_time.so;/usr/lib/aarch64-linux-gnu/libboost_iostreams.so;/usr/lib/aarch64-linux-gnu/libboost_regex.so;optimized;/usr/lib/aarch64-linux-gnu/libqhull.so;debug;/usr/lib/aarch64-linux-gnu/libqhull.so;/usr/lib/libOpenNI.so;/usr/lib/libOpenNI2.so;vtkChartsCore;vtkCommonColor;vtkCommonCore;vtksys;vtkCommonDataModel;vtkCommonMath;vtkCommonMisc;vtkCommonSystem;vtkCommonTransforms;vtkCommonExecutionModel;vtkFiltersGeneral;vtkCommonComputationalGeometry;vtkFiltersCore;vtkInfovisCore;vtkFiltersExtraction;vtkFiltersStatistics;vtkImagingFourier;vtkImagingCore;vtkalglib;vtkRenderingContext2D;vtkRenderingCore;vtkFiltersGeometry;vtkFiltersSources;vtkRenderingFreeType;/usr/lib/aarch64-linux-gnu/libfreetype.so;/usr/lib/aarch64-linux-gnu/libz.so;vtkFiltersModeling;vtkImagingSources;vtkInteractionStyle;vtkInteractionWidgets;vtkFiltersHybrid;vtkImagingColor;vtkImagingGeneral;vtkImagingHybrid;vtkIOImage;vtkDICOMParser;vtkmetaio;/usr/lib/aarch64-linux-gnu/libjpeg.so;/usr/lib/aarch64-linux-gnu/libpng.so;/usr/lib/aarch64-linux-gnu/libtiff.so;vtkRenderingAnnotation;vtkRenderingVolume;vtkIOXML;vtkIOCore;vtkIOXMLParser;/usr/lib/aarch64-linux-gnu/libexpat.so;vtkIOGeometry;vtkIOLegacy;vtkIOPLY;vtkRenderingLOD;vtkViewsContext2D;vtkViewsCore;vtkRenderingContextOpenGL2;vtkRenderingOpenGL2;FLANN::FLANN  \n'}
+[2.317043] (livox_ros_driver2) StdoutLine: {'line': b'-- Found std_msgs: 2.0.5 (/opt/ros/foxy/share/std_msgs/cmake)\n'}
+[2.335012] (unitree_api) StdoutLine: {'line': b'-- Found ament_cmake_ros: 0.9.2 (/opt/ros/foxy/share/ament_cmake_ros/cmake)\n'}
+[2.369546] (unitree_hg) StdoutLine: {'line': b'-- Found ament_cmake_ros: 0.9.2 (/opt/ros/foxy/share/ament_cmake_ros/cmake)\n'}
+[2.383659] (livox_ros_driver2) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.404936] (livox_ros_driver2) StdoutLine: {'line': b'-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)\n'}
+[2.405715] (-) TimerEvent: {}
+[2.466483] (domain_bridge) StdoutLine: {'line': b'-- Found rosbag2_cpp: 0.3.11 (/opt/ros/foxy/share/rosbag2_cpp/cmake)\n'}
+[2.486677] (unitree_go) StdoutLine: {'line': b'-- Found ament_cmake_ros: 0.9.2 (/opt/ros/foxy/share/ament_cmake_ros/cmake)\n'}
+[2.505832] (-) TimerEvent: {}
+[2.567738] (domain_bridge) StdoutLine: {'line': b"-- Setting yaml-cpp_DIR to: '/opt/ros/foxy/share/yaml_cpp_vendor/cmake/../../../opt/yaml_cpp_vendor/lib/cmake/yaml-cpp'\n"}
+[2.580883] (domain_bridge) StdoutLine: {'line': b'-- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)\n'}
+[2.586192] (livox_ros_driver2) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  \n'}
+[2.606000] (-) TimerEvent: {}
+[2.611459] (domain_bridge) StdoutLine: {'line': b'-- Found zstd_vendor: 0.3.11 (/opt/ros/foxy/share/zstd_vendor/cmake)\n'}
+[2.615772] (domain_bridge) StdoutLine: {'line': b'-- Found zstd: /opt/ros/foxy/lib/libzstd.so  \n'}
+[2.628650] (kiss_icp) StdoutLine: {'line': b'-- Found geometry_msgs: 2.0.5 (/opt/ros/foxy/share/geometry_msgs/cmake)\n'}
+[2.643414] (livox_ros_driver2) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/foxy/include  \n'}
+[2.656813] (domain_bridge) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") \n'}
+[2.706135] (-) TimerEvent: {}
+[2.708696] (kiss_icp) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.729028] (kiss_icp) StdoutLine: {'line': b'-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)\n'}
+[2.797127] (unitree_api) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.806288] (-) TimerEvent: {}
+[2.809246] (unitree_hg) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.817963] (livox_ros_driver2) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[2.884212] (domain_bridge) StdoutLine: {'line': b'-- Found ament_cmake_ros: 0.9.2 (/opt/ros/foxy/share/ament_cmake_ros/cmake)\n'}
+[2.891449] (kiss_icp) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  \n'}
+[2.904271] (livox_ros_driver2) StdoutLine: {'line': b'-- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)\n'}
+[2.906347] (-) TimerEvent: {}
+[2.923278] (unitree_go) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[2.933548] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PkgConfig: /usr/bin/pkg-config (found version "0.29.1") \n'}
+[2.935174] (livox_ros_driver2) StdoutLine: {'line': b"-- Checking for module 'apr-1'\n"}
+[2.947929] (kiss_icp) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/foxy/include  \n'}
+[2.964872] (livox_ros_driver2) StdoutLine: {'line': b'--   Found apr-1, version 1.6.5\n'}
+[2.983656] (unitree_hg) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[2.988878] (unitree_api) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[3.006530] (-) TimerEvent: {}
+[3.033338] (unitree_hg) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.039917] (unitree_hg) StdoutLine: {'line': b'-- Found python_cmake_module: 0.8.1 (/opt/ros/foxy/share/python_cmake_module/cmake)\n'}
+[3.040750] (unitree_api) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.042661] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m/usr/include/apr-1.0\x1b[0m\n'}
+[3.042943] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0mapr-1\x1b[0m\n'}
+[3.046653] (unitree_api) StdoutLine: {'line': b'-- Found python_cmake_module: 0.8.1 (/opt/ros/foxy/share/python_cmake_module/cmake)\n'}
+[3.088674] (livox_ros_driver2) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") \n'}
+[3.094632] (unitree_hg) StdoutLine: {'line': b'-- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.8.so (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.095061] (unitree_hg) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[3.095199] (unitree_hg) StdoutLine: {'line': b'-- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8\n'}
+[3.095349] (unitree_hg) StdoutLine: {'line': b'-- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so\n'}
+[3.099646] (unitree_go) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[3.100773] (unitree_api) StdoutLine: {'line': b'-- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.8.so (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.101165] (unitree_api) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[3.101312] (unitree_api) StdoutLine: {'line': b'-- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8\n'}
+[3.101425] (unitree_api) StdoutLine: {'line': b'-- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so\n'}
+[3.106608] (-) TimerEvent: {}
+[3.112908] (kiss_icp) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[3.116455] (domain_bridge) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[3.135400] (domain_bridge) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[3.137235] (unitree_hg) StdoutLine: {'line': b'-- Found PythonExtra: .so  \n'}
+[3.145191] (unitree_api) StdoutLine: {'line': b'-- Found PythonExtra: .so  \n'}
+[3.151636] (unitree_go) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.157344] (unitree_go) StdoutLine: {'line': b'-- Found python_cmake_module: 0.8.1 (/opt/ros/foxy/share/python_cmake_module/cmake)\n'}
+[3.184472] (domain_bridge) StdoutLine: {'line': b'-- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.191051] (domain_bridge) StdoutLine: {'line': b'-- Found python_cmake_module: 0.8.1 (/opt/ros/foxy/share/python_cmake_module/cmake)\n'}
+[3.206786] (-) TimerEvent: {}
+[3.208965] (unitree_go) StdoutLine: {'line': b'-- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.8.so (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.209519] (unitree_go) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[3.209670] (unitree_go) StdoutLine: {'line': b'-- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8\n'}
+[3.209827] (unitree_go) StdoutLine: {'line': b'-- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so\n'}
+[3.240577] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0mCMake Error: File /home/unitree/imes-g1/src/third_party/sensors/05Jun2025_livox_ros_driver2/package.xml does not exist.\x1b[0m\n'}
+[3.241207] (livox_ros_driver2) StderrLine: {'line': b'\x1b[31mCMake Error at /opt/ros/foxy/share/ament_cmake_core/cmake/core/stamp.cmake:24 (configure_file):\n'}
+[3.241350] (livox_ros_driver2) StderrLine: {'line': b'  configure_file Problem configuring file\n'}
+[3.241454] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[3.241549] (livox_ros_driver2) StderrLine: {'line': b'  /opt/ros/foxy/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:73 (stamp)\n'}
+[3.241647] (livox_ros_driver2) StderrLine: {'line': b'  /opt/ros/foxy/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:49 (_ament_package_xml)\n'}
+[3.241737] (livox_ros_driver2) StderrLine: {'line': b'  /opt/ros/foxy/share/rosidl_cmake/cmake/rosidl_generate_interfaces.cmake:226 (ament_package_xml)\n'}
+[3.241826] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:53 (rosidl_generate_interfaces)\n'}
+[3.241913] (livox_ros_driver2) StderrLine: {'line': b'\n'}
+[3.242000] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[3.242086] (livox_ros_driver2) StderrLine: {'line': b'\x1b[31mCMake Error at /opt/ros/foxy/share/rosidl_cmake/cmake/rosidl_generate_interfaces.cmake:229 (message):\n'}
+[3.242173] (livox_ros_driver2) StderrLine: {'line': b'  Packages installing interfaces must include\n'}
+[3.242259] (livox_ros_driver2) StderrLine: {'line': b"  '<member_of_group>rosidl_interface_packages</member_of_group>' in their\n"}
+[3.242347] (livox_ros_driver2) StderrLine: {'line': b'  package.xml\n'}
+[3.242431] (livox_ros_driver2) StderrLine: {'line': b'Call Stack (most recent call first):\n'}
+[3.242516] (livox_ros_driver2) StderrLine: {'line': b'  CMakeLists.txt:53 (rosidl_generate_interfaces)\n'}
+[3.242603] (livox_ros_driver2) StderrLine: {'line': b'\n'}
+[3.242687] (livox_ros_driver2) StderrLine: {'line': b'\x1b[0m\n'}
+[3.242771] (livox_ros_driver2) StdoutLine: {'line': b'-- Configuring incomplete, errors occurred!\n'}
+[3.242905] (livox_ros_driver2) StdoutLine: {'line': b'See also "/home/unitree/imes-g1/src/third_party/build/livox_ros_driver2/CMakeFiles/CMakeOutput.log".\n'}
+[3.246346] (domain_bridge) StdoutLine: {'line': b'-- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.8.so (found suitable version "3.8.10", minimum required is "3.5") \n'}
+[3.246868] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[3.247015] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8\n'}
+[3.247129] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so\n'}
+[3.252543] (unitree_go) StdoutLine: {'line': b'-- Found PythonExtra: .so  \n'}
+[3.262248] (kiss_icp) StdoutLine: {'line': b'-- Found nav_msgs: 2.0.5 (/opt/ros/foxy/share/nav_msgs/cmake)\n'}
+[3.288363] (livox_ros_driver2) CommandEnded: {'returncode': 1}
+[3.290292] (livox_ros_driver2) JobEnded: {'identifier': 'livox_ros_driver2', 'rc': 1}
+[3.299234] (domain_bridge) StdoutLine: {'line': b'-- Found PythonExtra: .so  \n'}
+[3.306859] (-) TimerEvent: {}
+[3.348954] (unitree_hg) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)\n'}
+[3.369934] (unitree_api) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)\n'}
+[3.372881] (kiss_icp) StdoutLine: {'line': b'-- Found rclcpp: 2.4.3 (/opt/ros/foxy/share/rclcpp/cmake)\n'}
+[3.400366] (domain_bridge) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)\n'}
+[3.406962] (-) TimerEvent: {}
+[3.419318] (unitree_hg) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[3.424167] (unitree_hg) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[3.427203] (unitree_hg) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[3.432502] (unitree_api) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[3.433420] (unitree_hg) StdoutLine: {'line': b'-- Configuring done\n'}
+[3.436141] (unitree_api) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[3.438720] (unitree_api) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[3.444772] (unitree_api) StdoutLine: {'line': b'-- Configuring done\n'}
+[3.459013] (unitree_go) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)\n'}
+[3.465444] (kiss_icp) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 1.0.4 (/opt/ros/foxy/share/rmw_implementation_cmake/cmake)\n'}
+[3.469083] (kiss_icp) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_cyclonedds_cpp' as default\n"}
+[3.471032] (kiss_icp) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[3.507159] (-) TimerEvent: {}
+[3.522370] (unitree_go) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[3.528626] (unitree_go) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[3.532091] (unitree_go) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[3.538692] (unitree_go) StdoutLine: {'line': b'-- Configuring done\n'}
+[3.547412] (unitree_api) StdoutLine: {'line': b'-- Generating done\n'}
+[3.548262] (unitree_hg) StdoutLine: {'line': b'-- Generating done\n'}
+[3.551679] (unitree_api) StderrLine: {'line': b'\x1b[33mCMake Warning:\n'}
+[3.551953] (unitree_api) StderrLine: {'line': b'  Manually-specified variables were not used by the project:\n'}
+[3.552075] (unitree_api) StderrLine: {'line': b'\n'}
+[3.552175] (unitree_api) StderrLine: {'line': b'    HUMBLE_ROS\n'}
+[3.552269] (unitree_api) StderrLine: {'line': b'    ROS_EDITION\n'}
+[3.552360] (unitree_api) StderrLine: {'line': b'\n'}
+[3.552468] (unitree_api) StderrLine: {'line': b'\x1b[0m\n'}
+[3.552891] (unitree_hg) StderrLine: {'line': b'\x1b[33mCMake Warning:\n'}
+[3.553101] (unitree_hg) StderrLine: {'line': b'  Manually-specified variables were not used by the project:\n'}
+[3.553219] (unitree_hg) StderrLine: {'line': b'\n'}
+[3.553322] (unitree_hg) StderrLine: {'line': b'    HUMBLE_ROS\n'}
+[3.553456] (unitree_hg) StderrLine: {'line': b'    ROS_EDITION\n'}
+[3.553622] (unitree_hg) StderrLine: {'line': b'\n'}
+[3.553727] (unitree_hg) StderrLine: {'line': b'\x1b[0m\n'}
+[3.575746] (unitree_api) StdoutLine: {'line': b'-- Build files have been written to: /home/unitree/imes-g1/src/third_party/build/unitree_api\n'}
+[3.578300] (unitree_hg) StdoutLine: {'line': b'-- Build files have been written to: /home/unitree/imes-g1/src/third_party/build/unitree_hg\n'}
+[3.581866] (kiss_icp) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed\n'}
+[3.582263] (kiss_icp) StdoutLine: {'line': b'-- Looking for pthread_create in pthreads\n'}
+[3.607772] (-) TimerEvent: {}
+[3.608631] (unitree_api) JobEnded: {'identifier': 'unitree_api', 'rc': 'SIGINT'}
+[3.610095] (unitree_hg) JobEnded: {'identifier': 'unitree_hg', 'rc': 'SIGINT'}
+[3.669057] (kiss_icp) StdoutLine: {'line': b'-- Looking for pthread_create in pthreads - not found\n'}
+[3.669811] (kiss_icp) StdoutLine: {'line': b'-- Looking for pthread_create in pthread\n'}
+[3.693367] (unitree_go) StdoutLine: {'line': b'-- Generating done\n'}
+[3.697542] (unitree_go) StderrLine: {'line': b'\x1b[33mCMake Warning:\n'}
+[3.697854] (unitree_go) StderrLine: {'line': b'  Manually-specified variables were not used by the project:\n'}
+[3.697976] (unitree_go) StderrLine: {'line': b'\n'}
+[3.698076] (unitree_go) StderrLine: {'line': b'    HUMBLE_ROS\n'}
+[3.698170] (unitree_go) StderrLine: {'line': b'    ROS_EDITION\n'}
+[3.698262] (unitree_go) StderrLine: {'line': b'\n'}
+[3.698351] (unitree_go) StderrLine: {'line': b'\x1b[0m\n'}
+[3.707859] (-) TimerEvent: {}
+[3.723045] (unitree_go) StdoutLine: {'line': b'-- Build files have been written to: /home/unitree/imes-g1/src/third_party/build/unitree_go\n'}
+[3.733858] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_EXECUTABLE: /usr/bin/python3\n'}
+[3.734202] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8\n'}
+[3.734320] (domain_bridge) StdoutLine: {'line': b'-- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so\n'}
+[3.752735] (unitree_go) JobEnded: {'identifier': 'unitree_go', 'rc': 'SIGINT'}
+[3.783310] (kiss_icp) StdoutLine: {'line': b'-- Looking for pthread_create in pthread - found\n'}
+[3.785276] (kiss_icp) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[3.807948] (-) TimerEvent: {}
+[3.908391] (-) TimerEvent: {}
+[4.009375] (kiss_icp) StdoutLine: {'line': b'-- Found rclcpp_components: 2.4.3 (/opt/ros/foxy/share/rclcpp_components/cmake)\n'}
+[4.009837] (-) TimerEvent: {}
+[4.088998] (domain_bridge) StdoutLine: {'line': b"-- Found gmock sources under '/opt/ros/foxy/src/gmock_vendor': C++ tests using 'Google Mock' will be built\n"}
+[4.099398] (domain_bridge) StdoutLine: {'line': b"-- Found gtest sources under '/opt/ros/foxy/src/gtest_vendor': C++ tests using 'Google Test' will be built\n"}
+[4.109920] (-) TimerEvent: {}
+[4.116702] (kiss_icp) StdoutLine: {'line': b'-- Found sensor_msgs: 2.0.5 (/opt/ros/foxy/share/sensor_msgs/cmake)\n'}
+[4.134064] (domain_bridge) StdoutLine: {'line': b"-- Added test 'copyright' to check source files copyright and LICENSE\n"}
+[4.141599] (domain_bridge) StdoutLine: {'line': b"-- Added test 'cppcheck' to perform static code analysis on C / C++ code\n"}
+[4.142822] (domain_bridge) StdoutLine: {'line': b'-- Configured cppcheck include dirs: $<BUILD_INTERFACE:/home/unitree/imes-g1/src/third_party/tools/05Jun2025_domain_bridge_foxy/include>\n'}
+[4.142957] (domain_bridge) StdoutLine: {'line': b'-- Configured cppcheck exclude dirs and/or files: \n'}
+[4.148847] (domain_bridge) StdoutLine: {'line': b"-- Added test 'cpplint' to check C / C++ code against the Google style\n"}
+[4.148970] (domain_bridge) StdoutLine: {'line': b'-- Configured cpplint exclude dirs and/or files: \n'}
+[4.150850] (domain_bridge) StdoutLine: {'line': b"-- Added test 'flake8' to check Python code syntax and style conventions\n"}
+[4.153331] (domain_bridge) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[4.155207] (domain_bridge) StdoutLine: {'line': b"-- Added test 'pep257' to check Python code against some of the style conventions in PEP 257\n"}
+[4.161015] (domain_bridge) StdoutLine: {'line': b"-- Added test 'uncrustify' to check C / C++ code style\n"}
+[4.161132] (domain_bridge) StdoutLine: {'line': b'-- Configured uncrustify additional arguments: \n'}
+[4.163031] (domain_bridge) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[4.169679] (domain_bridge) StdoutLine: {'line': b'-- Configuring done\n'}
+[4.210027] (-) TimerEvent: {}
+[4.227053] (kiss_icp) StdoutLine: {'line': b'-- Found tf2_ros: 0.13.14 (/opt/ros/foxy/share/tf2_ros/cmake)\n'}
+[4.299091] (domain_bridge) StdoutLine: {'line': b'-- Generating done\n'}
+[4.305605] (domain_bridge) StderrLine: {'line': b'\x1b[33mCMake Warning:\n'}
+[4.305829] (domain_bridge) StderrLine: {'line': b'  Manually-specified variables were not used by the project:\n'}
+[4.305943] (domain_bridge) StderrLine: {'line': b'\n'}
+[4.306043] (domain_bridge) StderrLine: {'line': b'    HUMBLE_ROS\n'}
+[4.306137] (domain_bridge) StderrLine: {'line': b'    ROS_EDITION\n'}
+[4.306227] (domain_bridge) StderrLine: {'line': b'\n'}
+[4.306313] (domain_bridge) StderrLine: {'line': b'\x1b[0m\n'}
+[4.310090] (-) TimerEvent: {}
+[4.350008] (domain_bridge) StdoutLine: {'line': b'-- Build files have been written to: /home/unitree/imes-g1/src/third_party/build/domain_bridge\n'}
+[4.383797] (domain_bridge) JobEnded: {'identifier': 'domain_bridge', 'rc': 'SIGINT'}
+[4.410206] (-) TimerEvent: {}
+[4.510744] (-) TimerEvent: {}
+[4.611333] (-) TimerEvent: {}
+[4.712017] (-) TimerEvent: {}
+[4.783809] (kiss_icp) StdoutLine: {'line': b'-- Configuring done\n'}
+[4.812126] (-) TimerEvent: {}
+[4.825981] (kiss_icp) StdoutLine: {'line': b'-- Generating done\n'}
+[4.829683] (kiss_icp) StderrLine: {'line': b'\x1b[33mCMake Warning:\n'}
+[4.829898] (kiss_icp) StderrLine: {'line': b'  Manually-specified variables were not used by the project:\n'}
+[4.830011] (kiss_icp) StderrLine: {'line': b'\n'}
+[4.830113] (kiss_icp) StderrLine: {'line': b'    HUMBLE_ROS\n'}
+[4.830205] (kiss_icp) StderrLine: {'line': b'    ROS_EDITION\n'}
+[4.830293] (kiss_icp) StderrLine: {'line': b'\n'}
+[4.830378] (kiss_icp) StderrLine: {'line': b'\x1b[0m\n'}
+[4.840377] (kiss_icp) StdoutLine: {'line': b'-- Build files have been written to: /home/unitree/imes-g1/src/third_party/build/kiss_icp\n'}
+[4.872324] (kiss_icp) JobEnded: {'identifier': 'kiss_icp', 'rc': 'SIGINT'}
+[4.884191] (unitree_ros2_example) JobSkipped: {'identifier': 'unitree_ros2_example'}
+[4.884433] (-) EventReactorShutdown: {}

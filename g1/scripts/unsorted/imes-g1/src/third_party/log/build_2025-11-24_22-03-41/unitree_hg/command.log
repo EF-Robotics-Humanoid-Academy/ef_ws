@@ -1,0 +1,1 @@
+Invoking command in '/home/unitree/imes-g1/src/third_party/build/unitree_hg': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/cyclonedds_ws/src/unitree/unitree_hg -DROS_EDITION=ROS2 -DHUMBLE_ROS= -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/unitree_hg

@@ -1,0 +1,24 @@
+[0.091s] Invoking command in '/home/unitree/imes-g1/build/g1_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble CONDA_PROMPT_MODIFIER=(base) PS1=(base) \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ /usr/bin/cmake --build /home/unitree/imes-g1/build/g1_bringup -- -j8 -l8
+[0.184s] make: Warning: File 'Makefile' has modification time 1770221534 s in the future
+[0.184s] -- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.368s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.436s] Traceback (most recent call last):
+[0.441s]   File "/opt/ros/humble/share/ament_cmake_core/cmake/core/package_xml_2_cmake.py", line 22, in <module>
+[0.441s]     from catkin_pkg.package import parse_package_string
+[0.441s] ModuleNotFoundError: No module named 'catkin_pkg'
+[0.456s] [31mCMake Error at /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:95 (message):
+[0.456s]   execute_process(/home/unitree/miniconda3/bin/python3
+[0.456s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/package_xml_2_cmake.py
+[0.456s]   /home/unitree/imes-g1/src/ros/g1_bringup/package.xml
+[0.456s]   /home/unitree/imes-g1/build/g1_bringup/ament_cmake_core/package.cmake)
+[0.456s]   returned error code 1
+[0.456s] Call Stack (most recent call first):
+[0.456s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_package_xml.cmake:49 (_ament_package_xml)
+[0.457s]   /opt/ros/humble/share/ament_cmake_core/cmake/core/ament_package.cmake:63 (ament_package_xml)
+[0.457s]   CMakeLists.txt:44 (ament_package)
+[0.457s] 
+[0.457s] [0m
+[0.457s] -- Configuring incomplete, errors occurred!
+[0.457s] See also "/home/unitree/imes-g1/build/g1_bringup/CMakeFiles/CMakeOutput.log".
+[0.460s] make: *** [Makefile:226: cmake_check_build_system] Error 1
+[0.466s] Invoked command in '/home/unitree/imes-g1/build/g1_bringup' returned '2': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble CONDA_PROMPT_MODIFIER=(base) PS1=(base) \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ /usr/bin/cmake --build /home/unitree/imes-g1/build/g1_bringup -- -j8 -l8

@@ -1,0 +1,42 @@
+[0.064s] Invoking command in '/home/unitree/imes-g1/build/g1_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_navigation -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_navigation
+[0.160s] -- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+[0.209s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[0.653s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.805s] -- Configuring done
+[0.816s] -- Generating done
+[0.822s] -- Build files have been written to: /home/unitree/imes-g1/build/g1_navigation
+[0.842s] Invoked command in '/home/unitree/imes-g1/build/g1_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_navigation -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_navigation
+[0.850s] Invoking command in '/home/unitree/imes-g1/build/g1_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_navigation -- -j8 -l8
+[1.005s] Invoked command in '/home/unitree/imes-g1/build/g1_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_navigation -- -j8 -l8
+[1.012s] Invoking command in '/home/unitree/imes-g1/build/g1_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_navigation
+[1.099s] -- Install configuration: ""
+[1.099s] -- Execute custom install script
+[1.102s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/launch/include/localization.launch.py
+[1.102s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/launch/include/navigation.launch.py
+[1.103s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/launch/map_navi.launch.py
+[1.103s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/launch/odom_navi.launch.py
+[1.104s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/launch/slam.launch.py
+[1.105s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/maps/custom_map.pgm
+[1.106s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/maps/custom_map.pgm~
+[1.109s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/maps/custom_map.yaml
+[1.117s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/param/nav2_localization.yaml
+[1.125s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/param/nav2_map.yaml
+[1.127s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/param/nav2_odom.yaml
+[1.127s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/param/nav2_slam.yaml
+[1.127s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/behavior_trees/navigate_w_replanning_and_recovery.xml
+[1.127s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/ament_index/resource_index/package_run_dependencies/g1_navigation
+[1.127s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/ament_index/resource_index/parent_prefix_path/g1_navigation
+[1.127s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/environment/ament_prefix_path.sh
+[1.130s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/environment/ament_prefix_path.dsv
+[1.130s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/environment/path.sh
+[1.130s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/environment/path.dsv
+[1.131s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/local_setup.bash
+[1.135s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/local_setup.sh
+[1.136s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/local_setup.zsh
+[1.136s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/local_setup.dsv
+[1.136s] -- Symlinking: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/package.dsv
+[1.139s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/ament_index/resource_index/packages/g1_navigation
+[1.139s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/cmake/g1_navigationConfig.cmake
+[1.139s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/cmake/g1_navigationConfig-version.cmake
+[1.143s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_navigation/share/g1_navigation/package.xml
+[1.251s] Invoked command in '/home/unitree/imes-g1/build/g1_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_navigation

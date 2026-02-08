@@ -1,0 +1,11 @@
+source;share/g1_host/hook/cmake_prefix_path.ps1
+source;share/g1_host/hook/cmake_prefix_path.dsv
+source;share/g1_host/hook/cmake_prefix_path.sh
+source;share/g1_host/hook/pythonpath.ps1
+source;share/g1_host/hook/pythonpath.dsv
+source;share/g1_host/hook/pythonpath.sh
+source;share/g1_host/local_setup.bash
+source;share/g1_host/local_setup.dsv
+source;share/g1_host/local_setup.ps1
+source;share/g1_host/local_setup.sh
+source;share/g1_host/local_setup.zsh

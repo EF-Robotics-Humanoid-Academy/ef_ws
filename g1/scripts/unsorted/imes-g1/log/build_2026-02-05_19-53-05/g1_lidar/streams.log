@@ -1,0 +1,55 @@
+[0.059s] Invoking command in '/home/unitree/imes-g1/build/g1_lidar': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_lidar -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_lidar
+[1.367s] -- The C compiler identification is GNU 9.4.0
+[1.367s] -- The CXX compiler identification is GNU 9.4.0
+[1.368s] -- Detecting C compiler ABI info
+[1.368s] -- Detecting C compiler ABI info - done
+[1.368s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.368s] -- Detecting C compile features
+[1.368s] -- Detecting C compile features - done
+[1.368s] -- Detecting CXX compiler ABI info
+[1.368s] -- Detecting CXX compiler ABI info - done
+[1.368s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[1.368s] -- Detecting CXX compile features
+[1.369s] -- Detecting CXX compile features - done
+[1.369s] -- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+[1.369s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+[1.369s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[1.369s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.369s] -- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)
+[1.369s] -- Added test 'copyright' to check source files copyright and LICENSE
+[1.369s] -- Added test 'flake8' to check Python code syntax and style conventions
+[1.369s] -- Added test 'lint_cmake' to check CMake code style
+[1.369s] -- Added test 'pep257' to check Python code against some of the style conventions in PEP 257
+[1.370s] -- Added test 'xmllint' to check XML markup files
+[1.370s] -- Configuring done
+[1.370s] -- Generating done
+[1.370s] -- Build files have been written to: /home/unitree/imes-g1/build/g1_lidar
+[1.408s] Invoked command in '/home/unitree/imes-g1/build/g1_lidar' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_lidar -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_lidar
+[1.409s] Invoking command in '/home/unitree/imes-g1/build/g1_lidar': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_lidar -- -j8 -l8
+[2.155s] Invoked command in '/home/unitree/imes-g1/build/g1_lidar' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_lidar -- -j8 -l8
+[2.163s] Invoking command in '/home/unitree/imes-g1/build/g1_lidar': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_lidar
+[2.478s] -- Install configuration: ""
+[2.478s] -- Execute custom install script
+[2.478s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/ament_index/resource_index/package_run_dependencies/g1_lidar
+[2.478s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/ament_index/resource_index/parent_prefix_path/g1_lidar
+[2.478s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/environment/ament_prefix_path.sh
+[2.478s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/environment/ament_prefix_path.dsv
+[2.478s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/environment/path.sh
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/environment/path.dsv
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/local_setup.bash
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/local_setup.sh
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/local_setup.zsh
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/local_setup.dsv
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/package.dsv
+[2.479s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/ament_index/resource_index/packages/g1_lidar
+[2.490s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/cmake/g1_lidarConfig.cmake
+[2.513s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/cmake/g1_lidarConfig-version.cmake
+[2.546s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/package.xml
+[2.578s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/config/fast_lio.yaml
+[2.601s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/config/kiss_icp.yaml
+[2.621s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/config/livox_mid360.json
+[2.642s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/launch/2d_scanner.launch.py
+[2.671s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/launch/fast_lio_odom.launch.py
+[2.695s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/launch/kiss_lio.launch.py
+[2.713s] -- Symlinking: /home/unitree/imes-g1/install/g1_lidar/share/g1_lidar/launch/livox_mid360.launch.py
+[2.746s] Invoked command in '/home/unitree/imes-g1/build/g1_lidar' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_lidar

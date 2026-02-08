@@ -1,0 +1,98 @@
+<link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+<nav class="side-nav" id="sideNav">
+    <ul>
+        <div class="logo-container">
+            <a href="https://www.mybotshop.de" target="_blank">
+                <img src="../static/media/logos/mbs_logo.webp" alt="MBS" class="logo">
+            </a>
+        </div>
+
+        <div class="version-number">v2.9</div>
+        <span class="firmware-date" id="firmwareDate">--.--.--</span>
+
+        <li>
+            <div class="connection-status connected" id="connectionStatus">
+                <span class="connection-dot"></span>
+                <span id="connectionText">Connected</span>
+            </div>
+        </li>
+
+        <li><a href="/"><i class="fa-solid fa-gauge" style="margin-right: 10px;"></i> Dashboard</a></li>
+
+        <li>
+            <a href="/console_page">
+                <div class="battery-status-mini" style="margin-right: 10px;">
+                    <div class="battery-mini">
+                        <div class="battery-mini-level" id="batteryMiniLevel"></div>
+                        <div class="battery-mini-terminal"></div>
+                    </div>
+                    <span class="battery-mini-text" id="batteryMiniPercentage">0%</span>
+                </div>
+                &nbsp;Console
+            </a>
+        </li>
+
+        <li class="dropdown">
+            <a href="#" class="dropdown-toggle"><i class="fa-solid fa-compass" style="margin-right: 10px;"></i>
+                Navigation</a>
+            <ul class="dropdown-menu">
+                <li><a href="/navi_indoor_page">Indoor Navi</a></li>
+                <li><a href="/navi_outdoor_page">Outdoor Navi</a></li>
+            </ul>
+        </li>
+
+        <li><a href="/vnc_page"><i class="fa-solid fa-desktop" style="margin-right: 10px;"></i> Remote Screen</a></li>
+
+        <li>
+            <a href="#" id="themeToggleBtn">
+                <i class="fa-solid fa-circle-half-stroke" style="margin-right: 10px;"></i> Toggle Theme
+            </a>
+        </li>
+
+        <li><a href="https://forum.mybotshop.de/" target="_blank"
+                style="color: var(--project-hyperlink-inactive-color);"><i class="fa-solid fa-comments"
+                    style="margin-right: 10px;"></i> Forum Post</a></li>
+
+        <li class="dropdown">
+            <a href="#" class="dropdown-toggle" style="color: var(--project-hyperlink-inactive-color);"><i
+                    class="fa-solid fa-book" style="margin-right: 10px;"></i>
+                Documentation</a>
+            <ul class="dropdown-menu">
+                <li><a href="https://www.docs.mybotshop.de/" target="_blank"
+                        style="color: var(--project-hyperlink-inactive-color);">MBS</a></li>
+                <li><a href="https://www.docs.quadruped.de/" target="_blank"
+                        style="color: var(--project-hyperlink-inactive-color);">QRE</a></li>
+                <li><a href="https://docs.ros.org/en/humble/Concepts.html" target="_blank"
+                        style="color: var(--project-hyperlink-inactive-color);">ROS2</a></li>
+                <li><a href="/safety_page" style="color: var(--project-hyperlink-inactive-color);">SAFETY</a></li>
+            </ul>
+        </li>
+
+        <li>
+            <a href="/logout" style="color: var(--project-error-color);">
+                <i class="fa-solid fa-right-from-bracket" style="margin-right: 10px;"></i> Logout
+            </a>
+        </li>
+
+        </div>
+    </ul>
+</nav>
+
+<!-- Web Button Audio -->
+<audio id="buttonClickSound" src="../static/webaudio/click.mp3" preload="auto"></audio>
+
+<!-- Core Button Audio -->
+<audio id="e_stopSound" src="../static/webaudio/e_stop.mp3" preload="auto"></audio>
+<audio id="e_stop_releaseSound" src="../static/webaudio/e_stop_release.mp3" preload="auto"></audio>
+<audio id="record_bagSound" src="../static/webaudio/record_rosbag.mp3" preload="auto"></audio>
+<audio id="stop_record_bagSound" src="../static/webaudio/save_rosbag.mp3" preload="auto"></audio>
+<audio id="buttonReactivateAllServicesSound" src="../static/webaudio/reactivation_all.mp3" preload="auto"></audio>
+<audio id="buttonDeactivateAllServicesSound" src="../static/webaudio/deactivation_all.mp3" preload="auto"></audio>
+<audio id="create_logsSound" src="../static/webaudio/create_logs.mp3" preload="auto"></audio>
+<audio id="control_block_41Sound" src="../static/webaudio/reboot.mp3" preload="auto"></audio>
+<audio id="control_block_44Sound" src="../static/webaudio/udev.mp3" preload="auto"></audio>
+<audio id="control_block_45Sound" src="../static/webaudio/poweroff.mp3" preload="auto"></audio>
+<audio id="control_block_47Sound" src="../static/webaudio/re_network_manager.mp3" preload="auto"></audio>
+<audio id="control_block_48Sound" src="../static/webaudio/clear_memory.mp3" preload="auto"></audio>
+
+<!-- Additional Button Audio -->

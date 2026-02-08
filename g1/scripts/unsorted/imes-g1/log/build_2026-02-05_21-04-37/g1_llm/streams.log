@@ -1,0 +1,60 @@
+[0.118s] Invoking command in '/home/unitree/imes-g1/build/g1_llm': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_llm -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_llm
+[0.203s] -- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+[0.253s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[0.678s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.701s] -- Found rclcpp: 2.4.3 (/opt/ros/foxy/share/rclcpp/cmake)
+[0.764s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.770s] -- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)
+[1.048s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[1.146s] -- Found rmw_implementation_cmake: 1.0.4 (/opt/ros/foxy/share/rmw_implementation_cmake/cmake)
+[1.149s] -- Using RMW implementation 'rmw_cyclonedds_cpp' as default
+[1.375s] -- Found rclpy: 1.0.13 (/opt/ros/foxy/share/rclpy/cmake)
+[1.517s] -- Configuring done
+[1.528s] -- Generating done
+[1.533s] -- Build files have been written to: /home/unitree/imes-g1/build/g1_llm
+[1.570s] Invoked command in '/home/unitree/imes-g1/build/g1_llm' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_llm -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_llm
+[1.572s] Invoking command in '/home/unitree/imes-g1/build/g1_llm': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_llm -- -j8 -l8
+[1.696s] Invoked command in '/home/unitree/imes-g1/build/g1_llm' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_llm -- -j8 -l8
+[1.703s] Invoking command in '/home/unitree/imes-g1/build/g1_llm': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_llm
+[1.778s] -- Install configuration: ""
+[1.778s] -- Execute custom install script
+[1.779s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/environment/pythonpath.sh
+[1.779s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/environment/pythonpath.dsv
+[1.780s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages/g1_llm/__init__.py
+[1.781s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages/g1_llm/actions.py
+[1.781s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages/g1_llm/cmd_vel.py
+[1.781s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages/g1_llm/image.py
+[1.781s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages/g1_llm/llm.py
+[1.781s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/lib/g1_llm/llm.py
+[1.784s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/README
+[1.784s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/am/final.mdl
+[1.784s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/conf/mfcc.conf
+[1.785s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/conf/model.conf
+[1.785s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/graph/Gr.fst
+[1.785s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/graph/HCLr.fst
+[1.786s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/graph/disambig_tid.int
+[1.786s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/graph/phones/word_boundary.int
+[1.786s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/ivector/final.dubm
+[1.787s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/ivector/final.ie
+[1.787s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/ivector/final.mat
+[1.787s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/ivector/global_cmvn.stats
+[1.788s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/ivector/online_cmvn.conf
+[1.788s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/config/vosk-model-small-en-us-0.15/ivector/splice.conf
+[1.789s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/launch/llm.launch.py
+[1.789s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/ament_index/resource_index/package_run_dependencies/g1_llm
+[1.790s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/ament_index/resource_index/parent_prefix_path/g1_llm
+[1.790s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/environment/ament_prefix_path.sh
+[1.790s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/environment/ament_prefix_path.dsv
+[1.791s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/environment/path.sh
+[1.791s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/environment/path.dsv
+[1.791s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/local_setup.bash
+[1.792s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/local_setup.sh
+[1.792s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/local_setup.zsh
+[1.792s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/local_setup.dsv
+[1.792s] -- Symlinking: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/package.dsv
+[1.799s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/ament_index/resource_index/packages/g1_llm
+[1.799s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/cmake/g1_llmConfig.cmake
+[1.800s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/cmake/g1_llmConfig-version.cmake
+[1.800s] -- Up-to-date symlink: /home/unitree/imes-g1/install/g1_llm/share/g1_llm/package.xml
+[1.867s] Listing '/home/unitree/imes-g1/install/g1_llm/lib/python3.8/site-packages/g1_llm'...
+[1.902s] Invoked command in '/home/unitree/imes-g1/build/g1_llm' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_llm

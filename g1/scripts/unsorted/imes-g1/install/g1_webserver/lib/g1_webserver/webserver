@@ -1,0 +1,33 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Software License Agreement (BSD)
+#
+# @author    Salman Omar Sohail <support@mybotshop.de>
+# @copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, is not permitted without the express permission
+# of MYBOTSHOP GmbH.
+
+
+import rclpy
+from g1_webserver.librosnode import ROS2WebServer
+from g1_webserver.libroscustom import ROS2CustomWebInterface
+
+def launch_webserver(args=None):
+
+    rclpy.init(args=args)
+    
+    ros2_webserver = ROS2WebServer()
+    ros2_custom_interface = ROS2CustomWebInterface(ros2_webserver)
+
+    try:
+        rclpy.spin(ros2_webserver)
+    except KeyboardInterrupt:
+        ros2_webserver.get_logger().info('Web server stopped by user.')
+    finally:
+        ros2_webserver.destroy_node()
+
+if __name__ == '__main__':
+    launch_webserver()

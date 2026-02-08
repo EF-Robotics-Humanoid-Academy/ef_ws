@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!--
+Software License Agreement (BSD)
+
+@author    Salman Omar Sohail <support@mybotshop.de>
+@copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+-->
+<html>
+
+<head>
+    <title>VNC - Robot Webserver</title>
+    <link rel="icon" href="../static/media/logos/mbs_logo.ico" type="image/x-icon">
+    <link rel="stylesheet" href="../static/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../static/css/all.min.css" type="text/css" /> <!-- Font Awesome -->
+    <script src="../static/scripts/common_script.js" defer></script>
+    <script type="module" src="../static/scripts/vnc_script.js" defer></script>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <div class="navbar"></div>
+
+    <!-- Background Media -->
+    <div class="background-media">
+        <img src="../static/media/wallpaper/wallpaper.webp" alt="Background GIF">
+    </div>
+
+    <!-- Main Panels -->
+    <div class="container">
+        <!-- VNC Viewer Container -->
+        <div class="vnc-container">
+            <div id="vnc-status">Disconnected</div>
+            <div id="vnc-screen"></div>
+            <div class="vnc-controls">
+                <label>VNC Host:</label>
+                <input type="text" id="vnc-host" value="192.168.123.164" placeholder="192.168.123.164">
+
+                <label>WebSocket Port:</label>
+                <input type="text" id="vnc-port" value="6080" placeholder="6080">
+
+                <label>VNC Password:</label>
+                <input type="password" id="vnc-password" value="mybotshop" placeholder="mybotshop">
+
+                <button id="vnc-connect-btn">
+                    <i class="fas fa-plug"></i> Connect
+                </button>
+
+                <button id="vnc-disconnect-btn">
+                    <i class="fas fa-unlink"></i> Disconnect
+                </button>
+
+                <button id="vnc-restart-btn">
+                    <i class="fas fa-sync-alt"></i> Restart VNC
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer_"></div>
+</body>
+
+</html>

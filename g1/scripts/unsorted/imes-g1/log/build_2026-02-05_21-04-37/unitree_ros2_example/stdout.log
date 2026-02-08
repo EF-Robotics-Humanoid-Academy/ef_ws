@@ -1,0 +1,72 @@
+-- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+-- Using PYTHON_EXECUTABLE: /usr/bin/python3
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found unitree_go: 0.0.0 (/home/unitree/imes-g1/install/unitree_go/share/unitree_go/cmake)
+-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+-- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)
+-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+-- Found unitree_hg: 0.0.0 (/home/unitree/imes-g1/install/unitree_hg/share/unitree_hg/cmake)
+-- Found unitree_api: 0.0.0 (/home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake)
+-- Found rclcpp: 2.4.3 (/opt/ros/foxy/share/rclcpp/cmake)
+-- Found rmw_implementation_cmake: 1.0.4 (/opt/ros/foxy/share/rmw_implementation_cmake/cmake)
+-- Using RMW implementation 'rmw_cyclonedds_cpp' as default
+-- Found rosbag2_cpp: 0.3.11 (/opt/ros/foxy/share/rosbag2_cpp/cmake)
+-- Setting yaml-cpp_DIR to: '/opt/ros/foxy/share/yaml_cpp_vendor/cmake/../../../opt/yaml_cpp_vendor/lib/cmake/yaml-cpp'
+-- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)
+-- Added test 'copyright' to check source files copyright and LICENSE
+-- Added test 'cppcheck' to perform static code analysis on C / C++ code
+-- Configured cppcheck include dirs: /home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/example/src/include;/home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/example/src/include/common;/home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/example/src/include/nlohmann
+-- Configured cppcheck exclude dirs and/or files: 
+-- Added test 'cpplint' to check C / C++ code against the Google style
+-- Configured cpplint exclude dirs and/or files: 
+-- Added test 'lint_cmake' to check CMake code style
+-- Added test 'uncrustify' to check C / C++ code style
+-- Configured uncrustify additional arguments: 
+-- Added test 'xmllint' to check XML markup files
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/unitree/imes-g1/build/unitree_ros2_example
+[35m[1mConsolidate compiler generated dependencies of target read_low_state[0m
+[35m[1mConsolidate compiler generated dependencies of target low_level_ctrl[0m
+[35m[1mConsolidate compiler generated dependencies of target read_motion_state[0m
+[35m[1mConsolidate compiler generated dependencies of target go2_sport_client[0m
+[35m[1mConsolidate compiler generated dependencies of target read_wireless_controller[0m
+[35m[1mConsolidate compiler generated dependencies of target read_low_state_hg[0m
+[35m[1mConsolidate compiler generated dependencies of target low_level_ctrl_hg[0m
+[35m[1mConsolidate compiler generated dependencies of target g1_low_level_example[0m
+[ 17%] Built target read_low_state
+[ 21%] Built target low_level_ctrl
+[ 34%] Built target low_level_ctrl_hg
+[ 43%] Built target read_motion_state
+[ 52%] Built target read_low_state_hg
+[ 69%] Built target read_wireless_controller
+[ 73%] Built target go2_sport_client
+[ 86%] Built target g1_low_level_example
+[35m[1mConsolidate compiler generated dependencies of target go2_stand_example[0m
+[100%] Built target go2_stand_example
+-- Install configuration: ""
+-- Execute custom install script
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//low_level_ctrl
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//low_level_ctrl_hg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//g1_low_level_example
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//read_low_state
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//read_low_state_hg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//read_motion_state
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//read_wireless_controller
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//go2_sport_client
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example//go2_stand_example
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/ament_index/resource_index/package_run_dependencies/unitree_ros2_example
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/ament_index/resource_index/parent_prefix_path/unitree_ros2_example
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/environment/path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/environment/path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/local_setup.bash
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/local_setup.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/local_setup.zsh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/local_setup.dsv
+-- Symlinking: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/package.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/ament_index/resource_index/packages/unitree_ros2_example
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/cmake/unitree_ros2_exampleConfig.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/cmake/unitree_ros2_exampleConfig-version.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/unitree_ros2_example/share/unitree_ros2_example/package.xml

@@ -1,0 +1,17 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from g1_interface/srv/G1Light.srv
+// generated code does not contain a copyright notice
+
+
+module g1_interface {
+  module srv {
+    struct G1Light_Request {
+      int32 light_level;
+    };
+    struct G1Light_Response {
+      boolean success;
+
+      string reason;
+    };
+  };
+};

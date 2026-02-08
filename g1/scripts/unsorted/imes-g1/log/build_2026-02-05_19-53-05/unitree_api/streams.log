@@ -1,0 +1,351 @@
+[0.097s] Invoking command in '/home/unitree/imes-g1/build/unitree_api': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/cyclonedds_ws/src/unitree/unitree_api -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/unitree_api
+[0.257s] -- The C compiler identification is GNU 9.4.0
+[0.369s] -- The CXX compiler identification is GNU 9.4.0
+[0.390s] -- Detecting C compiler ABI info
+[0.492s] -- Detecting C compiler ABI info - done
+[0.505s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.506s] -- Detecting C compile features
+[0.507s] -- Detecting C compile features - done
+[0.513s] -- Detecting CXX compiler ABI info
+[0.635s] -- Detecting CXX compiler ABI info - done
+[0.649s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.649s] -- Detecting CXX compile features
+[0.650s] -- Detecting CXX compile features - done
+[0.655s] -- Found ament_cmake: 0.9.12 (/opt/ros/foxy/share/ament_cmake/cmake)
+[0.714s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3") 
+[0.714s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[1.141s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.194s] -- Found geometry_msgs: 2.0.5 (/opt/ros/foxy/share/geometry_msgs/cmake)
+[1.251s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[1.265s] -- Found rosidl_adapter: 1.3.1 (/opt/ros/foxy/share/rosidl_adapter/cmake)
+[1.443s] -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "1.1.1f")  
+[1.510s] -- Found FastRTPS: /opt/ros/foxy/include  
+[1.652s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[1.786s] -- Found rosidl_default_generators: 1.0.1 (/opt/ros/foxy/share/rosidl_default_generators/cmake)
+[1.812s] -- Found rosidl_generator_dds_idl: 0.7.1 (/opt/ros/foxy/share/rosidl_generator_dds_idl/cmake)
+[1.861s] -- Found PythonInterp: /usr/bin/python3 (found version "3.8.10") 
+[2.238s] -- Found ament_cmake_ros: 0.9.2 (/opt/ros/foxy/share/ament_cmake_ros/cmake)
+[2.681s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[2.854s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[2.905s] -- Found PythonInterp: /usr/bin/python3 (found suitable version "3.8.10", minimum required is "3.5") 
+[2.908s] -- Found python_cmake_module: 0.8.1 (/opt/ros/foxy/share/python_cmake_module/cmake)
+[2.968s] -- Found PythonLibs: /usr/lib/aarch64-linux-gnu/libpython3.8.so (found suitable version "3.8.10", minimum required is "3.5") 
+[2.968s] -- Using PYTHON_EXECUTABLE: /usr/bin/python3
+[2.968s] -- Using PYTHON_INCLUDE_DIRS: /usr/include/python3.8
+[2.968s] -- Using PYTHON_LIBRARIES: /usr/lib/aarch64-linux-gnu/libpython3.8.so
+[3.012s] -- Found PythonExtra: .so  
+[3.726s] -- Found ament_lint_auto: 0.9.8 (/opt/ros/foxy/share/ament_lint_auto/cmake)
+[3.775s] -- Added test 'copyright' to check source files copyright and LICENSE
+[3.779s] -- Added test 'lint_cmake' to check CMake code style
+[3.782s] -- Added test 'xmllint' to check XML markup files
+[3.790s] -- Configuring done
+[3.899s] -- Generating done
+[3.929s] -- Build files have been written to: /home/unitree/imes-g1/build/unitree_api
+[3.985s] Invoked command in '/home/unitree/imes-g1/build/unitree_api' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/third_party/unitree/12Aug2025_unitree_ros2/cyclonedds_ws/src/unitree/unitree_api -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/unitree_api
+[3.993s] Invoking command in '/home/unitree/imes-g1/build/unitree_api': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/unitree_api -- -j8 -l8
+[4.256s] [  1%] [34m[1mGenerating C code for ROS interfaces[0m
+[4.288s] [  2%] [34m[1mGenerating DDS interfaces[0m
+[4.312s] [  3%] [34m[1mGenerating C++ code for ROS interfaces[0m
+[5.448s] [  3%] Built target unitree_api__dds_connext_idl
+[6.775s] [  3%] Built target unitree_api__cpp
+[6.824s] [  4%] [34m[1mGenerating C++ type support for eProsima Fast-RTPS[0m
+[6.849s] [  5%] [34m[1mGenerating C++ introspection for ROS interfaces[0m
+[6.849s] [  6%] [34m[1mGenerating C++ type support dispatch for ROS interfaces[0m
+[7.113s] [  7%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/request_header__functions.c.o[0m
+[7.117s] [  9%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/request__functions.c.o[0m
+[7.132s] [ 10%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/request_identity__functions.c.o[0m
+[7.169s] [ 11%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/request_lease__functions.c.o[0m
+[7.268s] [ 12%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/request_policy__functions.c.o[0m
+[7.429s] [ 13%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/response__functions.c.o[0m
+[7.501s] [ 14%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/response_status__functions.c.o[0m
+[7.509s] [ 15%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_generator_c.dir/rosidl_generator_c/unitree_api/msg/detail/response_header__functions.c.o[0m
+[7.769s] [ 17%] [32m[1mLinking C shared library libunitree_api__rosidl_generator_c.so[0m
+[7.964s] [ 17%] Built target unitree_api__rosidl_generator_c
+[8.024s] [ 18%] [34m[1mGenerating C introspection for ROS interfaces[0m
+[8.041s] [ 19%] [34m[1mGenerating C type support dispatch for ROS interfaces[0m
+[8.196s] [ 20%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/request__type_support.cpp.o[0m
+[8.219s] [ 21%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/request_identity__type_support.cpp.o[0m
+[8.220s] [ 22%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/request_header__type_support.cpp.o[0m
+[8.281s] [ 23%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/request_lease__type_support.cpp.o[0m
+[9.225s] [ 25%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/request__type_support.cpp.o[0m
+[9.478s] [ 26%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/request__type_support.cpp.o[0m
+[9.521s] [ 27%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/request_policy__type_support.cpp.o[0m
+[9.889s] [ 28%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/request__type_support.cpp.o[0m
+[9.965s] [ 29%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/request_header__type_support.cpp.o[0m
+[10.105s] [ 30%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/request_header__type_support.cpp.o[0m
+[10.188s] [ 31%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/response__type_support.cpp.o[0m
+[10.273s] [ 32%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/request_identity__type_support.cpp.o[0m
+[10.325s] [ 34%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/request_identity__type_support.cpp.o[0m
+[10.513s] [ 35%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/request_lease__type_support.cpp.o[0m
+[10.661s] [ 36%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/request__type_support.c.o[0m
+[10.705s] [ 37%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/request_policy__type_support.cpp.o[0m
+[10.849s] [ 38%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/request_lease__type_support.cpp.o[0m
+[10.849s] [ 39%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/request_header__type_support.c.o[0m
+[10.905s] [ 40%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/response__type_support.cpp.o[0m
+[11.035s] [ 42%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/request_identity__type_support.c.o[0m
+[11.109s] [ 43%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/response_header__type_support.cpp.o[0m
+[11.233s] [ 44%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/response_header__type_support.cpp.o[0m
+[11.249s] [ 45%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/request_lease__type_support.c.o[0m
+[11.292s] [ 46%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_c.dir/rosidl_typesupport_c/unitree_api/msg/response_status__type_support.cpp.o[0m
+[11.438s] [ 47%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/request_policy__type_support.c.o[0m
+[11.465s] [ 48%] [32m[1mLinking CXX shared library libunitree_api__rosidl_typesupport_c.so[0m
+[11.594s] [ 50%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/response__type_support.c.o[0m
+[11.649s] [ 51%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_cpp.dir/rosidl_typesupport_cpp/unitree_api/msg/response_status__type_support.cpp.o[0m
+[11.657s] [ 51%] Built target unitree_api__rosidl_typesupport_c
+[11.657s] [ 52%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/request_policy__type_support.cpp.o[0m
+[11.689s] [ 53%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/response_header__type_support.c.o[0m
+[11.761s] [ 54%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/response__type_support.cpp.o[0m
+[11.817s] [ 55%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c.dir/rosidl_typesupport_introspection_c/unitree_api/msg/detail/response_status__type_support.c.o[0m
+[11.901s] [ 56%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/request_header__type_support.cpp.o[0m
+[12.037s] [ 57%] [32m[1mLinking C shared library libunitree_api__rosidl_typesupport_introspection_c.so[0m
+[12.138s] [ 59%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/request_identity__type_support.cpp.o[0m
+[12.225s] [ 59%] Built target unitree_api__rosidl_typesupport_introspection_c
+[12.287s] [ 60%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/request_lease__type_support.cpp.o[0m
+[12.433s] [ 61%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/response_header__type_support.cpp.o[0m
+[12.955s] [ 62%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/request_policy__type_support.cpp.o[0m
+[13.065s] [ 63%] [32m[1mLinking CXX shared library libunitree_api__rosidl_typesupport_cpp.so[0m
+[13.282s] [ 63%] Built target unitree_api__rosidl_typesupport_cpp
+[13.320s] [ 64%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/response__type_support.cpp.o[0m
+[13.324s] [ 65%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_introspection_cpp.dir/rosidl_typesupport_introspection_cpp/unitree_api/msg/detail/response_status__type_support.cpp.o[0m
+[14.046s] [ 67%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/response_header__type_support.cpp.o[0m
+[14.156s] [ 68%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_cpp.dir/rosidl_typesupport_fastrtps_cpp/unitree_api/msg/detail/dds_fastrtps/response_status__type_support.cpp.o[0m
+[15.293s] [ 69%] [32m[1mLinking CXX shared library libunitree_api__rosidl_typesupport_introspection_cpp.so[0m
+[15.713s] [ 69%] Built target unitree_api__rosidl_typesupport_introspection_cpp
+[16.801s] [ 70%] [32m[1mLinking CXX shared library libunitree_api__rosidl_typesupport_fastrtps_cpp.so[0m
+[17.529s] [ 70%] Built target unitree_api__rosidl_typesupport_fastrtps_cpp
+[17.593s] [ 71%] [34m[1mGenerating C type support for eProsima Fast-RTPS[0m
+[20.322s] [ 72%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/request__type_support_c.cpp.o[0m
+[20.348s] [ 73%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/request_header__type_support_c.cpp.o[0m
+[20.365s] [ 75%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/request_identity__type_support_c.cpp.o[0m
+[20.420s] [ 76%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/request_lease__type_support_c.cpp.o[0m
+[20.453s] [ 77%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/request_policy__type_support_c.cpp.o[0m
+[23.049s] [ 78%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/response_status__type_support_c.cpp.o[0m
+[24.547s] [ 79%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/response_header__type_support_c.cpp.o[0m
+[25.956s] [ 80%] [32mBuilding CXX object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c.dir/rosidl_typesupport_fastrtps_c/unitree_api/msg/detail/response__type_support_c.cpp.o[0m
+[26.826s] [ 81%] [32m[1mLinking CXX shared library libunitree_api__rosidl_typesupport_fastrtps_c.so[0m
+[26.985s] [ 81%] Built target unitree_api__rosidl_typesupport_fastrtps_c
+[27.064s] [ 81%] Built target unitree_api
+[27.174s] [ 82%] [34m[1mGenerating Python code for ROS interfaces[0m
+[28.758s] [ 82%] Built target unitree_api__py
+[28.776s] [ 84%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_request_s.c.o[0m
+[28.948s] [ 85%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_response_status_s.c.o[0m
+[29.097s] [ 86%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_response_header_s.c.o[0m
+[29.249s] [ 87%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_response_s.c.o[0m
+[29.430s] [ 88%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_request_policy_s.c.o[0m
+[29.584s] [ 89%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_request_lease_s.c.o[0m
+[29.741s] [ 90%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_request_identity_s.c.o[0m
+[29.896s] [ 92%] [32mBuilding C object CMakeFiles/unitree_api__python.dir/rosidl_generator_py/unitree_api/msg/_request_header_s.c.o[0m
+[30.059s] [ 93%] [32m[1mLinking C shared library rosidl_generator_py/unitree_api/libunitree_api__python.so[0m
+[30.131s] [ 93%] Built target unitree_api__python
+[30.148s] [ 94%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_fastrtps_c__pyext.dir/rosidl_generator_py/unitree_api/_unitree_api_s.ep.rosidl_typesupport_fastrtps_c.c.o[0m
+[30.327s] [ 95%] [32m[1mLinking CXX shared library rosidl_generator_py/unitree_api/unitree_api_s__rosidl_typesupport_fastrtps_c.cpython-38-aarch64-linux-gnu.so[0m
+[30.421s] [ 95%] Built target unitree_api__rosidl_typesupport_fastrtps_c__pyext
+[30.440s] [ 96%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_c__pyext.dir/rosidl_generator_py/unitree_api/_unitree_api_s.ep.rosidl_typesupport_c.c.o[0m
+[30.618s] [ 97%] [32m[1mLinking C shared library rosidl_generator_py/unitree_api/unitree_api_s__rosidl_typesupport_c.cpython-38-aarch64-linux-gnu.so[0m
+[30.668s] [ 97%] Built target unitree_api__rosidl_typesupport_c__pyext
+[30.684s] [ 98%] [32mBuilding C object CMakeFiles/unitree_api__rosidl_typesupport_introspection_c__pyext.dir/rosidl_generator_py/unitree_api/_unitree_api_s.ep.rosidl_typesupport_introspection_c.c.o[0m
+[30.864s] [100%] [32m[1mLinking C shared library rosidl_generator_py/unitree_api/unitree_api_s__rosidl_typesupport_introspection_c.cpython-38-aarch64-linux-gnu.so[0m
+[30.916s] [100%] Built target unitree_api__rosidl_typesupport_introspection_c__pyext
+[30.953s] Invoked command in '/home/unitree/imes-g1/build/unitree_api' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/unitree_api -- -j8 -l8
+[30.959s] Invoking command in '/home/unitree/imes-g1/build/unitree_api': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/unitree_api
+[31.037s] -- Install configuration: ""
+[31.039s] -- Execute custom install script
+[31.040s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/ament_index/resource_index/rosidl_interfaces/unitree_api
+[31.049s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__functions.h
+[31.055s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__struct.h
+[31.068s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__type_support.h
+[31.073s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__functions.h
+[31.080s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__struct.h
+[31.090s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__type_support.h
+[31.097s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__functions.h
+[31.103s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__struct.h
+[31.108s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__type_support.h
+[31.126s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__functions.h
+[31.132s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__struct.h
+[31.139s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__type_support.h
+[31.148s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__functions.h
+[31.154s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__struct.h
+[31.162s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__type_support.h
+[31.181s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__functions.h
+[31.202s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__struct.h
+[31.214s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__type_support.h
+[31.220s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__functions.h
+[31.226s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__struct.h
+[31.237s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__type_support.h
+[31.244s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__functions.h
+[31.254s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__struct.h
+[31.278s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__type_support.h
+[31.290s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request.h
+[31.301s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_header.h
+[31.312s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_identity.h
+[31.318s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_lease.h
+[31.329s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_policy.h
+[31.347s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/response.h
+[31.353s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/response_header.h
+[31.364s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/response_status.h
+[31.382s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/rosidl_generator_c__visibility_control.h
+[31.389s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/library_path.sh
+[31.396s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/library_path.dsv
+[31.407s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__rosidl_typesupport_fastrtps_c.h
+[31.426s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__rosidl_typesupport_fastrtps_c.h
+[31.433s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__rosidl_typesupport_fastrtps_c.h
+[31.438s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__rosidl_typesupport_fastrtps_c.h
+[31.444s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__rosidl_typesupport_fastrtps_c.h
+[31.451s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__rosidl_typesupport_fastrtps_c.h
+[31.456s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__rosidl_typesupport_fastrtps_c.h
+[31.462s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__rosidl_typesupport_fastrtps_c.h
+[31.469s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+[31.475s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_fastrtps_c.so
+[31.482s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__rosidl_typesupport_fastrtps_cpp.hpp
+[31.489s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__rosidl_typesupport_fastrtps_cpp.hpp
+[31.494s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__rosidl_typesupport_fastrtps_cpp.hpp
+[31.511s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__rosidl_typesupport_fastrtps_cpp.hpp
+[31.518s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__rosidl_typesupport_fastrtps_cpp.hpp
+[31.524s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__rosidl_typesupport_fastrtps_cpp.hpp
+[31.529s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__rosidl_typesupport_fastrtps_cpp.hpp
+[31.536s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__rosidl_typesupport_fastrtps_cpp.hpp
+[31.542s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+[31.548s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_fastrtps_cpp.so
+[31.562s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__rosidl_typesupport_introspection_c.h
+[31.574s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__rosidl_typesupport_introspection_c.h
+[31.582s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__rosidl_typesupport_introspection_c.h
+[31.588s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__rosidl_typesupport_introspection_c.h
+[31.594s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__rosidl_typesupport_introspection_c.h
+[31.600s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__rosidl_typesupport_introspection_c.h
+[31.607s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__rosidl_typesupport_introspection_c.h
+[31.617s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__rosidl_typesupport_introspection_c.h
+[31.623s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/rosidl_typesupport_introspection_c__visibility_control.h
+[31.631s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__builder.hpp
+[31.637s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__struct.hpp
+[31.642s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__traits.hpp
+[31.654s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__type_support.hpp
+[31.674s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__builder.hpp
+[31.684s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__struct.hpp
+[31.689s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__traits.hpp
+[31.696s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__type_support.hpp
+[31.711s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__builder.hpp
+[31.718s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__struct.hpp
+[31.725s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__traits.hpp
+[31.732s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__type_support.hpp
+[31.742s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__builder.hpp
+[31.747s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__struct.hpp
+[31.753s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__traits.hpp
+[31.759s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__type_support.hpp
+[31.780s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__builder.hpp
+[31.785s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__struct.hpp
+[31.791s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__traits.hpp
+[31.798s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__type_support.hpp
+[31.805s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__builder.hpp
+[31.810s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__struct.hpp
+[31.816s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__traits.hpp
+[31.824s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__type_support.hpp
+[31.829s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__builder.hpp
+[31.834s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__struct.hpp
+[31.840s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__traits.hpp
+[31.845s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__type_support.hpp
+[31.850s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__builder.hpp
+[31.860s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__struct.hpp
+[31.870s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__traits.hpp
+[31.881s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__type_support.hpp
+[31.892s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request.hpp
+[31.904s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_header.hpp
+[31.910s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_identity.hpp
+[31.915s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_lease.hpp
+[31.925s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/request_policy.hpp
+[31.949s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/response.hpp
+[31.955s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/response_header.hpp
+[31.965s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/response_status.hpp
+[31.983s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/rosidl_generator_cpp__visibility_control.hpp
+[31.989s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request__rosidl_typesupport_introspection_cpp.hpp
+[31.995s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_header__rosidl_typesupport_introspection_cpp.hpp
+[32.001s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_identity__rosidl_typesupport_introspection_cpp.hpp
+[32.007s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_lease__rosidl_typesupport_introspection_cpp.hpp
+[32.013s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/request_policy__rosidl_typesupport_introspection_cpp.hpp
+[32.018s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response__rosidl_typesupport_introspection_cpp.hpp
+[32.034s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_header__rosidl_typesupport_introspection_cpp.hpp
+[32.041s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/include/unitree_api/msg/detail/response_status__rosidl_typesupport_introspection_cpp.hpp
+[32.070s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/pythonpath.sh
+[32.078s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/pythonpath.dsv
+[32.100s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/__init__.py
+[32.108s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/__init__.py
+[32.123s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_request.py
+[32.138s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_request_header.py
+[32.145s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_request_identity.py
+[32.157s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_request_lease.py
+[32.171s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_request_policy.py
+[32.191s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_response.py
+[32.211s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_response_header.py
+[32.226s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/msg/_response_status.py
+[32.236s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/unitree_api_s__rosidl_typesupport_fastrtps_c.cpython-38-aarch64-linux-gnu.so
+[32.243s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/unitree_api_s__rosidl_typesupport_introspection_c.cpython-38-aarch64-linux-gnu.so
+[32.251s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/unitree_api_s__rosidl_typesupport_c.cpython-38-aarch64-linux-gnu.so
+[32.258s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__python.so
+[32.271s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/Request.idl
+[32.277s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestHeader.idl
+[32.283s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestIdentity.idl
+[32.290s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestLease.idl
+[32.297s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestPolicy.idl
+[32.318s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/Response.idl
+[32.329s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/ResponseHeader.idl
+[32.352s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/ResponseStatus.idl
+[32.358s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/Request.msg
+[32.365s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestHeader.msg
+[32.378s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestIdentity.msg
+[32.384s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestLease.msg
+[32.392s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/RequestPolicy.msg
+[32.398s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/Response.msg
+[32.408s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/ResponseHeader.msg
+[32.414s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/ResponseStatus.msg
+[32.422s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/RequestHeader_.idl
+[32.429s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/RequestIdentity_.idl
+[32.436s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/RequestLease_.idl
+[32.443s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/RequestPolicy_.idl
+[32.449s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/Request_.idl
+[32.456s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/ResponseHeader_.idl
+[32.463s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/ResponseStatus_.idl
+[32.470s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/msg/dds_connext/Response_.idl
+[32.477s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/ament_index/resource_index/package_run_dependencies/unitree_api
+[32.483s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/ament_index/resource_index/parent_prefix_path/unitree_api
+[32.490s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/ament_prefix_path.sh
+[32.497s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/ament_prefix_path.dsv
+[32.506s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/path.sh
+[32.512s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/environment/path.dsv
+[32.518s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/local_setup.bash
+[32.524s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/local_setup.sh
+[32.530s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/local_setup.zsh
+[32.536s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/local_setup.dsv
+[32.542s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/package.dsv
+[32.549s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/ament_index/resource_index/packages/unitree_api
+[32.556s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/rosidl_cmake-extras.cmake
+[32.564s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/ament_cmake_export_dependencies-extras.cmake
+[32.571s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/ament_cmake_export_libraries-extras.cmake
+[32.578s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/ament_cmake_export_targets-extras.cmake
+[32.586s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/ament_cmake_export_include_directories-extras.cmake
+[32.593s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+[32.603s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+[32.611s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_apiConfig.cmake
+[32.617s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_apiConfig-version.cmake
+[32.624s] -- Symlinking: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/package.xml
+[32.634s] -- Installing: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_generator_c.so
+[32.636s] -- Set runtime path of "/home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_generator_c.so" to ""
+[32.636s] -- Installing: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_introspection_c.so
+[32.637s] -- Set runtime path of "/home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_introspection_c.so" to ""
+[32.637s] -- Installing: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_c.so
+[32.637s] -- Set runtime path of "/home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_c.so" to ""
+[32.637s] -- Installing: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_introspection_cpp.so
+[32.639s] -- Set runtime path of "/home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_introspection_cpp.so" to ""
+[32.639s] -- Installing: /home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_cpp.so
+[32.639s] -- Set runtime path of "/home/unitree/imes-g1/install/unitree_api/lib/libunitree_api__rosidl_typesupport_cpp.so" to ""
+[32.710s] Compiling '/home/unitree/imes-g1/install/unitree_api/lib/python3.8/site-packages/unitree_api/__init__.py'...
+[32.728s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_generator_cExport.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_generator_cExport-noconfig.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_introspection_cExport.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_introspection_cExport-noconfig.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_cExport.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_cExport-noconfig.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_generator_cppExport.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_introspection_cppExport.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+[32.729s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_cppExport.cmake
+[32.730s] -- Installing: /home/unitree/imes-g1/install/unitree_api/share/unitree_api/cmake/unitree_api__rosidl_typesupport_cppExport-noconfig.cmake
+[32.745s] Invoked command in '/home/unitree/imes-g1/build/unitree_api' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/unitree_api

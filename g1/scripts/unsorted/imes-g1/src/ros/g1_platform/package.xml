@@ -1,0 +1,39 @@
+<package format="3">
+    <name>g1_platform</name>
+    <version>1.0.0</version>
+    <description>The g1_platform package</description>
+    <maintainer email="support@mybotshop.de">Salman Omar Sohail</maintainer>
+    <license>Proprietary</license>
+
+    <buildtool_depend>ament_cmake</buildtool_depend>
+    <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+    <build_depend>rcl</build_depend>
+    <build_depend>std_msgs</build_depend>
+    <build_depend>std_srvs</build_depend>
+    <build_depend>g1_interface</build_depend>
+
+    <build_export_depend>std_msgs</build_export_depend>
+
+    <exec_depend>rcl</exec_depend>
+    <exec_depend>std_srvs</exec_depend>
+    <exec_depend>rosidl_default_runtime</exec_depend>
+    <exec_depend>ros2launch</exec_depend>
+    <exec_depend>g1_interface</exec_depend>
+
+    <depend>unitree_api</depend>
+    <depend>unitree_hg</depend>
+    <depend>geometry_msgs</depend>
+    <depend>sensor_msgs</depend>
+    <depend>nav_msgs</depend>
+    <depend>eigen</depend>
+    <depend>tf2</depend>
+    <depend>tf2_ros</depend>
+    <depend>hardware_interface</depend>
+    <depend>pluginlib</depend>
+    <depend>rclcpp</depend>
+
+    <export>
+        <build_type>ament_cmake</build_type>
+    </export>
+</package>

@@ -1,0 +1,3 @@
+g1/realsense_i:
+  ros__parameters:
+    topic: false

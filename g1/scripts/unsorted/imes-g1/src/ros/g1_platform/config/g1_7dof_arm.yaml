@@ -1,0 +1,59 @@
+/**:
+  ros__parameters:
+    eth: "eth0"
+
+    # Control rate
+    control_dt: 0.01   # 100 Hz
+
+    # Gains
+    kp: 40.0
+    kd: 1.0
+    tau_ff: 0.0
+    hold_kp: 40.0
+    hold_kd: 1.0
+
+    # Fixed (held) weight — applied every tick (no ramping)
+    weight: 0.75
+
+    # Limits
+    max_joint_velocity: 1.0 # Max joint velocity in rad/s
+    velocity_limits: [0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.80]
+    pos_limits_min:  [-3.14, -2.50, -3.14, -2.60, -2.60, -2.60, -3.14]
+    pos_limits_max:  [ 3.14,  2.50,  3.14,  2.60,  2.60,  2.60,  3.14]
+
+    # Joint names
+    joint_names_left:
+      - left_shoulder_pitch
+      - left_shoulder_roll
+      - left_shoulder_yaw
+      - left_elbow
+      - left_wrist_roll
+      - left_wrist_pitch
+      - left_wrist_yaw
+
+    joint_names_right:
+      - right_shoulder_pitch
+      - right_shoulder_roll
+      - right_shoulder_yaw
+      - right_elbow
+      - right_wrist_roll
+      - right_wrist_pitch
+      - right_wrist_yaw
+
+    # Startup: both arms move together, then hold (set startup_on_launch: false to skip)
+    startup_on_launch: true
+    startup_time: 3.0
+    startup_pose_left:  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    startup_pose_right: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+    # Smooth transition times
+    transition_time: 1.5      # Time for start service transitions
+    stop_time: 0.8           # Time for gradual stopping
+    startup_delay: 2.0       # Delay before startup motion
+
+    # Reduced gains for smoother operation
+    transition_kp: 15.0      # Transition position gain
+    transition_kd: 0.5       # Transition damping
+
+    # Movement threshold
+    min_move_threshold: 0.087  # ~5 degrees minimum movement

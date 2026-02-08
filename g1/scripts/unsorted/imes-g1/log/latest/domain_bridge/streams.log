@@ -1,0 +1,23 @@
+[0.098s] Invoking command in '/home/unitree/imes-g1/build/domain_bridge': CONDA_PROMPT_MODIFIER=(base) /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/domain_bridge -- -j8 -l8
+[0.169s] make: Warning: File 'Makefile' has modification time 1770115986 s in the future
+[0.227s] [31mCMake Error at CMakeLists.txt:18 (find_package):
+[0.227s]   By not providing "Findament_cmake.cmake" in CMAKE_MODULE_PATH this project
+[0.227s]   has asked CMake to find a package configuration file provided by
+[0.227s]   "ament_cmake", but CMake did not find one.
+[0.228s] 
+[0.228s]   Could not find a package configuration file provided by "ament_cmake" with
+[0.228s]   any of the following names:
+[0.228s] 
+[0.228s]     ament_cmakeConfig.cmake
+[0.228s]     ament_cmake-config.cmake
+[0.229s] 
+[0.229s]   Add the installation prefix of "ament_cmake" to CMAKE_PREFIX_PATH or set
+[0.229s]   "ament_cmake_DIR" to a directory containing one of the above files.  If
+[0.229s]   "ament_cmake" provides a separate development package or SDK, be sure it
+[0.229s]   has been installed.
+[0.229s] 
+[0.229s] [0m
+[0.232s] -- Configuring incomplete, errors occurred!
+[0.232s] See also "/home/unitree/imes-g1/build/domain_bridge/CMakeFiles/CMakeOutput.log".
+[0.232s] See also "/home/unitree/imes-g1/build/domain_bridge/CMakeFiles/CMakeError.log".
+[0.240s] make: *** [Makefile:1212: cmake_check_build_system] Error 1

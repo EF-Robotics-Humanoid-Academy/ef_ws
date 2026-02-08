@@ -1,0 +1,25 @@
+-- Install configuration: ""
+-- Execute custom install script
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/config/localization.yaml
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/config/teleop.yaml
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/control.launch.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/ekf_localization.launch.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/odom_fastlio.launch.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/odom_rf2o.launch.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/teleop.launch.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/launch/twistmux.launch.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/package_run_dependencies/g1_control
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/parent_prefix_path/g1_control
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/environment/path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.bash
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.zsh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/local_setup.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_control/share/g1_control/package.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/ament_index/resource_index/packages/g1_control
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/cmake/g1_controlConfig.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/cmake/g1_controlConfig-version.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_control/share/g1_control/package.xml

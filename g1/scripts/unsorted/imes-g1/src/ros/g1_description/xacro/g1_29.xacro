@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<robot name="g1"
+    xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- Add original g1_description -->
+    <xacro:include filename="$(find g1_description)/xacro/g1/g1_29dof.urdf" />
+
+    <!-- Add dex_3 hand -->
+    <xacro:include filename="$(find g1_description)/xacro/g1/dex3_1_r.urdf" />
+    <xacro:include filename="$(find g1_description)/xacro/g1/dex3_1_l.urdf" />
+
+    <!-- Add Lidar, Depth-Camera -->
+    <xacro:include filename="$(find g1_description)/xacro/accessories.xacro" />
+
+    <!-- Add ROS2 Control -->
+    <xacro:include filename="$(find g1_description)/xacro/g1/g1_arm.ros2_control.xacro" />
+    <xacro:g1_ros2_control_arm name="g1_arm_control" />
+
+</robot>

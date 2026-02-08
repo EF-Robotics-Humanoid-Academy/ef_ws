@@ -1,0 +1,4 @@
+int32 light_level
+---
+bool success
+string reason

@@ -1,0 +1,2 @@
+source;share/g1_depth_camera/environment/ament_prefix_path.sh
+source;share/g1_depth_camera/environment/path.sh

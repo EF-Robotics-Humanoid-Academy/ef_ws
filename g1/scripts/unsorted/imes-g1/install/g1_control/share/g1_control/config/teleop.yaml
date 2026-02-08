@@ -1,0 +1,81 @@
+/**:
+  ros__parameters:
+  # joy_teleop configuration
+    deadzone: 0.1
+    autorepeat_rate: 20.0
+    # device_name: "Logitech Gamepad F710" # To get the device name: ros2 run joy joy_enumerate_devices 
+
+  # teleop_twist_joy_node:
+    axis_linear:
+      x: 1
+      y: 0
+    scale_linear:
+      x: 0.4
+      y: 0.4
+    scale_linear_turbo:
+      x: 1.0
+      y: 1.0
+    axis_angular:
+      yaw: 3
+    scale_angular:
+      yaw: 0.6
+    scale_angular_turbo:
+      yaw: 1.2
+    enable_button: 4
+    enable_turbo_button: 5
+
+  # twist_server_node:
+    link_name: base_link
+    robot: g1
+    linear_scale: 0.5
+    max_positive_linear_velocity: 0.5
+    max_negative_linear_velocity: -0.5
+
+  # twist_mux
+    topics:
+
+      logitech_joy:
+        topic   : joy_teleop/cmd_vel
+        timeout : 0.5
+        priority: 25
+
+      steamdeck_joy:
+        topic   : steamdeck_joy_teleop/cmd_vel
+        timeout : 0.5
+        priority: 20
+
+      web_joy:
+        topic   : webserver/cmd_vel
+        timeout : 0.5
+        priority: 15
+
+      interactive_marker:
+        topic   : twist_marker_server/cmd_vel
+        timeout : 0.5
+        priority: 10      
+      
+      external:
+        topic   : cmd_vel
+        timeout : 0.5
+        priority: 5
+
+      autonomous_high_priority_cmd_vel:
+        topic   : autonomous_high_priority/cmd_vel
+        timeout : 0.5
+        priority: 3
+
+      autonomous_mid_priority_cmd_vel:
+        topic   : autonomous_mid_priority/cmd_vel
+        timeout : 0.5
+        priority: 2
+
+      autonomous_low_priority_cmd_vel:
+        topic   : autonomous_low_priority/cmd_vel
+        timeout : 0.5
+        priority: 1
+
+    locks:
+      e_stop:
+        topic   : e_stop
+        timeout : 0.0
+        priority: 255

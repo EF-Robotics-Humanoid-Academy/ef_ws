@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+# Software License Agreement (BSD)
+#
+# @author    Salman Omar Sohail <support@mybotshop.de>
+# @copyright (c) 2025, MYBOTSHOP GmbH, Inc., All rights reserved.
+
+
+# Works on local machine only
+PASSWORD="mybotshop"
+
+IP="127.0.0.1"
+DOMAIN="mybotshop"
+
+IP_E="192.168.131.1"
+DOMAIN_E="mybotshop_e"
+
+HOSTS_FILE="/etc/hosts"  
+
+echo "$PASSWORD" | sudo -S bash -c "
+  # Check if the domain is already in the hosts file
+  if grep -q '$DOMAIN' '$HOSTS_FILE'; then
+    echo '$DOMAIN already exists in the hosts file.'
+  else
+    echo '' >> '$HOSTS_FILE'
+
+    echo '$IP    $DOMAIN' >> '$HOSTS_FILE'
+    echo 'Added $DOMAIN -> $IP to the hosts file.'
+
+    echo '$IP_E    $DOMAIN_E' >> '$HOSTS_FILE'
+    echo 'Added $DOMAIN_E -> $IP_E EXTERNAL_IP the hosts file.'
+  fi
+"

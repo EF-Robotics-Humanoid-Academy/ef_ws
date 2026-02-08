@@ -1,0 +1,346 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Software License Agreement (BSD)
+#
+# @author    Salman Omar Sohail <support@mybotshop.de>
+# @copyright (c) 2025, MYBOTSHOP GmbH
+#
+# Redistribution and use in source and binary forms, with or without modification, 
+# are not permitted without the express permission of MYBOTSHOP GmbH.
+
+import math
+import time
+import rclpy
+from typing import Tuple
+from rclpy.node import Node
+
+from unitree_go.msg import SportModeState
+from unitree_hg.msg import LowState, BmsState
+
+from sensor_msgs.msg import BatteryState, JointState, Imu
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import TransformStamped
+import tf2_ros
+
+
+class G1StateController(Node):
+    def __init__(self):
+        """
+        Initializes the G1 State Publisher node.
+        Sets up parameters, subscribers, publishers, timers.
+        """
+        super().__init__('g1_statepublisher')
+        self.get_logger().info(self.colorize("Initializing G1 State Publisher", "yellow"))
+
+        # ---------------- Parameters ----------------
+        self.declare_parameters(
+            namespace='',
+            parameters=[
+                ('robot_odom_pub', None),        # topic name for Odometry msg
+                ('robot_odom_tf', None),         # parent frame (odom)
+                ('robot_baselink_tf', None)      # child frame (base_link)
+            ]
+        )
+        # Defaults if unset
+        self.odom_topic = self.get_parameter('robot_odom_pub').get_parameter_value().string_value or 'odom'
+        self.odom_frame = self.get_parameter('robot_odom_tf').get_parameter_value().string_value or 'odom'
+        self.base_frame = self.get_parameter('robot_baselink_tf').get_parameter_value().string_value or 'base_link'
+
+        # ---- Fixed orientation swap to interchange roll <-> yaw: Ry(+90°)
+        # If heading sign is inverted on your setup, change +math.pi/2 to -math.pi/2.
+        self.q_total = self.euler_to_quat(0.0 , 0.0, 0.0)
+
+        # ---------------- State flags/data ----------------
+        self.g1_flag = False
+        self.g1_motor_state = None
+        self.g1_battery = None
+        self.g1_imu_state = None
+        self.g1_sport_mode = None
+
+        # ---------------- Subscribers ----------------
+        self.create_subscription(LowState,        'lf/lowstate',        self.callback_state_contacts, 10)
+        self.create_subscription(BmsState,        'lf/bmsstate',        self.callback_bms,            10)
+        self.create_subscription(SportModeState,  'lf/odommodestate',   self.callback_sport_mode,     10)
+
+        # ---------------- Publishers ----------------
+        self.publisher_jointstate = self.create_publisher(JointState, 'domain_bridge/joint_states', 10)
+        self.pub_data_jointstate = JointState()
+
+        self.publisher_imu = self.create_publisher(Imu, 'imu/data', 10)
+        self.pub_data_imu = Imu()
+
+        self.publisher_battery = self.create_publisher(BatteryState, 'sensor/battery/state', 10)
+
+        self.publisher_odom = self.create_publisher(Odometry, self.odom_topic, 10)
+        self.pub_data_odom = Odometry()
+
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
+
+        # ---------------- Startup tracking ----------------
+        self.startup_time = time.time()
+        self.startup_wait = 3.0
+
+        # ---------------- Timers ----------------
+        self.create_timer(0.01, self.update_joint_states)   # 100 Hz
+        self.create_timer(0.01, self.update_imu)            # 100 Hz
+        self.create_timer(2.0,  self.update_battery_state)  # 0.5 Hz
+        self.create_timer(0.02, self.update_odom)           # 50 Hz
+
+        self.get_logger().info(self.colorize("Initialization Complete!", "yellow"))
+
+    # ---------------- Callbacks ----------------
+    def callback_state_contacts(self, data: LowState):
+        self.g1_motor_state = data.motor_state
+        self.g1_imu_state = data.imu_state
+        self.g1_flag = True
+
+    def callback_bms(self, data: BmsState):
+        self.g1_battery = data
+
+    def callback_sport_mode(self, data: SportModeState):
+        """
+        SportModeState is expected to carry:
+          - position: [x, y, z]
+          - velocity: [vx, vy, vz]
+          - yaw_speed: scalar (rad/s)
+        """
+        self.g1_sport_mode = data
+        self.g1_flag = True
+
+    # ---------------- IMU Publisher ----------------
+    def update_imu(self):
+        if self.g1_flag and self.g1_imu_state:
+            imu = self.g1_imu_state
+            
+            self.get_logger().info(self.colorize("G1 IMU Publisher Activated", "green"), once=True)
+            msg = self.pub_data_imu
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.header.frame_id = self.base_frame
+
+            # Apply the fixed swap to the raw sensor orientation/vector data
+            q_raw = tuple(map(float, imu.quaternion))
+            q = self.quat_multiply(self.q_total, q_raw)
+            
+            # Convert quat to euler
+            roll, pitch, yaw = self.quat_to_euler(q)
+            # Convert  euler to quaternion
+            q = self.euler_to_quat(-1.0*yaw, pitch, roll+math.pi) 
+            
+            msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w = q
+
+            gyro_raw = tuple(map(float, imu.gyroscope))
+            acc_raw  = tuple(map(float, imu.accelerometer))
+            msg.angular_velocity.x, msg.angular_velocity.y, msg.angular_velocity.z = self.rotate_vec_by_quat(gyro_raw, self.q_total)
+            msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z = self.rotate_vec_by_quat(acc_raw,  self.q_total)
+
+            self.publisher_imu.publish(msg)
+        elif time.time() - self.startup_time > self.startup_wait:
+            self.get_logger().error(self.colorize("No IMU Data Received", "orange"), throttle_duration_sec=5)
+
+    # ---------------- JointState Publisher ----------------
+    def update_joint_states(self):
+        msg = self.pub_data_jointstate
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.base_frame
+
+        joint_names = [
+            "left_hip_pitch_joint", "left_hip_roll_joint", "left_hip_yaw_joint",
+            "left_knee_joint", "left_ankle_pitch_joint", "left_ankle_roll_joint",
+            "right_hip_pitch_joint", "right_hip_roll_joint", "right_hip_yaw_joint",
+            "right_knee_joint", "right_ankle_pitch_joint", "right_ankle_roll_joint",
+            "waist_yaw_joint", "waist_roll_joint", "waist_pitch_joint",
+            "left_shoulder_pitch_joint", "left_shoulder_roll_joint", "left_shoulder_yaw_joint",
+            "left_elbow_joint", "left_wrist_roll_joint", "left_wrist_pitch_joint", "left_wrist_yaw_joint",
+            "right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
+            "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint"
+        ]
+        msg.name = joint_names
+        msg.effort = [0.0] * len(joint_names)
+
+        if not self.g1_flag or self.g1_motor_state is None:
+            if time.time() - self.startup_time > self.startup_wait:
+                self.get_logger().error(self.colorize("No G1 joint positions Data Received", "orange"), throttle_duration_sec=5)
+            msg.position = [0.0] * len(joint_names)
+        else:
+            self.assign_joint_positions()
+            self.get_logger().info(self.colorize("G1 joint positions Data Received", "green"), once=True)
+
+        self.publisher_jointstate.publish(msg)
+
+    def assign_joint_positions(self):
+        joint_indices = {name: i for i, name in enumerate(self.pub_data_jointstate.name)}
+        self.pub_data_jointstate.position = [self.g1_motor_state[i].q for i in joint_indices.values()]
+
+    # ---------------- Battery Publisher ----------------
+    def update_battery_state(self):
+        if not self.g1_battery:
+            return
+
+        self.get_logger().info(self.colorize("G1 Battery Publisher Activated", "green"), once=True)
+
+        msg = BatteryState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+
+        voltages = [v / 1000.0 for v in self.g1_battery.cell_vol if v > 0]
+        msg.voltage = sum(voltages) if voltages else 0.0
+
+        msg.current = self.g1_battery.current / 1000.0
+        msg.percentage = self.g1_battery.soc / 100.0
+        msg.charge = msg.percentage * msg.voltage
+
+        msg.power_supply_status = BatteryState.POWER_SUPPLY_STATUS_DISCHARGING
+        msg.power_supply_health = BatteryState.POWER_SUPPLY_HEALTH_GOOD
+        msg.power_supply_technology = BatteryState.POWER_SUPPLY_TECHNOLOGY_LION
+        msg.present = True
+
+        self.publisher_battery.publish(msg)
+
+    # ---------------- Odom Publisher + TF ----------------
+    def update_odom(self):
+        if self.g1_sport_mode is None or self.g1_imu_state is None:
+            if time.time() - self.startup_time > self.startup_wait:
+                self.get_logger().error(self.colorize("No SportMode/IMU data for Odom", "orange"), throttle_duration_sec=5)
+            return
+
+        self.get_logger().info(self.colorize("G1 Odometry Publisher Activated", "green"), once=True)
+        now = self.get_clock().now().to_msg()
+        odom = self.pub_data_odom
+        odom.header.stamp = now
+        odom.header.frame_id = self.odom_frame
+        odom.child_frame_id = self.base_frame
+
+        # Position from SportModeState
+        try:
+            px, py, pz = map(float, self.g1_sport_mode.position[:3])
+        except Exception:
+            px = py = pz = 0.0
+
+        # Orientation from IMU, corrected with the fixed swap
+        q_raw = tuple(map(float, self.g1_imu_state.quaternion))
+        q = self.quat_multiply(self.q_total, q_raw)
+        
+        # Convert quat to euler
+        roll, pitch, yaw = self.quat_to_euler(q)
+        # Convert  euler to quaternion
+        q = self.euler_to_quat(-1.0*yaw, pitch, roll+math.pi) 
+        
+        pz = pz-0.72  # Adjust height to match base_link
+
+        odom.pose.pose.position.x = px
+        odom.pose.pose.position.y = py
+        odom.pose.pose.position.z = pz
+        odom.pose.pose.orientation.x, odom.pose.pose.orientation.y, odom.pose.pose.orientation.z, odom.pose.pose.orientation.w = q
+
+        # Twist from SportModeState
+        try:
+            vx, vy, vz = map(float, self.g1_sport_mode.velocity[:3])
+        except Exception:
+            vx = vy = vz = 0.0
+        wz = float(self.g1_sport_mode.yaw_speed) if hasattr(self.g1_sport_mode, 'yaw_speed') else 0.0
+
+        odom.twist.twist.linear.x = vx
+        odom.twist.twist.linear.y = vy
+        odom.twist.twist.linear.z = vz
+        odom.twist.twist.angular.x = 0.0
+        odom.twist.twist.angular.y = 0.0
+        odom.twist.twist.angular.z = wz
+
+        self.publisher_odom.publish(odom)
+
+        # TF: odom -> base_link with corrected orientation
+        # t = TransformStamped()
+        # t.header.stamp = now
+        # t.header.frame_id = self.odom_frame
+        # t.child_frame_id = self.base_frame
+        # t.transform.translation.x = px
+        # t.transform.translation.y = py
+        # t.transform.translation.z = pz
+        # t.transform.rotation.x, t.transform.rotation.y, t.transform.rotation.z, t.transform.rotation.w = q
+        # self.tf_broadcaster.sendTransform(t)
+
+    # ---------------- Utils ----------------
+    @staticmethod
+    def quat_to_euler(q: Tuple[float, float, float, float]) -> Tuple[float, float, float]:
+        x, y, z, w = q
+        # Roll (x-axis rotation)
+        sinr_cosp = 2 * (w * x + y * z)
+        cosr_cosp = 1 - 2 * (x * x + y * y)
+        roll = math.atan2(sinr_cosp, cosr_cosp)
+        # Pitch (y-axis rotation)
+        sinp = 2 * (w * y - z * x)
+        pitch = math.asin(sinp)
+        # Yaw (z-axis rotation)
+        siny_cosp = 2 * (w * z + x * y)
+        cosy_cosp = 1 - 2 * (y * y + z * z)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
+        return roll, pitch, yaw
+    
+    @staticmethod
+    def euler_to_quat(roll: float, pitch: float, yaw: float) -> Tuple[float, float, float, float]:
+        cr, sr = math.cos(roll * 0.5), math.sin(roll * 0.5)
+        cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
+        cy, sy = math.cos(yaw * 0.5), math.sin(yaw * 0.5)
+        qw = cr*cp*cy + sr*sp*sy
+        qx = sr*cp*cy - cr*sp*sy
+        qy = cr*sp*cy + sr*cp*sy
+        qz = cr*cp*sy - sr*sp*cy
+        return (qx, qy, qz, qw)
+
+    @staticmethod
+    def quat_multiply(q1, q2):
+        # (x,y,z,w)
+        x1,y1,z1,w1 = q1
+        x2,y2,z2,w2 = q2
+        x =  w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y =  w1*y2 - x1*z2 + y1*w2 + z1*x2
+        z =  w1*z2 + x1*y2 - y1*x2 + z1*w2
+        w =  w1*w2 - x1*x2 - y1*y2 - z1*z2
+        return (x,y,z,w)
+
+    @staticmethod
+    def quat_conjugate(q):
+        x,y,z,w = q
+        return (-x,-y,-z,w)
+
+    @staticmethod
+    def rotate_vec_by_quat(v, q):
+        # v is (vx,vy,vz), q=(x,y,z,w). Compute q * (v,0) * q_conj
+        vx,vy,vz = v
+        x,y,z,w = q
+        # q * v
+        ix =  w*vx + y*vz - z*vy
+        iy =  w*vy + z*vx - x*vz
+        iz =  w*vz + x*vy - y*vx
+        iw = -x*vx - y*vy - z*vz
+        # (q*v) * q_conj
+        rx = ix*w + iw*(-x) + iy*(-z) - iz*(-y)
+        ry = iy*w + iw*(-y) + iz*(-x) - ix*(-z)
+        rz = iz*w + iw*(-z) + ix*(-y) - iy*(-x)
+        return (rx, ry, rz)
+
+    @staticmethod
+    def colorize(text: str, color: str) -> str:
+        codes = {'green': '\033[92m', 'yellow': '\033[93m', 'orange': '\033[38;5;208m',
+                 'blue': '\033[94m', 'red': '\033[91m'}
+        return f"{codes.get(color, '')}{text}\033[0m"
+
+    def destroy_node(self):
+        self.get_logger().info(self.colorize("G1 State Publisher is shutting down", "red"))
+        super().destroy_node()
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    g1_state = G1StateController()
+    try:
+        rclpy.spin(g1_state)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        g1_state.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

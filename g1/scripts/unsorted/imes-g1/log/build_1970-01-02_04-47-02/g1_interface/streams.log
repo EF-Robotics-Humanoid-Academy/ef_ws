@@ -1,0 +1,50 @@
+[0.066s] Invoking command in '/home/unitree/imes-g1/build/g1_interface': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/humble CONDA_PROMPT_MODIFIER=(base) PS1=(base) \[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ /usr/bin/cmake --build /home/unitree/imes-g1/build/g1_interface -- -j8 -l8
+[0.141s] -- Found ament_cmake: 1.3.11 (/opt/ros/humble/share/ament_cmake/cmake)
+[0.145s] make: Warning: File 'Makefile' has modification time 1770221857 s in the future
+[1.044s] -- Found Python3: /home/unitree/miniconda3/bin/python3 (found version "3.13.5") found components: Interpreter 
+[1.248s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[1.358s] -- Found std_srvs: 4.2.4 (/opt/ros/humble/share/std_srvs/cmake)
+[1.457s] -- Found rosidl_generator_c: 3.1.6 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[1.472s] -- Found rosidl_adapter: 3.1.6 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[1.494s] -- Found rosidl_generator_cpp: 3.1.6 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[1.525s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[1.563s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[1.601s] -- Found rosidl_default_generators: 1.2.0 (/opt/ros/humble/share/rosidl_default_generators/cmake)
+[1.765s] [31mCMake Error at /opt/ros/humble/share/rosidl_adapter/cmake/rosidl_adapt_interfaces.cmake:59 (message):
+[1.765s]   execute_process(/home/unitree/miniconda3/bin/python3 -m rosidl_adapter
+[1.765s]   --package-name g1_interface --arguments-file
+[1.765s]   /home/unitree/imes-g1/build/g1_interface/rosidl_adapter__arguments__g1_interface.json
+[1.766s]   --output-dir
+[1.766s]   /home/unitree/imes-g1/build/g1_interface/rosidl_adapter/g1_interface
+[1.766s]   --output-file
+[1.766s]   /home/unitree/imes-g1/build/g1_interface/rosidl_adapter/g1_interface.idls)
+[1.767s]   returned error code 1:
+[1.767s] 
+[1.767s]   Traceback (most recent call last):
+[1.767s] 
+[1.767s]     File "<frozen runpy>", line 198, in _run_module_as_main
+[1.767s]     File "<frozen runpy>", line 88, in _run_code
+[1.767s]     File "/opt/ros/humble/local/lib/python3.10/dist-packages/rosidl_adapter/__main__.py", line 19, in <module>
+[1.767s]       sys.exit(main())
+[1.767s]                ~~~~^^
+[1.767s]     File "/opt/ros/humble/local/lib/python3.10/dist-packages/rosidl_adapter/main.py", line 53, in main
+[1.767s]       abs_idl_file = convert_to_idl(
+[1.768s]           pathlib.Path(basepath), args.package_name,
+[1.768s]           pathlib.Path(relative_path), output_dir)
+[1.768s]     File "/opt/ros/humble/local/lib/python3.10/dist-packages/rosidl_adapter/__init__.py", line 23, in convert_to_idl
+[1.768s]       from rosidl_adapter.srv import convert_srv_to_idl
+[1.768s]     File "/opt/ros/humble/local/lib/python3.10/dist-packages/rosidl_adapter/srv/__init__.py", line 16, in <module>
+[1.768s]       from rosidl_adapter.resource import expand_template
+[1.768s]     File "/opt/ros/humble/local/lib/python3.10/dist-packages/rosidl_adapter/resource/__init__.py", line 19, in <module>
+[1.768s]       import em
+[1.768s] 
+[1.768s]   ModuleNotFoundError: No module named 'em'
+[1.768s] 
+[1.769s] Call Stack (most recent call first):
+[1.769s]   /opt/ros/humble/share/rosidl_cmake/cmake/rosidl_generate_interfaces.cmake:130 (rosidl_adapt_interfaces)
+[1.769s]   CMakeLists.txt:22 (rosidl_generate_interfaces)
+[1.769s] 
+[1.769s] [0m
+[1.769s] -- Configuring incomplete, errors occurred!
+[1.769s] See also "/home/unitree/imes-g1/build/g1_interface/CMakeFiles/CMakeOutput.log".
+[1.775s] make: *** [Makefile:1151: cmake_check_build_system] Error 1

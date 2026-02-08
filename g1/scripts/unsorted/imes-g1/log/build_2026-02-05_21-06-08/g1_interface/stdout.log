@@ -1,0 +1,126 @@
+[  2%] Built target g1_interface__cpp
+[ 12%] Built target g1_interface__rosidl_generator_c
+[ 23%] Built target g1_interface__rosidl_typesupport_cpp
+[ 34%] Built target g1_interface__rosidl_typesupport_introspection_c
+[ 44%] Built target g1_interface__rosidl_typesupport_fastrtps_cpp
+[ 55%] Built target g1_interface__rosidl_typesupport_introspection_cpp
+[ 65%] Built target g1_interface__rosidl_typesupport_c
+[ 76%] Built target g1_interface__rosidl_typesupport_fastrtps_c
+[ 76%] Built target g1_interface
+[ 78%] Built target g1_interface__py
+[ 87%] Built target g1_interface__python
+[ 91%] Built target g1_interface__rosidl_typesupport_introspection_c__pyext
+[ 95%] Built target g1_interface__rosidl_typesupport_fastrtps_c__pyext
+[100%] Built target g1_interface__rosidl_typesupport_c__pyext
+-- Install configuration: ""
+-- Execute custom install script
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/rosidl_interfaces/g1_interface
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_generator_c__visibility_control.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__functions.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__struct.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__type_support.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__functions.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__struct.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__type_support.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__functions.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__struct.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__type_support.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_light.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_modes.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_volume.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/library_path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/library_path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_typesupport_fastrtps_c__visibility_control.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_fastrtps_c.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_fastrtps_c.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_fastrtps_c.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_fastrtps_c.so
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_fastrtps_cpp.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_fastrtps_cpp.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_fastrtps_cpp.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_fastrtps_cpp.so
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_typesupport_introspection_c__visibility_control.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_introspection_c.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_introspection_c.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_introspection_c.h
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/msg/rosidl_generator_cpp__visibility_control.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__builder.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__struct.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__traits.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__type_support.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__builder.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__struct.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__traits.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__type_support.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__builder.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__struct.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__traits.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__type_support.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_light.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_modes.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/g1_volume.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_light__rosidl_typesupport_introspection_cpp.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_modes__rosidl_typesupport_introspection_cpp.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/include/g1_interface/srv/detail/g1_volume__rosidl_typesupport_introspection_cpp.hpp
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/pythonpath.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/pythonpath.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/__init__.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/__init__.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/_g1_light.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/_g1_modes.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/srv/_g1_volume.py
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/g1_interface_s__rosidl_typesupport_fastrtps_c.cpython-38-aarch64-linux-gnu.so
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/g1_interface_s__rosidl_typesupport_introspection_c.cpython-38-aarch64-linux-gnu.so
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/python3.8/site-packages/g1_interface/g1_interface_s__rosidl_typesupport_c.cpython-38-aarch64-linux-gnu.so
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__python.so
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes.idl
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light.idl
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume.idl
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes.srv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes_Request.msg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Modes_Response.msg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light.srv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light_Request.msg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Light_Response.msg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume.srv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume_Request.msg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/srv/G1Volume_Response.msg
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/package_run_dependencies/g1_interface
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/parent_prefix_path/g1_interface
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/ament_prefix_path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/ament_prefix_path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/path.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/environment/path.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.bash
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.sh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.zsh
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/local_setup.dsv
+-- Symlinking: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/package.dsv
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/ament_index/resource_index/packages/g1_interface
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/rosidl_cmake-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_dependencies-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_libraries-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_targets-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/ament_cmake_export_include_directories-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/rosidl_cmake_export_typesupport_libraries-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/rosidl_cmake_export_typesupport_targets-extras.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interfaceConfig.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interfaceConfig-version.cmake
+-- Up-to-date symlink: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/package.xml
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_generator_c.so
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_introspection_c.so
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_c.so
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_introspection_cpp.so
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/lib/libg1_interface__rosidl_typesupport_cpp.so
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_generator_cExport.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_generator_cExport-noconfig.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cExport.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cExport-noconfig.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cExport.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cExport-noconfig.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_generator_cppExport.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cppExport.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_introspection_cppExport-noconfig.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cppExport.cmake
+-- Up-to-date: /home/unitree/imes-g1/install/g1_interface/share/g1_interface/cmake/g1_interface__rosidl_typesupport_cppExport-noconfig.cmake
