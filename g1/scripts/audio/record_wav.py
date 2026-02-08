@@ -9,15 +9,33 @@ import sys
 import time
 
 
-def _find_arecord() -> str | None:
+def _has_command(cmd: str) -> bool:
+    return (
+        subprocess.call(["/usr/bin/env", "which", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    )
+
+
+def _has_alsa_capture_device() -> bool:
+    if not _has_command("arecord"):
+        return False
+    proc = subprocess.run(["arecord", "-l"], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return False
+    return "card" in proc.stdout.lower()
+
+
+def _find_recorder() -> str | None:
     for cmd in ("arecord", "parec", "ffmpeg"):
-        if subprocess.call(["/usr/bin/env", "which", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+        if _has_command(cmd):
             return cmd
     return None
 
 
-def _record_with_arecord(out_path: str, rate: int, channels: int, fmt: str) -> int:
-    cmd = ["arecord", "-q", "-f", fmt, "-r", str(rate), "-c", str(channels), out_path]
+def _record_with_arecord(out_path: str, rate: int, channels: int, fmt: str, device: str | None) -> int:
+    cmd = ["arecord", "-q", "-f", fmt, "-r", str(rate), "-c", str(channels)]
+    if device:
+        cmd.extend(["-D", device])
+    cmd.append(out_path)
     print(f"Recording with: {' '.join(cmd)}")
     proc = subprocess.Popen(cmd)
     try:
@@ -62,14 +80,14 @@ def _record_with_parec(out_path: str, rate: int, channels: int) -> int:
     return 0
 
 
-def _record_with_ffmpeg(out_path: str, rate: int, channels: int) -> int:
+def _record_with_ffmpeg(out_path: str, rate: int, channels: int, device: str | None) -> int:
     cmd = [
         "ffmpeg",
         "-y",
         "-f",
         "alsa",
         "-i",
-        "default",
+        device or "default",
         "-ar",
         str(rate),
         "-ac",
@@ -95,6 +113,7 @@ def main() -> int:
     parser.add_argument("--rate", type=int, default=16000, help="sample rate (Hz)")
     parser.add_argument("--channels", type=int, default=1, help="number of channels")
     parser.add_argument("--format", default="S16_LE", help="arecord format (default: S16_LE)")
+    parser.add_argument("--device", default=None, help="input device (ALSA, e.g. hw:0,0)")
     args = parser.parse_args()
 
     out_path = args.outfile
@@ -108,15 +127,22 @@ def main() -> int:
     print("Press Enter to start recording...")
     input()
 
-    recorder = _find_arecord()
+    recorder = _find_recorder()
     if recorder == "arecord":
-        return _record_with_arecord(out_path, args.rate, args.channels, args.format)
+        if not _has_alsa_capture_device():
+            print("No ALSA capture devices found (arecord -l returned none).")
+        else:
+            return _record_with_arecord(out_path, args.rate, args.channels, args.format, args.device)
     if recorder == "parec":
         return _record_with_parec(out_path, args.rate, args.channels)
     if recorder == "ffmpeg":
-        return _record_with_ffmpeg(out_path, args.rate, args.channels)
+        if not _has_alsa_capture_device():
+            print("No ALSA capture devices found (arecord -l returned none).")
+        else:
+            return _record_with_ffmpeg(out_path, args.rate, args.channels, args.device)
 
-    print("No recorder found. Install 'arecord' (alsa-utils) or 'ffmpeg'.")
+    print("No usable recorder found.")
+    print("Install and configure one of: 'arecord' (alsa-utils), 'parec' (pulseaudio-utils), or 'ffmpeg'.")
     return 1
 
 
