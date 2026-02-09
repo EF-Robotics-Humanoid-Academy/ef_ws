@@ -1,0 +1,10 @@
+  python3 /home/ag/academy/academy_content/ef_ws/g1/scripts/g1_hl_gait_measure.py \
+    --iface enp1s0 \
+    --vx 0.25 \
+    --target-m 1.0 \
+    --duration 20.0
+
+
+
+
+python3 /home/ag/academy/academy_content/ef_ws/g1/scripts/g1_hl_motion_sequence.py     --iface enp1s0     --walk-m 1.0     --walk-v 0.3     --turn-deg 180     --turn-vyaw 0.8     --ramp-time 0.4

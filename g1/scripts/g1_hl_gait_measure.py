@@ -13,6 +13,7 @@ import csv
 import math
 import sys
 import time
+import importlib
 from dataclasses import dataclass
 from typing import Any, Iterable, Optional
 
@@ -64,6 +65,46 @@ class SportCache:
         return self._last
 
 
+def _try_import(module_path: str):
+    try:
+        return importlib.import_module(module_path)
+    except Exception:
+        return None
+
+
+def _resolve_lowstate_type() -> Optional[type]:
+    for module_path in (
+        "unitree_sdk2py.idl.unitree_hg.msg.dds_",
+        "unitree_sdk2py.idl.unitree_go.msg.dds_",
+    ):
+        module = _try_import(module_path)
+        if module and hasattr(module, "LowState_"):
+            return getattr(module, "LowState_")
+    return None
+
+
+@dataclass
+class ImuState:
+    ts: float
+    rpy: list[float]
+
+
+class ImuCache:
+    def __init__(self) -> None:
+        self._last: Optional[ImuState] = None
+
+    def cb(self, msg: Any) -> None:
+        try:
+            imu = msg.imu_state
+            rpy = [float(imu.rpy[0]), float(imu.rpy[1]), float(imu.rpy[2])]
+        except Exception:
+            return
+        self._last = ImuState(ts=time.time(), rpy=rpy)
+
+    def get(self) -> Optional[ImuState]:
+        return self._last
+
+
 class StepCounter:
     def __init__(self, threshold: float) -> None:
         self.threshold = threshold
@@ -106,6 +147,14 @@ def _stop(client: LocoClient) -> None:
         client.Move(0.0, 0.0, 0.0)
 
 
+def _wrap_angle(rad: float) -> float:
+    while rad > math.pi:
+        rad -= 2.0 * math.pi
+    while rad < -math.pi:
+        rad += 2.0 * math.pi
+    return rad
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Measure steps + distance during G1 high-level gait.")
     parser.add_argument("--iface", default="enp1s0", help="network interface for DDS")
@@ -113,10 +162,16 @@ def main() -> None:
     parser.add_argument("--vx", type=float, default=0.3, help="forward velocity (m/s)")
     parser.add_argument("--vy", type=float, default=0.0, help="lateral velocity (m/s)")
     parser.add_argument("--vyaw", type=float, default=0.0, help="yaw rate (rad/s)")
+    parser.add_argument("--target-m", type=float, default=0.0, help="stop after reaching displacement (m)")
     parser.add_argument("--sample-hz", type=float, default=20.0, help="sample rate (Hz)")
     parser.add_argument("--cmd-hz", type=float, default=20.0, help="command rate (Hz)")
     parser.add_argument("--force-threshold", type=float, default=5.0, help="foot force contact threshold")
     parser.add_argument("--stride-m", type=float, default=0.5, help="stride length for fallback steps")
+    parser.add_argument("--yaw-kp", type=float, default=0.8, help="IMU yaw correction gain")
+    parser.add_argument("--yaw-max", type=float, default=0.6, help="max yaw correction (rad/s)")
+    parser.add_argument("--lat-kp", type=float, default=0.3, help="lateral correction gain (m/s per m)")
+    parser.add_argument("--lat-max", type=float, default=0.3, help="max lateral correction (m/s)")
+    parser.add_argument("--no-imu", action="store_true", help="disable IMU-based yaw correction")
     parser.add_argument("--no-command", action="store_true", help="only measure, do not command gait")
     parser.add_argument("--csv", help="optional CSV log path")
     args = parser.parse_args()
@@ -132,6 +187,16 @@ def main() -> None:
     sub = ChannelSubscriber("rt/sportmodestate", SportModeState_)
     sub.Init(cache.cb, 10)
 
+    imu_cache = ImuCache()
+    if not args.no_imu:
+        LowState = _resolve_lowstate_type()
+        if LowState is not None:
+            imu_sub = ChannelSubscriber("rt/lowstate", LowState)
+            imu_sub.Init(imu_cache.cb, 10)
+        else:
+            print("WARN: LowState_ type not found; IMU correction disabled.")
+            args.no_imu = True
+
     dt = 1.0 / max(1e-6, args.sample_hz)
     cmd_dt = 1.0 / max(1e-6, args.cmd_hz)
 
@@ -141,6 +206,8 @@ def main() -> None:
     last_pos: Optional[list[float]] = None
     gait_samples = 0
     gait_active_samples = 0
+    yaw0: Optional[float] = None
+    y0: Optional[float] = None
 
     csv_file = None
     writer = None
@@ -167,8 +234,23 @@ def main() -> None:
             now = time.monotonic()
             if now - start_time >= args.duration:
                 break
+            if args.target_m > 0.0 and start_pos is not None and last_pos is not None:
+                if math.hypot(last_pos[0] - start_pos[0], last_pos[1] - start_pos[1]) >= args.target_m:
+                    break
             if now >= next_cmd and loco is not None:
-                _command_velocity(loco, args.vx, args.vy, args.vyaw)
+                vy_cmd = args.vy
+                vyaw_cmd = args.vyaw
+                if start_pos is not None and y0 is not None:
+                    lat_err = (last_pos[1] - y0) if last_pos is not None else 0.0
+                    vy_cmd -= max(-args.lat_max, min(args.lat_max, args.lat_kp * lat_err))
+                if not args.no_imu:
+                    imu_state = imu_cache.get()
+                    if imu_state is not None:
+                        if yaw0 is None:
+                            yaw0 = imu_state.rpy[2]
+                        yaw_err = _wrap_angle(imu_state.rpy[2] - yaw0)
+                        vyaw_cmd -= max(-args.yaw_max, min(args.yaw_max, args.yaw_kp * yaw_err))
+                _command_velocity(loco, args.vx, vy_cmd, vyaw_cmd)
                 next_cmd += cmd_dt
             if now < next_sample:
                 time.sleep(min(0.005, next_sample - now))
@@ -182,6 +264,7 @@ def main() -> None:
             if start_pos is None:
                 start_pos = list(state.position)
                 last_pos = list(state.position)
+                y0 = start_pos[1]
 
             if last_pos is not None:
                 dx = state.position[0] - last_pos[0]
@@ -220,6 +303,8 @@ def main() -> None:
 
     print("=== G1 High-Level Gait Measurement ===")
     print(f"Duration: {args.duration:.2f}s")
+    if args.target_m > 0.0:
+        print(f"Target displacement: {args.target_m:.3f} m")
     print(f"Path length: {total_dist:.3f} m")
     print(f"Displacement: {displacement:.3f} m")
 
