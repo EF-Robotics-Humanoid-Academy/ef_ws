@@ -61,6 +61,16 @@ import time
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
+
+def _import_cv2():  # pragma: no cover - small helper
+    # Prefer system OpenCV (often GTK-based) to avoid Qt plugin crashes.
+    for p in ("/usr/lib/python3/dist-packages", "/usr/lib/python3.12/dist-packages"):
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    import cv2  # type: ignore
+
+    return cv2
+
 # ---------------------------------------------------------------------------
 # Shared state between threads (very small – only last frame / numbers).
 # ---------------------------------------------------------------------------
@@ -81,14 +91,24 @@ _state: Dict[str, Any] = {
 
 def _rx_realsense(stop: threading.Event) -> None:  # pragma: no cover – HW req.
     try:
-        import gi  # type: ignore
+        try:
+            import gi  # type: ignore
+        except ModuleNotFoundError:
+            # Many venvs omit system dist-packages; try the system GI path.
+            for p in (
+                "/usr/lib/python3/dist-packages",
+                "/usr/lib/python3.12/dist-packages",
+            ):
+                if p not in sys.path:
+                    sys.path.append(p)
+            import gi  # type: ignore
 
         gi.require_version("Gst", "1.0")
         gi.require_version("GstApp", "1.0")
         from gi.repository import Gst, GstApp  # type: ignore
 
         import numpy as np  # pylint: disable=import-error
-        import cv2  # type: ignore
+        cv2 = _import_cv2()
 
         RGB_PORT, DEPTH_PORT, WIDTH, HEIGHT, FPS = 5600, 5602, 640, 480, 30
 
@@ -161,7 +181,7 @@ def _monkey_patch_slam_viewer() -> None:  # pragma: no cover – small helper
 
     try:
         import numpy as np  # type: ignore
-        import cv2  # type: ignore
+        cv2 = _import_cv2()
 
         import live_slam as _ls  # type: ignore
 
@@ -226,6 +246,19 @@ def _monkey_patch_slam_viewer() -> None:  # pragma: no cover – small helper
 
 def _run_slam(stop: threading.Event) -> None:  # pragma: no cover – HW req.
     try:
+        # Guard: Open3D CUDA builds can hard-crash the process on import if
+        # the system driver is too old. Probe in a subprocess first.
+        import subprocess
+
+        probe = subprocess.run(
+            [sys.executable, "-c", "import open3d"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if probe.returncode != 0:
+            raise RuntimeError("Open3D import failed (likely CUDA driver/runtime mismatch)")
+
         _monkey_patch_slam_viewer()
 
         import live_slam as _ls  # type: ignore  # now uses patched viewer
@@ -342,7 +375,7 @@ def _keyboard_thread(stop: threading.Event, iface: str):
 
 def _compose_canvas() -> "Optional['np.ndarray']":  # type: ignore[name-defined]
     import numpy as np  # local import to avoid hard dep if script is only imported
-    import cv2  # type: ignore
+    cv2 = _import_cv2()
 
     with _state_lock:
         rgbd = _state.get("rgbd")
@@ -394,7 +427,7 @@ def main() -> None:  # noqa: D401
 
     # ------------------------------------------------  simple OpenCV window
     try:
-        import cv2  # type: ignore
+        cv2 = _import_cv2()
 
         while not stop.is_set():
             canvas = _compose_canvas()

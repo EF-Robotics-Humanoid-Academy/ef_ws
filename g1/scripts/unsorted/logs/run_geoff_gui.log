@@ -96,3 +96,21 @@
 2026-02-09 10:13:10,135  ERROR     AttributeError
 2026-02-09 10:13:10,135  ERROR     :
 2026-02-09 10:13:10,135  ERROR     'GeoffWindow' object has no attribute '_drive_timer'
+2026-02-09 10:47:33,570  INFO      No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-02-09 10:47:34,662  INFO      Robot already in balanced stand (FSM 200, mode 0) – skipping boot sequence.
+2026-02-09 10:47:34,877  ERROR     [run_geoff_gui] Dex3 hand control disabled:
+2026-02-09 10:47:34,877  ERROR     No module named 'unitree_sdk2py.dex3'
+2026-02-09 10:47:34,878  ERROR     [run_geoff_stack] RealSense receiver disabled:
+2026-02-09 10:47:34,944  ERROR     No module named 'gi'
+2026-02-09 10:47:38,274  INFO      [INFO] livox2_python unavailable (
+2026-02-09 10:47:38,274  INFO      liblivox_lidar_sdk shared library not found.  Build & install Livox-SDK2 first (see wrapper docstring).
+2026-02-09 10:47:38,274  INFO      ) – falling back to SDK1.
+2026-02-09 10:47:38,276  ERROR     [run_geoff_gui] SLAM thread disabled:
+2026-02-09 10:47:38,276  ERROR     Could not locate Livox shared library (liblivox_sdk.so / LivoxSdk.dll). Build the Livox-SDK first, or add its folder to LD_LIBRARY_PATH / PATH.
+2026-02-09 10:49:47,048  INFO      No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-02-09 10:49:48,074  INFO      Robot already in balanced stand (FSM 200, mode 0) – skipping boot sequence.
+2026-02-09 10:49:48,295  ERROR     [run_geoff_gui] Dex3 hand control disabled:
+2026-02-09 10:49:48,295  ERROR     No module named 'unitree_sdk2py.dex3'
+2026-02-09 10:49:50,391  INFO      [INFO] livox2_python unavailable (
+2026-02-09 10:49:50,392  INFO      liblivox_lidar_sdk shared library not found.  Build & install Livox-SDK2 first (see wrapper docstring).
+2026-02-09 10:49:50,392  INFO      ) – falling back to SDK1.

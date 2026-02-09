@@ -15,10 +15,12 @@ Tested with Livox-SDK 2.3.0 (commit 5c3f3b) on Ubuntu 20.04 / Python 3.10.
 from __future__ import annotations
 
 import ctypes as _C
+import os
 import sys
 import threading
 import time
 from ctypes import c_uint8, c_uint32, c_float, c_bool, POINTER, cdll
+from pathlib import Path
 from typing import Dict
 
 import numpy as np
@@ -34,7 +36,39 @@ _CANDIDATES = (
 )
 
 
+def _candidate_paths():
+    env_lib = os.getenv("LIVOX_SDK_LIB")
+    if env_lib:
+        yield env_lib
+
+    env_dir = os.getenv("LIVOX_SDK_DIR")
+    if env_dir:
+        base = Path(env_dir)
+        for rel in (
+            "build/sdk_core/liblivox_sdk.so",
+            "build/liblivox_sdk.so",
+            "build/lib/liblivox_sdk.so",
+            "liblivox_sdk.so",
+        ):
+            yield base / rel
+
+    # Common dev path (matches repo name)
+    home = Path.home()
+    yield home / "Livox-SDK" / "build" / "sdk_core" / "liblivox_sdk.so"
+
+
 def _load_library():
+    # Some vendor builds forget to link libstdc++; pre-load it to satisfy C++ symbols.
+    try:
+        _C.CDLL("libstdc++.so.6", mode=_C.RTLD_GLOBAL)
+    except OSError:
+        pass
+    for path in _candidate_paths():
+        try:
+            if os.path.exists(path):
+                return cdll.LoadLibrary(os.fspath(path))
+        except OSError:
+            continue
     for name in _CANDIDATES:
         try:
             return cdll.LoadLibrary(name)

@@ -38,6 +38,49 @@ import numpy as np
 
 
 def _load_lib():
+    # Some vendor builds forget to link libstdc++; pre-load it to satisfy C++ symbols.
+    try:
+        _C.CDLL("libstdc++.so.6", mode=_C.RTLD_GLOBAL)
+    except OSError:
+        pass
+    env_lib = os.getenv("LIVOX_SDK2_LIB")
+    if env_lib and os.path.exists(env_lib):
+        try:
+            return _C.cdll.LoadLibrary(env_lib)
+        except OSError:
+            pass
+
+    env_dir = os.getenv("LIVOX_SDK2_DIR")
+    if env_dir:
+        base = Path(env_dir)
+        for rel in (
+            "build/liblivox_lidar_sdk_shared.so",
+            "build/liblivox_lidar_sdk.so",
+            "build/lib/liblivox_lidar_sdk_shared.so",
+            "build/lib/liblivox_lidar_sdk.so",
+            "liblivox_lidar_sdk_shared.so",
+            "liblivox_lidar_sdk.so",
+        ):
+            candidate = base / rel
+            if candidate.exists():
+                try:
+                    return _C.cdll.LoadLibrary(os.fspath(candidate))
+                except OSError:
+                    pass
+
+    # Common dev path
+    home = Path.home()
+    for rel in (
+        "Livox-SDK2/build/liblivox_lidar_sdk_shared.so",
+        "Livox-SDK2/build/liblivox_lidar_sdk.so",
+    ):
+        candidate = home / rel
+        if candidate.exists():
+            try:
+                return _C.cdll.LoadLibrary(os.fspath(candidate))
+            except OSError:
+                pass
+
     for name in (
         "liblivox_lidar_sdk_shared.so",
         "liblivox_lidar_sdk.so",

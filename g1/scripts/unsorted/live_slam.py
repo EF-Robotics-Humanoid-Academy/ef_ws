@@ -21,11 +21,15 @@ from __future__ import annotations
 import signal
 import time
 from pathlib import Path
+from typing import Optional, Dict, Any
+import os
+
+# Force CPU-only Open3D to avoid CUDA driver/runtime mismatch crashes.
+os.environ.setdefault("OPEN3D_CPU_ONLY", "1")
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import numpy as np
 import open3d as o3d
-from typing import Optional, Dict, Any
-import os
 
 # ---------------------------------------------------------------------------
 # Mount orientation correction
