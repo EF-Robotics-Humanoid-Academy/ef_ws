@@ -6,6 +6,8 @@ import argparse
 import math
 import os
 import subprocess
+import tempfile
+import wave
 import sys
 import time
 import threading
@@ -51,7 +53,13 @@ def _parse_level(value: str) -> int:
     return level
 
 
-def _set_volume(level: int) -> None:
+def _init_channel(iface: str) -> None:
+    from unitree_sdk2py.core.channel import ChannelFactoryInitialize
+    ChannelFactoryInitialize(0, iface)
+
+
+def _set_volume(level: int, iface: str) -> None:
+    _init_channel(iface)
     AudioClient = _load_audio_client()
     client = AudioClient()
     client.SetTimeout(3.0)
@@ -61,7 +69,8 @@ def _set_volume(level: int) -> None:
         raise SystemExit(f"SetVolume failed: code={code}")
 
 
-def _set_brightness(level: int) -> None:
+def _set_brightness(level: int, iface: str) -> None:
+    _init_channel(iface)
     AudioClient = _load_audio_client()
     client = AudioClient()
     client.SetTimeout(3.0)
@@ -72,22 +81,59 @@ def _set_brightness(level: int) -> None:
         raise SystemExit(f"LedControl failed: code={code}")
 
 
-def _play_wav_async(wav_path: str) -> subprocess.Popen:
+def _play_wav_robot(wav_path: str, iface: str, volume: int | None) -> float:
     if not os.path.exists(wav_path):
         print(f"Missing wav file: {wav_path}")
         raise SystemExit(1)
 
-    player = _find_player()
-    if not player:
-        print("No audio player found. Install aplay/paplay/ffplay.")
-        raise SystemExit(2)
+    _init_channel(iface)
+    AudioClient = _load_audio_client()
+    client = AudioClient()
+    client.SetTimeout(5.0)
+    client.Init()
 
-    cmd = player + [wav_path]
-    try:
-        return subprocess.Popen(cmd)
-    except OSError as exc:
-        print(f"Audio player failed to start: {exc}")
-        raise SystemExit(2)
+    if volume is not None:
+        code = client.SetVolume(volume)
+        if code != 0:
+            raise SystemExit(f"SetVolume failed: code={code}")
+
+    tmp_path = None
+    with wave.open(wav_path, "rb") as wf:
+        channels = wf.getnchannels()
+        rate = wf.getframerate()
+        width = wf.getsampwidth()
+        if channels != 1 or rate != 16000 or width != 2:
+            try:
+                subprocess.run(["/usr/bin/env", "which", "ffmpeg"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception:
+                raise SystemExit(
+                    "WAV must be mono 16-bit PCM at 16kHz. Install ffmpeg for auto-convert."
+                )
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+            os.close(tmp_fd)
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", wav_path, "-ac", "1", "-ar", "16000", "-f", "wav", tmp_path],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            wav_path = tmp_path
+            with wave.open(wav_path, "rb") as wf2:
+                pcm = wf2.readframes(wf2.getnframes())
+                duration = wf2.getnframes() / float(wf2.getframerate())
+        else:
+            pcm = wf.readframes(wf.getnframes())
+            duration = wf.getnframes() / float(rate)
+
+    code, data = client.PlayStream("huddle", "huddle-1", pcm)
+    if code != 0:
+        raise SystemExit(f"PlayStream failed: code={code}, data={data}")
+    if tmp_path:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+    return float(duration)
 
 
 class ArmSdkController:
@@ -265,33 +311,33 @@ def _default_poses(arm: str) -> Dict[str, List[Tuple[int, float]]]:
     else:
         side = [
             (12, 0.0),
-            (22, -0.023),  # shoulder pitch
-            (23, -0.225),  # shoulder roll
-            (24, +0.502),  # shoulder yaw
-            (25, +1.317),  # elbow
-            (26, +0.185),  # wrist pitch
-            (27, +0.125),  # wrist roll
-            (28, -0.182),  # wrist yaw
+            (22, +0.180),  # shoulder pitch (neutral)
+            (23, -0.100),  # shoulder roll
+            (24, -0.275),  # shoulder yaw
+            (25, +1.273),  # elbow
+            (26, -1.440),  # wrist pitch
+            (27, +0.000),  # wrist roll
+            (28, +0.000),  # wrist yaw
         ]
         extend = [
             (12, 0.0),
-            (22, +0.200),
-            (23, -0.300),
-            (24, +0.280),
-            (25, +0.520),
-            (26, +0.240),
-            (27, -0.771),
-            (28, -0.176),
+            (22, -1.000),  # shoulder up ~90 deg
+            (23, -0.150),
+            (24, -0.275),
+            (25, +1.200),
+            (26, -1.440),
+            (27, +0.000),
+            (28, +0.000),
         ]
         lift = [
             (12, 0.0),
-            (22, -0.550),
-            (23, -0.320),
-            (24, +0.280),
-            (25, +0.691),
-            (26, +0.240),
-            (27, -0.771),
-            (28, -0.176),
+            (22, -1.450),  # shoulder further up
+            (23, -0.150),
+            (24, -0.275),
+            (25, +1.200),
+            (26, -1.440),
+            (27, +0.000),
+            (28, +0.000),
         ]
 
     return {"side": side, "extend": extend, "lift": lift}
@@ -318,6 +364,8 @@ def main() -> None:
         default="smooth",
         help="easing profile for arm ramps",
     )
+    parser.add_argument("--calibrate-shoulder", action="store_true",
+                        help="print joint angles from lowstate for calibration")
     args = parser.parse_args()
 
     wav_path = args.file
@@ -329,19 +377,36 @@ def main() -> None:
     arm = ArmSdkController(args.iface, args.arm, args.cmd_hz, args.kp, args.kd)
     arm.seed_from_lowstate()
 
+    if args.calibrate_shoulder:
+        print("Calibrating shoulder joint indices. Move the shoulder and watch values.")
+        print("Press Ctrl+C to stop.")
+        try:
+            while True:
+                time.sleep(0.5)
+                if not arm._state_ready.is_set():
+                    continue
+                # Print all joint indices used by the arm plus waist yaw
+                vals = []
+                for j in (*arm._joint_idx, arm._WAIST_YAW_IDX):
+                    v = arm._joint_cur.get(j, None)
+                    if v is not None:
+                        vals.append(f"{j}:{v:+.3f}")
+                if vals:
+                    print(" ".join(vals))
+        except KeyboardInterrupt:
+            return
+
     print("Step 1: extend hand in front (palm down).")
     arm.ramp_to_pose(poses["extend"], args.extend_sec, easing=args.easing)
     arm.hold_pose(poses["extend"], args.hold_extend)
 
     print("Step 2: play audio (hold palm-down pose).")
     if args.brightness is not None:
-        _set_brightness(args.brightness)
+        _set_brightness(args.brightness, args.iface)
     volume_level = 100 if args.volume is None else args.volume
-    _set_volume(volume_level)
-    audio_proc = _play_wav_async(wav_path)
-    arm.hold_pose_until_done(poses["extend"], audio_proc)
-    if audio_proc.poll() not in (0, None):
-        raise SystemExit(f"Audio player failed: exit code {audio_proc.returncode}")
+    _set_volume(volume_level, args.iface)
+    duration = _play_wav_robot(wav_path, args.iface, volume_level)
+    arm.hold_pose(poses["extend"], duration)
 
     print("Step 3: lift hand (rotate shoulder).")
     arm.ramp_to_pose(poses["lift"], args.lift_sec, easing=args.easing)

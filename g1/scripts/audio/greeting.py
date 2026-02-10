@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Play greeting.wav on the robot."""
+"""Play greeting.wav locally or on the robot."""
 from __future__ import annotations
 
 import argparse
 import os
 import subprocess
+import wave
+import tempfile
 import sys
 from typing import Optional
 
@@ -63,11 +65,71 @@ def _set_volume(level: int, iface: Optional[str]) -> None:
         raise SystemExit(f"SetVolume failed: code={code}")
 
 
+def _play_on_robot(wav_path: str, iface: Optional[str], volume: Optional[int]) -> None:
+    _init_channel(iface)
+    AudioClient = _load_audio_client()
+    client = AudioClient()
+    client.SetTimeout(5.0)
+    client.Init()
+
+    if volume is not None:
+        code = client.SetVolume(volume)
+        if code != 0:
+            raise SystemExit(f"SetVolume failed: code={code}")
+
+    tmp_path = None
+    with wave.open(wav_path, "rb") as wf:
+        channels = wf.getnchannels()
+        rate = wf.getframerate()
+        width = wf.getsampwidth()
+        if channels != 1 or rate != 16000 or width != 2:
+            player = _find_player()
+            if not player:
+                raise SystemExit(
+                    "WAV must be mono 16-bit PCM at 16kHz for robot playback, "
+                    "and no audio converter (ffmpeg) was found."
+                )
+            # Try ffmpeg conversion if available.
+            if player[0] != "ffplay":
+                try:
+                    subprocess.run(["/usr/bin/env", "which", "ffmpeg"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except Exception:
+                    raise SystemExit(
+                        "WAV must be mono 16-bit PCM at 16kHz. Install ffmpeg for auto-convert."
+                    )
+                tmp_fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+                os.close(tmp_fd)
+                subprocess.run(
+                    ["ffmpeg", "-y", "-i", wav_path, "-ac", "1", "-ar", "16000", "-f", "wav", tmp_path],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                wav_path = tmp_path
+            # reopen converted file
+            with wave.open(wav_path, "rb") as wf2:
+                pcm = wf2.readframes(wf2.getnframes())
+        else:
+            pcm = wf.readframes(wf.getnframes())
+
+    app_name = "greeting"
+    stream_id = "greeting-1"
+    code, data = client.PlayStream(app_name, stream_id, pcm)
+    if code != 0:
+        raise SystemExit(f"PlayStream failed: code={code}, data={data}")
+    if tmp_path:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Play greeting.wav.")
     parser.add_argument("--file", default="greeting.wav", help="path to wav file")
-    parser.add_argument("--volume", type=_parse_level, default=None, help="set robot speaker volume (0-10)")
+    parser.add_argument("--volume", type=_parse_level, default=None, help="set robot speaker volume (0-100)")
     parser.add_argument("--iface", default=None, help="network interface for DDS (e.g. eth0)")
+    parser.add_argument("--robot", action="store_true", help="play on robot via AudioClient")
     args = parser.parse_args()
 
     wav_path = args.file
@@ -78,13 +140,14 @@ def main() -> None:
         print(f"Missing wav file: {wav_path}")
         sys.exit(1)
 
+    if args.robot:
+        _play_on_robot(wav_path, args.iface, args.volume)
+        return
+
     player = _find_player()
     if not player:
         print("No audio player found. Install aplay/paplay/ffplay.")
         sys.exit(2)
-
-    if args.volume is not None:
-        _set_volume(args.volume, args.iface)
 
     cmd = player + [wav_path]
     try:
