@@ -1,0 +1,21 @@
+{
+  "arm": "right",
+  "steps": [
+    {
+      "name": "shoulder_plus_30",
+      "duration": 1.5,
+      "hold": 0.2,
+      "descriptions": [
+        "right shoulder - 30 degrees"
+      ]
+    },
+    {
+      "name": "shoulder_back_120",
+      "duration": 2.0,
+      "hold": 0.5,
+      "descriptions": [
+        "right shoulder - -120 degrees"
+      ]
+    }
+  ]
+}

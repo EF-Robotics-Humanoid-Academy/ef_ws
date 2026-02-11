@@ -1,0 +1,13 @@
+{
+  "arm": "right",
+  "steps": [
+    {
+      "name": "shoulder_90",
+      "duration": 2.0,
+      "hold": 0.5,
+      "descriptions": [
+        "right shoulder - 90 degrees"
+      ]
+    }
+  ]
+}

@@ -14,9 +14,12 @@ This is intentionally simple and does not use IK or perception.
 """
 
 import argparse
+import json
+import math
 import os
+import re
 import time
-from typing import Dict, List
+from typing import Dict, List, Iterable
 
 from unitree_sdk2py.core import channel as channel_module
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublisher
@@ -173,6 +176,98 @@ POSES: Dict[str, Dict[int, float]] = {
     },
 }
 
+JOINT_INDEX = {
+    "right": {
+        "shoulder_pitch": G1JointIndex.RightShoulderPitch,
+        "shoulder_roll": G1JointIndex.RightShoulderRoll,
+        "shoulder_yaw": G1JointIndex.RightShoulderYaw,
+        "elbow": G1JointIndex.RightElbow,
+        "wrist_roll": G1JointIndex.RightWristRoll,
+        "wrist_pitch": G1JointIndex.RightWristPitch,
+        "wrist_yaw": G1JointIndex.RightWristYaw,
+    }
+}
+
+JOINT_ALIASES = {
+    "shoulder": "shoulder_pitch",
+    "shoulder_pitch": "shoulder_pitch",
+    "shoulder_roll": "shoulder_roll",
+    "shoulder_yaw": "shoulder_yaw",
+    "elbow": "elbow",
+    "wrist": "wrist_pitch",
+    "wrist_pitch": "wrist_pitch",
+    "wrist_roll": "wrist_roll",
+    "wrist_yaw": "wrist_yaw",
+    "waist_yaw": "waist_yaw",
+    "waist": "waist_yaw",
+}
+
+DESC_RE = re.compile(
+    r"(?:(left|right)\s+)?([a-z_ ]+)\s*[:-]?\s*([+-]?\d+(?:\.\d+)?)\s*(?:deg|degree|degrees)?",
+    re.IGNORECASE,
+)
+
+
+def _normalize_joint_name(name: str) -> str:
+    key = name.strip().lower().replace("-", " ").replace("_", " ")
+    key = re.sub(r"\s+", " ", key)
+    key = key.replace(" ", "_")
+    return JOINT_ALIASES.get(key, key)
+
+
+def _parse_descriptions(descriptions: Iterable[str], default_arm: str) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    for line in descriptions:
+        match = DESC_RE.search(line.strip())
+        if not match:
+            raise ValueError(f"Could not parse description: '{line}'")
+        arm_raw, joint_raw, deg_raw = match.group(1), match.group(2), match.group(3)
+        arm = (arm_raw or default_arm).lower()
+        if arm != default_arm:
+            raise ValueError(f"Description arm '{arm}' does not match target arm '{default_arm}'")
+        joint = _normalize_joint_name(joint_raw)
+        out[joint] = float(deg_raw)
+    return out
+
+
+def _load_poses(path: str) -> Dict[str, Dict[int, float]]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    arm = (data.get("arm") or "right").lower()
+    if arm != "right":
+        raise SystemExit("pick/place script currently supports right arm only")
+
+    poses_in = data.get("poses") or {}
+    if not poses_in:
+        raise SystemExit("poses.json has no poses")
+
+    poses_out: Dict[str, Dict[int, float]] = {}
+    for name, pose_def in poses_in.items():
+        angles = pose_def.get("angles") if isinstance(pose_def, dict) else None
+        descriptions = pose_def.get("descriptions") if isinstance(pose_def, dict) else None
+        if angles is None and descriptions is None:
+            raise SystemExit(f"Pose '{name}' has no angles or descriptions")
+        merged: Dict[str, float] = {}
+        if angles:
+            for k, v in angles.items():
+                merged[_normalize_joint_name(k)] = float(v)
+        if descriptions:
+            merged.update(_parse_descriptions(descriptions, arm))
+
+        target: Dict[int, float] = {}
+        for joint_name, deg in merged.items():
+            if joint_name == "waist_yaw":
+                target[G1JointIndex.WaistYaw] = math.radians(deg)
+                continue
+            if joint_name not in JOINT_INDEX["right"]:
+                raise SystemExit(f"Unknown joint '{joint_name}' in pose '{name}'")
+            target[JOINT_INDEX["right"][joint_name]] = math.radians(deg)
+        poses_out[name] = target
+    return poses_out
+
 
 def _build_hand_msg(targets: List[float], kp: float, kd: float, tau: float) -> HandCmd_:
     msg = unitree_hg_msg_dds__HandCmd_()
@@ -310,8 +405,15 @@ def main() -> None:
     parser.add_argument("--iface", default="eth0", help="Network interface (robot: eth0)")
     parser.add_argument("--domain_id", type=int, default=0, help="DDS domain id (robot: 0)")
     parser.add_argument("--rate", type=float, default=50.0, help="Command rate (Hz)")
+    parser.add_argument("--poses", default="", help="optional poses.json with HL joint descriptions")
     args = parser.parse_args()
 
+    if args.poses:
+        poses_path = args.poses
+        if not os.path.isabs(poses_path):
+            poses_path = os.path.join(os.path.dirname(__file__), poses_path)
+        global POSES
+        POSES = _load_poses(poses_path)
     run(iface=args.iface, domain_id=args.domain_id, rate_hz=args.rate)
 
 

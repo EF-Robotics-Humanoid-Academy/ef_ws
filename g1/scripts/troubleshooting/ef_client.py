@@ -14,12 +14,14 @@ or planning; it only exposes basic SDK calls and cached telemetry.
 """
 from __future__ import annotations
 
+import importlib
+import json
 import os
 import sys
 import threading
 import time
-from dataclasses import dataclass
-from typing import Any, Optional
+from dataclasses import dataclass, is_dataclass, asdict
+from typing import Any, Dict, Iterable, Optional, Set, Tuple
 
 # Ensure scripts dir is on sys.path so we can import safety helpers.
 _SCRIPTS_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
@@ -46,6 +48,7 @@ TOPIC_SPORT = "rt/sportmodestate"
 TOPIC_LIDAR_STATE = "rt/utlidar/map_state"
 TOPIC_LIDAR_CLOUD = "rt/utlidar/cloud_deskewed"
 TOPIC_LIDAR_SWITCH = "rt/utlidar/switch"
+RGBD_TOPIC_KEYWORDS = ("rgbd", "depth", "rgb", "color", "image", "camera")
 
 
 @dataclass
@@ -55,6 +58,127 @@ class ImuData:
     acc: tuple[float, float, float] | None
     quat: tuple[float, float, float, float] | None
     temp: float | None
+
+
+class TopicStats:
+    def __init__(self) -> None:
+        self.sample_count: int = 0
+        self.last_sample: str = ""
+        self.last_ts: float = 0.0
+        self.last_error: str = ""
+
+    def update_sample(self, sample: Any) -> None:
+        self.sample_count += 1
+        self.last_sample = _truncate(_format_sample(sample), 400)
+        self.last_ts = time.time()
+        self.last_error = ""
+
+    def update_error(self, exc: Exception) -> None:
+        self.last_error = str(exc)
+        self.last_ts = time.time()
+
+
+def _truncate(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3] + "..."
+
+
+def _format_sample(sample: Any) -> str:
+    try:
+        if is_dataclass(sample):
+            return json.dumps(asdict(sample), ensure_ascii=True)
+    except Exception:
+        pass
+    try:
+        if hasattr(sample, "to_dict"):
+            return json.dumps(sample.to_dict(), ensure_ascii=True)
+    except Exception:
+        pass
+    try:
+        return repr(sample)
+    except Exception:
+        return "<unprintable sample>"
+
+
+def _type_name_to_idl_module(type_name: str) -> Optional[Tuple[str, str]]:
+    if not type_name or "::" not in type_name:
+        return None
+    parts = type_name.split("::")
+    if len(parts) < 2:
+        return None
+    class_name = parts[-1]
+    namespace = parts[:-1]
+    module_path = "unitree_sdk2py.idl." + ".".join(namespace) + "._" + class_name
+    return module_path, class_name
+
+
+def _resolve_type(type_path: str) -> Any:
+    if ":" in type_path:
+        module_path, class_name = type_path.split(":", 1)
+    else:
+        module_path, class_name = type_path.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, class_name)
+
+
+def _type_path_candidates(type_path: str) -> list[str]:
+    candidates: list[str] = []
+    if "::" not in type_path:
+        return [type_path]
+    mapped = _type_name_to_idl_module(type_path)
+    if mapped:
+        module_path, class_name = mapped
+        candidates.append(f"{module_path}:{class_name}")
+    if type_path.startswith("sensor_msgs::msg::dds_::"):
+        class_name = type_path.split("::")[-1]
+        candidates.append(f"unitree_sdk2py.idl.ros2._{class_name}:{class_name}")
+    candidates.append(type_path)
+    return candidates
+
+
+class DdsDiscovery:
+    def __init__(self, domain_id: int) -> None:
+        from cyclonedds.domain import DomainParticipant
+        from cyclonedds.builtin import BuiltinDataReader, BuiltinTopicDcpsTopic, BuiltinTopicDcpsPublication
+
+        self.participant = DomainParticipant(domain_id)
+        self.topic_reader = BuiltinDataReader(self.participant, BuiltinTopicDcpsTopic)
+        self.pub_reader = BuiltinDataReader(self.participant, BuiltinTopicDcpsPublication)
+
+        self.seen_topics: Dict[str, str] = {}
+        self.seen_publications: Set[Tuple[str, str]] = set()
+
+    def poll(self) -> list[Tuple[str, str]]:
+        discovered: list[Tuple[str, str]] = []
+        try:
+            topics = self.topic_reader.read(64)
+        except Exception:
+            topics = []
+
+        for t in topics:
+            try:
+                topic_name = t.topic_name
+                type_name = t.type_name
+            except Exception:
+                continue
+            if topic_name not in self.seen_topics:
+                self.seen_topics[topic_name] = type_name
+                discovered.append((topic_name, type_name))
+
+        try:
+            pubs = self.pub_reader.read(64)
+        except Exception:
+            pubs = []
+
+        for p in pubs:
+            try:
+                key = (p.topic_name, p.type_name)
+            except Exception:
+                continue
+            if key not in self.seen_publications:
+                self.seen_publications.add(key)
+        return discovered
 
 
 class Robot:
@@ -76,6 +200,11 @@ class Robot:
         self._lidar_state_sub: ChannelSubscriber | None = None
         self._lidar_cloud_sub: ChannelSubscriber | None = None
         self._lidar_switch_pub: ChannelPublisher | None = None
+        self._extra_subs: Dict[str, ChannelSubscriber] = {}
+        self._topic_stats: Dict[str, TopicStats] = {}
+        self._discovery: DdsDiscovery | None = None
+        self._discovery_thread: threading.Thread | None = None
+        self._discovery_stop = threading.Event()
 
         # SDK init + safe boot (preferred)
         if safety_boot:
@@ -86,7 +215,7 @@ class Robot:
             self._client.SetTimeout(10.0)
             self._client.Init()
 
-        # Start subscribers lazily; caller can invoke start_sensors().
+        # Start subscribers lazily; caller can invoke start_sensors() / start_extra_sensors().
 
     # ------------------------------------------------------------------
     # Subscribers
@@ -110,6 +239,72 @@ class Robot:
             self._lidar_switch_pub = ChannelPublisher(TOPIC_LIDAR_SWITCH, String_)
             self._lidar_switch_pub.Init()
 
+    def start_extra_sensors(self, topics: Iterable[Tuple[str, str]]) -> None:
+        """
+        Start additional DDS subscriptions using type discovery helpers.
+
+        topics: iterable of (topic_name, type_path_or_dds_type_name)
+        """
+        for topic_name, type_path in topics:
+            if topic_name in self._extra_subs:
+                continue
+            msg_type = None
+            last_exc: Exception | None = None
+            for candidate in _type_path_candidates(type_path):
+                try:
+                    msg_type = _resolve_type(candidate)
+                    break
+                except Exception as exc:
+                    last_exc = exc
+            if msg_type is None:
+                if last_exc:
+                    raise last_exc
+                raise RuntimeError(f"Failed to resolve type for {topic_name}: {type_path}")
+            sub = ChannelSubscriber(topic_name, msg_type)
+            sub.Init(lambda msg, t=topic_name: self._generic_cb(t, msg), 10)
+            self._extra_subs[topic_name] = sub
+            self._topic_stats.setdefault(topic_name, TopicStats())
+
+    def start_discovery(self, poll_interval: float = 0.2) -> None:
+        """
+        Start DDS discovery loop and auto-subscribe to new topics when type mapping works.
+        Requires cyclonedds.
+        """
+        if self._discovery_thread is not None:
+            return
+
+        try:
+            self._discovery = DdsDiscovery(self.domain_id)
+        except Exception as exc:
+            raise RuntimeError("DDS discovery unavailable (cyclonedds required)") from exc
+
+        self._discovery_stop.clear()
+
+        def _loop() -> None:
+            while not self._discovery_stop.is_set():
+                if self._discovery is None:
+                    break
+                for topic_name, type_name in self._discovery.poll():
+                    if topic_name in self._extra_subs:
+                        continue
+                    if any(key in topic_name.lower() for key in RGBD_TOPIC_KEYWORDS):
+                        pass
+                    try:
+                        self.start_extra_sensors([(topic_name, type_name)])
+                    except Exception:
+                        continue
+                time.sleep(poll_interval)
+
+        self._discovery_thread = threading.Thread(target=_loop, name="g1_dds_discovery", daemon=True)
+        self._discovery_thread.start()
+
+    def stop_discovery(self) -> None:
+        if self._discovery_thread is None:
+            return
+        self._discovery_stop.set()
+        self._discovery_thread.join(timeout=1.0)
+        self._discovery_thread = None
+
     def _sport_cb(self, msg: SportModeState_) -> None:
         with self._lock:
             self._sport = msg
@@ -124,6 +319,11 @@ class Robot:
         with self._lock:
             self._lidar_cloud = msg
             self._last_cloud_ts = time.time()
+
+    def _generic_cb(self, topic_name: str, msg: Any) -> None:
+        with self._lock:
+            stat = self._topic_stats.setdefault(topic_name, TopicStats())
+            stat.update_sample(msg)
 
     # ------------------------------------------------------------------
     # Sensor getters (best-effort)
@@ -199,6 +399,10 @@ class Robot:
         if ts == 0.0:
             return True
         return (time.time() - ts) > max_age
+
+    def get_topic_stats(self, topic_name: str) -> TopicStats | None:
+        with self._lock:
+            return self._topic_stats.get(topic_name)
 
     # ------------------------------------------------------------------
     # Motion helpers

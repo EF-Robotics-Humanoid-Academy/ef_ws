@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
+import re
 import subprocess
 import tempfile
 import wave
 import sys
 import time
 import threading
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Iterable, Any
 
 try:
     from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublisher
@@ -134,6 +136,71 @@ def _play_wav_robot(wav_path: str, iface: str, volume: int | None) -> float:
         except Exception:
             pass
     return float(duration)
+
+
+JOINT_INDEX = {
+    "left": {
+        "shoulder_pitch": 15,
+        "shoulder_roll": 16,
+        "shoulder_yaw": 17,
+        "elbow": 18,
+        "wrist_roll": 19,
+        "wrist_pitch": 20,
+        "wrist_yaw": 21,
+    },
+    "right": {
+        "shoulder_pitch": 22,
+        "shoulder_roll": 23,
+        "shoulder_yaw": 24,
+        "elbow": 25,
+        "wrist_pitch": 26,
+        "wrist_roll": 27,
+        "wrist_yaw": 28,
+    },
+}
+
+JOINT_ALIASES = {
+    "shoulder": "shoulder_pitch",
+    "shoulder_pitch": "shoulder_pitch",
+    "shoulder_roll": "shoulder_roll",
+    "shoulder_yaw": "shoulder_yaw",
+    "elbow": "elbow",
+    "wrist": "wrist_pitch",
+    "wrist_pitch": "wrist_pitch",
+    "wrist_roll": "wrist_roll",
+    "wrist_yaw": "wrist_yaw",
+    "waist_yaw": "waist_yaw",
+    "waist": "waist_yaw",
+}
+
+DESC_RE = re.compile(
+    r"(?:(left|right)\s+)?([a-z_ ]+)\s*[:-]?\s*([+-]?\d+(?:\.\d+)?)\s*(?:deg|degree|degrees)?",
+    re.IGNORECASE,
+)
+
+
+def _normalize_joint_name(name: str) -> str:
+    key = name.strip().lower().replace("-", " ").replace("_", " ")
+    key = re.sub(r"\s+", " ", key)
+    key = key.replace(" ", "_")
+    return JOINT_ALIASES.get(key, key)
+
+
+def _parse_descriptions(descriptions: Iterable[str], default_arm: str) -> Dict[str, float]:
+    out: Dict[str, float] = {}
+    for line in descriptions:
+        match = DESC_RE.search(line.strip())
+        if not match:
+            raise ValueError(f"Could not parse description: '{line}'")
+        arm_raw, joint_raw, deg_raw = match.group(1), match.group(2), match.group(3)
+        arm = (arm_raw or default_arm).lower()
+        if arm not in JOINT_INDEX:
+            raise ValueError(f"Unknown arm '{arm}' in description: '{line}'")
+        if arm != default_arm:
+            raise ValueError(f"Description arm '{arm}' does not match target arm '{default_arm}'")
+        joint = _normalize_joint_name(joint_raw)
+        out[joint] = float(deg_raw)
+    return out
 
 
 class ArmSdkController:
@@ -343,10 +410,36 @@ def _default_poses(arm: str) -> Dict[str, List[Tuple[int, float]]]:
     return {"side": side, "extend": extend, "lift": lift}
 
 
+def _load_steps(path: str, arm: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    file_arm = (data.get("arm") or arm).lower()
+    if file_arm != arm:
+        raise SystemExit(f"steps.json arm '{file_arm}' does not match requested '{arm}'")
+    return data
+
+
+def _build_pose_from_angles(arm: str, angles: Dict[str, float]) -> List[Tuple[int, float]]:
+    pose: List[Tuple[int, float]] = []
+    idx_map = JOINT_INDEX[arm]
+    for joint_name, deg in angles.items():
+        key = _normalize_joint_name(joint_name)
+        if key == "waist_yaw":
+            pose.append((ArmSdkController._WAIST_YAW_IDX, math.radians(deg)))
+            continue
+        if key not in idx_map:
+            raise ValueError(f"Unknown joint '{key}' for arm '{arm}'")
+        pose.append((idx_map[key], math.radians(deg)))
+    return pose
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Huddle sequence: extend → audio → lift → lower.")
     parser.add_argument("--iface", default="eth0", help="network interface for DDS")
     parser.add_argument("--arm", choices=["left", "right"], default="right", help="which arm to move")
+    parser.add_argument("--steps", default="", help="optional steps.json with pose descriptions")
     parser.add_argument("--file", default="huddle.wav", help="path to wav file")
     parser.add_argument("--volume", type=_parse_level, default=None, help="set robot speaker volume (0-100)")
     parser.add_argument("--brightness", type=_parse_level, default=None, help="set headlight brightness (0-100)")
@@ -396,24 +489,63 @@ def main() -> None:
         except KeyboardInterrupt:
             return
 
-    print("Step 1: extend hand in front (palm down).")
-    arm.ramp_to_pose(poses["extend"], args.extend_sec, easing=args.easing)
-    arm.hold_pose(poses["extend"], args.hold_extend)
+    if args.steps:
+        steps_path = args.steps
+        if not os.path.isabs(steps_path):
+            steps_path = os.path.join(os.path.dirname(__file__), steps_path)
+        data = _load_steps(steps_path, args.arm)
+        steps = data.get("steps") or []
+        if not steps:
+            raise SystemExit("steps.json has no steps")
 
-    print("Step 2: play audio (hold palm-down pose).")
-    if args.brightness is not None:
-        _set_brightness(args.brightness, args.iface)
-    volume_level = 100 if args.volume is None else args.volume
-    _set_volume(volume_level, args.iface)
-    duration = _play_wav_robot(wav_path, args.iface, volume_level)
-    arm.hold_pose(poses["extend"], duration)
+        current_pose: Dict[str, float] = {}
+        for i, step in enumerate(steps, start=1):
+            name = step.get("name") or f"step_{i}"
+            duration = float(step.get("duration", 1.5))
+            hold = float(step.get("hold", 0.0))
+            angles = step.get("angles") or {}
+            descriptions = step.get("descriptions") or []
+            if descriptions:
+                angles.update(_parse_descriptions(descriptions, args.arm))
+            if not angles:
+                raise SystemExit(f"Step '{name}' has no angles or descriptions")
+            current_pose.update({ _normalize_joint_name(k): float(v) for k, v in angles.items() })
+            pose = _build_pose_from_angles(args.arm, current_pose)
 
-    print("Step 3: lift hand (rotate shoulder).")
-    arm.ramp_to_pose(poses["lift"], args.lift_sec, easing=args.easing)
-    arm.hold_pose(poses["lift"], args.hold_lift)
+            print(f"Step {i}: {name}")
+            arm.ramp_to_pose(pose, duration, easing=args.easing)
+            arm.hold_pose(pose, hold)
 
-    print("Step 4: lower arm back to side (slow).")
-    arm.ramp_to_pose(poses["side"], args.lower_sec, easing=args.easing)
+            audio = step.get("audio")
+            if audio:
+                audio_file = audio.get("file", wav_path)
+                if not os.path.isabs(audio_file):
+                    audio_file = os.path.join(os.path.dirname(__file__), audio_file)
+                if args.brightness is not None:
+                    _set_brightness(args.brightness, args.iface)
+                volume_level = audio.get("volume", 100 if args.volume is None else args.volume)
+                _set_volume(int(volume_level), args.iface)
+                duration_s = _play_wav_robot(audio_file, args.iface, int(volume_level))
+                arm.hold_pose(pose, duration_s)
+    else:
+        print("Step 1: extend hand in front (palm down).")
+        arm.ramp_to_pose(poses["extend"], args.extend_sec, easing=args.easing)
+        arm.hold_pose(poses["extend"], args.hold_extend)
+
+        print("Step 2: play audio (hold palm-down pose).")
+        if args.brightness is not None:
+            _set_brightness(args.brightness, args.iface)
+        volume_level = 100 if args.volume is None else args.volume
+        _set_volume(volume_level, args.iface)
+        duration = _play_wav_robot(wav_path, args.iface, volume_level)
+        arm.hold_pose(poses["extend"], duration)
+
+        print("Step 3: lift hand (rotate shoulder).")
+        arm.ramp_to_pose(poses["lift"], args.lift_sec, easing=args.easing)
+        arm.hold_pose(poses["lift"], args.hold_lift)
+
+        print("Step 4: lower arm back to side (slow).")
+        arm.ramp_to_pose(poses["side"], args.lower_sec, easing=args.easing)
 
 
 if __name__ == "__main__":
