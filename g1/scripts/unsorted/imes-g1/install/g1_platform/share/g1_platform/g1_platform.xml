@@ -1,9 +1,0 @@
-<library path="g1_platform">
-   <class name="g1_platform/G1ArmPositionHardware"
-         type="g1_platform::G1ArmPositionHardware"
-         base_class_type="hardware_interface::SystemInterface">
-    <description>
-      G1 robot hardware interface for arm position control.
-    </description>
-  </class>   
-</library>

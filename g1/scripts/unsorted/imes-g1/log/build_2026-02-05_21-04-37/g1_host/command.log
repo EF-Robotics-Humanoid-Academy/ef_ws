@@ -1,6 +1,0 @@
-Invoking command in '/home/unitree/imes-g1/build/g1_host': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_host -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_host
-Invoked command in '/home/unitree/imes-g1/build/g1_host' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_host -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_host
-Invoking command in '/home/unitree/imes-g1/build/g1_host': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_host -- -j8 -l8
-Invoked command in '/home/unitree/imes-g1/build/g1_host' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_host -- -j8 -l8
-Invoking command in '/home/unitree/imes-g1/build/g1_host': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_host
-Invoked command in '/home/unitree/imes-g1/build/g1_host' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_host

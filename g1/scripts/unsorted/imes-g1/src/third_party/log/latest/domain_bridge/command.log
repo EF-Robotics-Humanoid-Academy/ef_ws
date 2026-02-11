@@ -1,1 +1,0 @@
-Invoking command in '/home/unitree/imes-g1/src/third_party/build/domain_bridge': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/third_party/tools/05Jun2025_domain_bridge_foxy -DROS_EDITION=ROS2 -DHUMBLE_ROS= -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/src/third_party/install/domain_bridge

@@ -1,6 +1,0 @@
-Invoking command in '/home/unitree/imes-g1/build/g1_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_bringup -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_bringup
-Invoked command in '/home/unitree/imes-g1/build/g1_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake /home/unitree/imes-g1/src/ros/g1_bringup -DCMAKE_INSTALL_PREFIX=/home/unitree/imes-g1/install/g1_bringup
-Invoking command in '/home/unitree/imes-g1/build/g1_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_bringup -- -j8 -l8
-Invoked command in '/home/unitree/imes-g1/build/g1_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_bringup -- -j8 -l8
-Invoking command in '/home/unitree/imes-g1/build/g1_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_bringup
-Invoked command in '/home/unitree/imes-g1/build/g1_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/foxy /home/unitree/.local/bin/cmake --install /home/unitree/imes-g1/build/g1_bringup

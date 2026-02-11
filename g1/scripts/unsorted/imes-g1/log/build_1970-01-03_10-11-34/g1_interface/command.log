@@ -1,2 +1,0 @@
-Invoking command in '/home/unitree/imes-g1/build/g1_interface': CONDA_PROMPT_MODIFIER=(base) /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_interface -- -j8 -l8
-Invoked command in '/home/unitree/imes-g1/build/g1_interface' returned '2': CONDA_PROMPT_MODIFIER=(base) /home/unitree/.local/bin/cmake --build /home/unitree/imes-g1/build/g1_interface -- -j8 -l8
