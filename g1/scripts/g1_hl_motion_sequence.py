@@ -16,6 +16,8 @@ from __future__ import annotations
 import argparse
 import importlib
 import math
+import os
+import sys
 import time
 from dataclasses import dataclass
 from typing import Optional, Any
@@ -31,6 +33,14 @@ except ImportError as exc:
     ) from exc
 
 from safety.hanger_boot_sequence import hanger_boot_sequence
+
+# Allow importing low_level helpers without package install.
+_SCRIPTS_DIR = os.path.dirname(__file__)
+_LOW_LEVEL_DIR = os.path.join(_SCRIPTS_DIR, "low_level")
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPTS_DIR)
+if _LOW_LEVEL_DIR not in sys.path:
+    sys.path.insert(0, _LOW_LEVEL_DIR)
 
 
 def _command_velocity(client: LocoClient, vx: float, vy: float, vyaw: float) -> None:
@@ -307,6 +317,67 @@ class _WaveHelper:
         return False
 
 
+def _run_low_level_wave(
+    iface: str,
+    steps_path: str,
+    easing: str,
+    cmd_hz_override: float,
+    kp_override: float,
+    kd_override: float,
+    no_seed: bool,
+) -> bool:
+    try:
+        from arm_motion import (
+            ArmSdkController,
+            _build_pose,
+            _load_steps,
+            _parse_descriptions,
+            _pose_to_indexed,
+        )
+    except Exception:
+        return False
+
+    if not os.path.isabs(steps_path):
+        steps_path = os.path.join(_LOW_LEVEL_DIR, steps_path)
+
+    data = _load_steps(steps_path)
+    arm = (data.get("arm") or "right").lower()
+    cmd_hz = float(cmd_hz_override or data.get("cmd_hz") or 50.0)
+    kp = float(kp_override or data.get("kp") or 40.0)
+    kd = float(kd_override or data.get("kd") or 1.0)
+
+    steps = data.get("steps") or []
+    if not steps:
+        raise SystemExit("Wave steps.json has no steps")
+
+    arm_ctrl = ArmSdkController(iface, arm, cmd_hz, kp, kd)
+    if not no_seed:
+        arm_ctrl.seed_from_lowstate()
+
+    current_pose_deg: dict[str, float] = {}
+    for idx, step in enumerate(steps, start=1):
+        name = step.get("name") or f"step_{idx}"
+        duration = float(step.get("duration", 1.5))
+        hold = float(step.get("hold", 0.0))
+
+        angles = step.get("angles") or {}
+        descriptions = step.get("descriptions") or []
+        if descriptions:
+            angles_from_desc = _parse_descriptions(descriptions, arm)
+            angles.update(angles_from_desc)
+        if not angles:
+            raise SystemExit(f"Step '{name}' has no angles or descriptions")
+
+        current_pose_deg = _build_pose(arm, angles, current_pose_deg)
+        indexed_pose = _pose_to_indexed(arm, current_pose_deg)
+
+        print(f"Wave: {name} (duration={duration}s hold={hold}s)")
+        arm_ctrl.ramp_to_pose(indexed_pose, duration, easing)
+        arm_ctrl.hold_pose(indexed_pose, hold)
+
+    return True
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="G1 simple multi-step motion sequence.")
     parser.add_argument("--iface", default="eth0", help="network interface for DDS")
@@ -325,6 +396,12 @@ def main() -> None:
     parser.add_argument("--turn-min-rate", type=float, default=0.15, help="min yaw rate near target (rad/s)")
     parser.add_argument("--turn-tol-deg", type=float, default=2.0, help="stop when within this tolerance (deg)")
     parser.add_argument("--no-wave", action="store_true", help="skip right-hand wave")
+    parser.add_argument("--wave-steps", default="", help="use low_level wave.json (path) instead of HL wave")
+    parser.add_argument("--wave-easing", choices=["linear", "smooth"], default="smooth", help="wave easing profile")
+    parser.add_argument("--wave-cmd-hz", type=float, default=0.0, help="override wave command rate (Hz)")
+    parser.add_argument("--wave-kp", type=float, default=0.0, help="override wave joint kp")
+    parser.add_argument("--wave-kd", type=float, default=0.0, help="override wave joint kd")
+    parser.add_argument("--wave-no-seed", action="store_true", help="skip wave seeding from lowstate")
     args = parser.parse_args()
 
     loco = hanger_boot_sequence(iface=args.iface)
@@ -370,10 +447,25 @@ def main() -> None:
 
         # 2) Wave right hand
         if not args.no_wave:
-            ok = wave.wave_right()
-            if not ok:
-                print("Wave: right-hand wave not supported by available SDK; skipping.")
-            time.sleep(1.0)
+            if args.wave_steps:
+                ok = _run_low_level_wave(
+                    iface=args.iface,
+                    steps_path=args.wave_steps,
+                    easing=args.wave_easing,
+                    cmd_hz_override=args.wave_cmd_hz,
+                    kp_override=args.wave_kp,
+                    kd_override=args.wave_kd,
+                    no_seed=args.wave_no_seed,
+                )
+                if not ok:
+                    print("Wave: low-level wave steps failed; falling back to HL wave.")
+                    ok = wave.wave_right()
+                time.sleep(1.0)
+            else:
+                ok = wave.wave_right()
+                if not ok:
+                    print("Wave: right-hand wave not supported by available SDK; skipping.")
+                time.sleep(1.0)
 
         # 3) Turn in place
         if imu_cache is None:
