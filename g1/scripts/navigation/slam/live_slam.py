@@ -197,12 +197,14 @@ if KissICP is None:
         + _msgs
     )
 
-# Try SDK2 first (push-mode).  Fallback to legacy SDK if not present.
+# Require SDK2 (push-mode). No fallback to SDK1.
 try:
     from livox2_python import Livox2 as _Livox
 except Exception as e:
-    print("[INFO] livox2_python unavailable (", e, ") – falling back to SDK1.")
-    from livox_python import Livox as _Livox
+    raise SystemExit(
+        "livox2_python unavailable. Install and build Livox-SDK2 first.\n"
+        f"Details: {e}"
+    )
 
 # ---------------------------------------------------------------------------
 # User-selectable presets (INDOOR / OUTDOOR)

@@ -165,3 +165,49 @@
 2026-02-13 22:04:28,646  INFO      Occurred upon initialisation of a cyclonedds.domain.Domain
 2026-02-13 22:04:28,656  ERROR     [run_geoff_gui] Battery monitor disabled:
 2026-02-13 22:04:28,657  ERROR     Could not subscribe to any battery SOC topic
+2026-02-14 15:47:40,000  INFO      usage: run_geoff_gui_input.py [-h] [--iface IFACE] [--clear CLEAR] [--arm {left,right}] [--hand {left,right}] [--grip-force N·m]
+                              [--input {qt,pynput,curses}]
+
+options:
+  -h, --help            show this help message and exit
+  --iface IFACE         NIC connected to the Unitree G-1
+  --clear CLEAR         Clearance (in inches) above detected floor before a point is tagged as an obstacle
+  --arm {left,right}    Which arm to control on startup (default: left)
+  --hand {left,right}   Which Dex3 hand is connected (default: left). Pass --hand right when a right-hand unit is attached.
+  --grip-force N·m      Feed-forward torque (approx. N·m) applied during continuous grabs (default: 0.3)
+  --input {qt,pynput,curses}
+                        keyboard input backend for base tele-op (default: qt)
+2026-02-14 15:47:59,881  INFO      No OpenGL_accelerate module loaded: No module named 'OpenGL_accelerate'
+2026-02-14 15:48:00,286  ERROR     [run_geoff_gui] Arm control disabled:
+2026-02-14 15:48:00,291  ERROR     'NoneType' object has no attribute '_ref'
+2026-02-14 15:48:00,291  ERROR     [run_geoff_gui] Dex3 hand control disabled:
+2026-02-14 15:48:00,291  ERROR     No module named 'unitree_sdk2py.dex3'
+2026-02-14 15:48:00,866  ERROR     [run_geoff_gui] Keyboard controller disabled:
+2026-02-14 15:48:00,866  ERROR     No module named 'keyboard_controller'
+2026-02-14 15:48:03,148  INFO      [INFO] livox2_python unavailable (
+2026-02-14 15:48:03,148  INFO      liblivox_lidar_sdk shared library not found.  Build & install Livox-SDK2 first (see wrapper docstring).
+2026-02-14 15:48:03,148  INFO      ) – falling back to SDK1.
+2026-02-14 15:48:13,035  INFO      [run_geoff_gui] Damp request – SDK unavailable
+2026-02-14 15:48:27,041  ERROR     Traceback (most recent call last):
+2026-02-14 15:48:27,041  ERROR       File "/home/ag/ef_ws/g1/scripts/navigation/slam/run_geoff_gui_input.py", line 2405, in _on_quit
+2026-02-14 15:48:27,042  ERROR     self._drive_timer.stop()
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,043  ERROR     ^
+2026-02-14 15:48:27,044  ERROR     ^
+2026-02-14 15:48:27,044  ERROR     ^
+2026-02-14 15:48:27,044  ERROR     ^
+2026-02-14 15:48:27,044  ERROR     ^
+2026-02-14 15:48:27,044  ERROR     ^
+2026-02-14 15:48:27,044  ERROR     AttributeError
+2026-02-14 15:48:27,044  ERROR     :
+2026-02-14 15:48:27,044  ERROR     'GeoffWindow' object has no attribute '_drive_timer'
