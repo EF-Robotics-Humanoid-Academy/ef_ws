@@ -1,0 +1,18 @@
+ROBOT = "g1"
+ROBOT_SCENE = "scene.xml"
+DOMAIN_ID = 1
+INTERFACE = "lo"
+
+CYCLONEDDS_URI = "<CycloneDDS><Domain><Tracing><Category>none</Category></Tracing></Domain></CycloneDDS>"
+
+USE_JOYSTICK = 0
+JOYSTICK_TYPE = "xbox"
+JOYSTICK_DEVICE = 0
+
+PRINT_SCENE_INFORMATION = False
+ENABLE_ELASTIC_BAND = True
+DISABLE_HIP_JOINTS = False
+LOCK_HIP_YAW = True
+
+SIMULATE_DT = 0.005
+VIEWER_DT = 0.02
