@@ -1,0 +1,55 @@
+In [3]: g1.slam_service(viz=True)
+[navigate_path] pose_nav rc=4 likely frame/relocalization mismatch; slam_pose=None odom_pose=(0.05996190011501312, 3.447218179702759, 0.695224404335022) goal=(-0.246,1.677)
+[navigate_path] pose_nav rejected (rc=4); trying local dynamic nav fallback.
+[_run_dynamic_nav] live SLAM snapshot unavailable; using fallback map source.
+[_run_dynamic_nav] start map=/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/maps/live_slam_latest_latest.pcd goal=(-0.246,+1.677)
+Start: (+0.06, +3.45) | Goal: (-0.25, +1.68)
+Traceback (most recent call last):
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 414, in <module>
+    main()
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 256, in main
+    waypoints, world_path = _plan_path(
+                            ^^^^^^^^^^^
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 163, in _plan_path
+    raise RuntimeError(f"A* failed to find a path. ({details})")
+RuntimeError: A* failed to find a path. (start_rc=(268, 126) goal_rc=(250, 123) start_occ=1 goal_occ=0)
+[_run_dynamic_nav] retrying with --inflation 0 due to planning failure.
+Start: (+0.06, +3.45) | Goal: (-0.25, +1.68)
+Traceback (most recent call last):
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 414, in <module>
+    main()
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 256, in main
+    waypoints, world_path = _plan_path(
+                            ^^^^^^^^^^^
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 163, in _plan_path
+    raise RuntimeError(f"A* failed to find a path. ({details})")
+RuntimeError: A* failed to find a path. (start_rc=(268, 126) goal_rc=(250, 123) start_occ=1 goal_occ=0)
+[navigate_path] failed at point 1: (-0.246,1.677,0.939) rc=1
+[navigate_path] pose_nav rc=4 likely frame/relocalization mismatch; slam_pose=None odom_pose=(0.057143837213516235, 3.450871467590332, 0.6952316761016846) goal=(-0.246,1.677)
+[navigate_path] pose_nav rejected (rc=4); trying local dynamic nav fallback.
+[_run_dynamic_nav] live SLAM snapshot unavailable; using fallback map source.
+[_run_dynamic_nav] start map=/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/maps/live_slam_latest_latest.pcd goal=(-0.246,+1.677)
+Start: (+0.06, +3.45) | Goal: (-0.25, +1.68)
+Traceback (most recent call last):
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 414, in <module>
+    main()
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 256, in main
+    waypoints, world_path = _plan_path(
+                            ^^^^^^^^^^^
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 163, in _plan_path
+    raise RuntimeError(f"A* failed to find a path. ({details})")
+RuntimeError: A* failed to find a path. (start_rc=(268, 126) goal_rc=(250, 123) start_occ=1 goal_occ=0)
+[_run_dynamic_nav] retrying with --inflation 0 due to planning failure.
+Start: (+0.06, +3.45) | Goal: (-0.25, +1.68)
+Traceback (most recent call last):
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 414, in <module>
+    main()
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 256, in main
+    waypoints, world_path = _plan_path(
+                            ^^^^^^^^^^^
+  File "/home/ag/ef_ws/g1/scripts/navigation/obstacle_avoidance/real_time_path_steps_dynamic.py", line 163, in _plan_path
+    raise RuntimeError(f"A* failed to find a path. ({details})")
+RuntimeError: A* failed to find a path. (start_rc=(268, 126) goal_rc=(250, 123) start_occ=1 goal_occ=0)
+[navigate_path] failed at point 1: (-0.246,1.677,0.939) rc=1
+
+
