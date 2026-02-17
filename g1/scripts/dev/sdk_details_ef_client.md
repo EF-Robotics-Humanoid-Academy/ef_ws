@@ -1,10 +1,10 @@
-# Unitree G1 SDK Basics with `ef_client.Robot`
+# Unitree G1 SDK Grundlagen mit `ef_client.Robot`
 
-This guide mirrors `sdk_details.md`, but uses the high-level wrapper `ef_client.Robot`.
+Diese Anleitung entspricht inhaltlich der Low-Level-Variante, verwendet aber den High-Level-Wrapper `ef_client.Robot`.
 
 ---
 
-## 1) Minimal Imports
+## 1) Minimaler Import
 
 ```python
 from ef_client import Robot
@@ -12,9 +12,9 @@ from ef_client import Robot
 
 ---
 
-## 2) Network / DDS Initialization
+## 2) Netzwerk- / DDS-Initialisierung
 
-`Robot` initializes DDS/client internals for you.
+`Robot` initialisiert die benoetigten Komponenten intern.
 
 ```python
 iface = "enp1s0"
@@ -25,17 +25,19 @@ robot = Robot(iface=iface, domain_id=domain_id)
 
 ---
 
-## 3) Create Robot Client
+## 3) Robot-Client erzeugen
 
 ```python
 robot = Robot("enp1s0")
 ```
 
-Default behavior uses the safety boot path and starts sensor subscriptions.
+Standardverhalten:
+- Safety-Boot aktiv
+- Sensorsubscriptions werden gestartet
 
 ---
 
-## 4) Read IMU + Pose Data
+## 4) IMU- und Pose-Daten lesen
 
 ```python
 imu = robot.get_imu()
@@ -50,34 +52,34 @@ if pos is not None:
     print("pos:", x, y, z)
 ```
 
-### IMU Data Flowchart
+### IMU-Flowchart
 
 ![IMU correction loop](/tmp/imu_correction_loop.png)
 
 ---
 
-## 5) Basic Motion Commands
+## 5) Grundlegende Bewegungsbefehle
 
 ```python
 import time
 
-robot.walk(0.2, 0.0, 0.0)   # forward command (balanced gait)
+robot.walk(0.2, 0.0, 0.0)   # vorwaerts im Balanced-Gait
 time.sleep(1.0)
 robot.stop()
 ```
 
-Notes:
-- `vx`: forward/backward (m/s)
-- `vy`: lateral (m/s)
-- `vyaw`: yaw rate (rad/s)
+Hinweise:
+- `vx`: vor/zurueck (m/s)
+- `vy`: seitwaerts (m/s)
+- `vyaw`: Giergeschwindigkeit (rad/s)
 
 ---
 
-## 6) Safe Startup via `hanger_boot_sequence` (through `Robot`)
+## 6) Sicherer Start via `hanger_boot_sequence` (ueber `Robot`)
 
-`Robot(...)` already uses `hanger_boot_sequence` by default (`safety_boot=True`), so you normally do not need manual FSM calls.
+`Robot(...)` nutzt standardmaessig bereits `hanger_boot_sequence` (`safety_boot=True`).
 
-If you need to re-run the safe boot flow later:
+Wenn die sichere Sequenz spaeter erneut gestartet werden soll:
 
 ```python
 robot.hanged_boot()
@@ -85,17 +87,17 @@ robot.hanged_boot()
 
 ---
 
-## 7) Gait Type Control
+## 7) Gait-Type-Steuerung
 
 ```python
-robot.set_gait_type(0)      # walk gait
+robot.set_gait_type(0)      # Gehen
 robot.loco_move(0.2, 0.0, 0.0)
 
-robot.set_gait_type(1)      # run gait
+robot.set_gait_type(1)      # Laufen
 robot.loco_move(0.4, 0.0, 0.0)
 ```
 
-Or use wrappers:
+Oder direkt ueber Wrapper:
 
 ```python
 robot.walk(0.2, 0.0, 0.0)
@@ -104,14 +106,14 @@ robot.run(0.4, 0.0, 0.0)
 
 ---
 
-## 8) Full Minimal Example
+## 8) Vollstaendiges Minimalbeispiel
 
 ```python
 import time
 from ef_client import Robot
 
 robot = Robot(iface="enp1s0", domain_id=0)
-time.sleep(0.5)  # allow first sensor callbacks
+time.sleep(0.5)  # kurze Wartezeit bis erste Sensordaten verfuegbar sind
 
 robot.walk(0.2, 0.0, 0.0)
 time.sleep(1.5)
@@ -125,25 +127,24 @@ print("pos:", pos)
 
 ---
 
-## 9) Practical Safety Notes
+## 9) Praktische Sicherheitshinweise
 
-- Start with `Robot(...)` default safety boot.
-- Keep `robot.stop()` reachable in your control flow.
-- Validate `robot.get_position()` / `robot.get_imu()` before feedback-controlled motion.
-- Use a tether/spotter for early tests.
+- Fuer erste Tests immer absichern/spotten.
+- `robot.stop()` schnell erreichbar halten.
+- Vor Feedback-Reglern `robot.get_position()` und `robot.get_imu()` auf Verfuegbarkeit pruefen.
 
 ---
 
-## 10) Extra: `walk_for` Example
+## 10) Zusatz: `walk_for` Beispiel
 
-Move a relative distance with IMU/pose feedback correction:
+Relative Strecke mit IMU-/Pose-Feedback:
 
 ```python
-ok = robot.walk_for(1.0)   # move ~1 meter forward
+ok = robot.walk_for(1.0)   # ca. 1 m vorwaerts
 print("walk_for ok:", ok)
 ```
 
-With tighter controls:
+Mit feineren Parametern:
 
 ```python
 ok = robot.walk_for(
@@ -158,16 +159,16 @@ print("walk_for ok:", ok)
 
 ---
 
-## 11) Extra: `rotate_joint` Example
+## 11) Zusatz: `rotate_joint` Beispiel
 
-Rotate a single arm joint:
+Einzelnes Armgelenk rotieren:
 
 ```python
-rc = robot.rotate_joint("elbow", 20)   # right arm by default
+rc = robot.rotate_joint("elbow", 20)   # standardmaessig rechter Arm
 print("rotate_joint rc:", rc)
 ```
 
-Left arm example:
+Beispiel linker Arm:
 
 ```python
 rc = robot.rotate_joint("wrist_roll", 15, arm="left", duration=1.2, hold=0.2)

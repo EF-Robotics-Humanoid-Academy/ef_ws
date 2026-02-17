@@ -1,10 +1,10 @@
-# Unitree G1 SDK Basics (No HL Wrapper)
+# Unitree G1 SDK Grundlagen (ohne High-Level-Wrapper)
 
-This guide shows the low-level pattern for controlling G1 directly with `unitree_sdk2py`, without `ef_client` or `hanger_boot_sequence`.
+Diese Anleitung zeigt das Low-Level-Muster zur Steuerung des G1 direkt mit `unitree_sdk2py`, ohne `ef_client`.
 
 ---
 
-## 1) Minimal Imports
+## 1) Minimale Imports
 
 ```python
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelSubscriber
@@ -14,20 +14,20 @@ from unitree_sdk2py.idl.unitree_go.msg.dds_ import SportModeState_
 
 ---
 
-## 2) Network / DDS Initialization
+## 2) Netzwerk- / DDS-Initialisierung
 
-Initialize DDS once before creating clients/subscribers.
+DDS einmalig initialisieren, bevor Clients/Subscribers erzeugt werden.
 
 ```python
-iface = "enp1s0"   # your robot NIC
-domain_id = 0      # usually 0
+iface = "enp1s0"   # Netzwerk-Interface zum Roboter
+domain_id = 0      # in der Regel 0
 
 ChannelFactoryInitialize(domain_id, iface)
 ```
 
 ---
 
-## 3) Create Loco Client
+## 3) Loco-Client erzeugen
 
 ```python
 loco = LocoClient()
@@ -35,13 +35,13 @@ loco.SetTimeout(10.0)
 loco.Init()
 ```
 
-After this, you can call locomotion APIs (`Move`, `StopMove`, `Damp`, `BalanceStand`, etc.).
+Danach sind Locomotion-APIs wie `Move`, `StopMove`, `BalanceStand` nutzbar.
 
 ---
 
-## 4) Read IMU + Pose Data (DDS Subscription)
+## 4) IMU- und Pose-Daten lesen (DDS-Subscription)
 
-`SportModeState_` carries IMU, pose, velocity, and other runtime state.
+`SportModeState_` enthaelt IMU, Pose, Geschwindigkeit und weitere Laufzeitdaten.
 
 ```python
 import time
@@ -55,7 +55,7 @@ def sport_cb(msg: SportModeState_):
 sport_sub = ChannelSubscriber("rt/odommodestate", SportModeState_)
 sport_sub.Init(sport_cb, 10)
 
-# wait for first message
+# Auf erste Nachricht warten
 while latest_sport["msg"] is None:
     time.sleep(0.05)
 
@@ -66,7 +66,7 @@ roll = float(msg.imu_state.rpy[0])
 pitch = float(msg.imu_state.rpy[1])
 yaw = float(msg.imu_state.rpy[2])
 
-# Pose (world)
+# Pose (Weltkoordinaten)
 x = float(msg.position[0])
 y = float(msg.position[1])
 z = float(msg.position[2])
@@ -74,25 +74,25 @@ z = float(msg.position[2])
 
 ---
 
-## 5) Basic Motion Commands
+## 5) Grundlegende Bewegungsbefehle
 
 ```python
 # Move(vx, vy, vyaw, continous_move=True)
-loco.Move(0.2, 0.0, 0.0, continous_move=True)   # forward
+loco.Move(0.2, 0.0, 0.0, continous_move=True)   # vorwaerts
 time.sleep(1.0)
 loco.StopMove()
 ```
 
-Notes:
-- `vx`: forward/backward (m/s)
-- `vy`: lateral (m/s)
-- `vyaw`: yaw rate (rad/s)
+Hinweise:
+- `vx`: vor/zurueck (m/s)
+- `vy`: seitwaerts (m/s)
+- `vyaw`: Giergeschwindigkeit (rad/s)
 
 ---
 
-## 6) Safe Startup via `hanger_boot_sequence`
+## 6) Sicherer Start ueber `hanger_boot_sequence`
 
-Instead of manually chaining FSM transitions, use the safety helper:
+Statt eine FSM-Sequenz manuell zu verketten, den Safety-Helper nutzen:
 
 ```python
 from safety.hanger_boot_sequence import hanger_boot_sequence
@@ -100,66 +100,62 @@ from safety.hanger_boot_sequence import hanger_boot_sequence
 loco = hanger_boot_sequence(iface="enp1s0")
 ```
 
-What it does:
-- Initializes DDS/client safely.
-- Checks current FSM/mode first.
-- If already in balanced stand (FSM-200), it returns immediately.
-- Otherwise it runs the required transition sequence to reach motion-ready balanced stand.
+Was der Helper macht:
+- Initialisiert DDS und Client sicher.
+- Prueft zuerst den aktuellen FSM-/Mode-Zustand.
+- Wenn der Roboter bereits stabil im Balanced-Stand ist (FSM-200), wird sofort zurueckgegeben.
+- Sonst wird die notwendige Startsequenz ausgefuehrt.
 
-Why use it:
-- Avoids fragile manual timing between `Damp`, stand-up, and balance calls.
-- Gives one consistent entry point before sending motion commands.
+Exakte Reihenfolge aus `other/safety/hanger_boot_sequence.py`:
 
-Required sequence inside `hanger_boot_sequence` (from `other/safety/hanger_boot_sequence.py`):
-
-1. DDS + client init:
+1. DDS + Client init:
    - `ChannelFactoryInitialize(0, iface)`
    - `LocoClient().Init()`
-2. Early-out check:
-   - read FSM id + mode via RPC
-   - if `fsm_id == 200` and `mode != 2` (feet loaded), skip full sequence and return
+2. Frueher Ruecksprung:
+   - FSM-ID und Mode per RPC lesen
+   - falls `fsm_id == 200` und `mode != 2`, Sequenz ueberspringen
 3. `Damp()`
-4. `SetFsmId(4)` (stand-up helper state)
-5. Stand-height sweep loop:
-   - increment `SetStandHeight(height)` from `0` to `max_height` by `step`
-   - keep checking `fsm_mode`
-   - success condition: `fsm_mode == 0` (feet loaded), then continue
-   - if still unloaded after max height, reset to `SetStandHeight(0.0)`, prompt operator to adjust hanger, retry
+4. `SetFsmId(4)` (Stand-up-Helferzustand)
+5. Standhoehen-Sweep:
+   - `SetStandHeight(height)` in Schritten von `0` bis `max_height`
+   - laufend `fsm_mode` pruefen
+   - Erfolg: `fsm_mode == 0` (Fuesse tragen Last)
+   - bei Misserfolg: auf `0.0` zuruecksetzen, Bediener passt Haenger an, Sweep erneut
 6. `BalanceStand(0)`
-7. Re-apply the final loaded height (`SetStandHeight(height)`)
-8. `Start()` to enter FSM-200 balance controller
-9. Final normalize call: `BalanceStand(0)` best-effort
+7. finale Standhoehe erneut setzen (`SetStandHeight(height)`)
+8. `Start()` (FSM-200 aktivieren)
+9. abschliessend best effort `BalanceStand(0)`
 
-Mode meaning used by the sequence:
-- `mode == 2`: feet unloaded (still hanging / not grounded)
-- `mode == 0`: feet loaded (ground contact established)
+Bedeutung der Modes in der Sequenz:
+- `mode == 2`: Fuesse unbelastet
+- `mode == 0`: Fuesse belastet
 
 ---
 
-## 7) Gait Type Control
+## 7) Gait-Type-Steuerung
 
-If firmware supports gait switching:
+Wenn Firmware Gait-Umschaltung unterstuetzt:
 
 ```python
-loco.SetGaitType(0)   # walk / balanced gait
-loco.SetGaitType(1)   # run / continuous gait
+loco.SetGaitType(0)   # Gehen / Balanced Gait
+loco.SetGaitType(1)   # Laufen / Continuous Gait
 ```
 
-Recommended pattern:
+Empfohlenes Muster:
 
 ```python
-# walk-style command
+# Gehmodus
 loco.SetGaitType(0)
 loco.Move(0.2, 0.0, 0.0, continous_move=True)
 
-# run-style command
+# Laufmodus
 loco.SetGaitType(1)
 loco.Move(0.4, 0.0, 0.0, continous_move=True)
 ```
 
 ---
 
-## 8) Full Minimal Example
+## 8) Vollstaendiges Minimalbeispiel
 
 ```python
 import time
@@ -199,9 +195,9 @@ print("pos:", float(msg.position[0]), float(msg.position[1]), float(msg.position
 
 ---
 
-## 9) Practical Safety Notes
+## 9) Praktische Sicherheitshinweise
 
-- Run on a tether or with a spotter for first tests.
-- Never call `ZeroTorque()` unless you explicitly intend to drop support torque.
-- Always keep a `StopMove()` path reachable (keyboard/controller emergency action).
-- Validate stale sensor data before control loops (timestamp checks).
+- Erste Tests nur mit Sicherung/Spotter.
+- `ZeroTorque()` nur bewusst einsetzen.
+- Immer einen schnell erreichbaren `StopMove()`-Pfad vorsehen.
+- In Regelkreisen veraltete Sensordaten pruefen (Zeitstempel).
