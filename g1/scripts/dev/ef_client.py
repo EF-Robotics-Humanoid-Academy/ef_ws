@@ -287,6 +287,9 @@ class Robot:
         rgbd_obs_near_m: float = 0.75,
         rgbd_obs_min_coverage: float = 0.18,
         lidar_ignore_near_m: float = 0.0,
+        yaw_cmd_sign: float = 1.0,
+        imu_debug: bool = False,
+        imu_debug_interval: float = 0.5,
     ) -> None:
         self.iface = iface
         self.domain_id = int(domain_id)
@@ -308,6 +311,9 @@ class Robot:
         self.rgbd_obs_near_m = float(rgbd_obs_near_m)
         self.rgbd_obs_min_coverage = float(rgbd_obs_min_coverage)
         self.lidar_ignore_near_m = max(0.0, float(lidar_ignore_near_m))
+        self.yaw_cmd_sign = -1.0 if float(yaw_cmd_sign) < 0.0 else 1.0
+        self.imu_debug = bool(imu_debug)
+        self.imu_debug_interval = max(0.05, float(imu_debug_interval))
 
         self._lock = threading.Lock()
         self._sport: SportModeState_ | None = None
@@ -344,6 +350,14 @@ class Robot:
 
         if auto_start_sensors:
             self.start_sensors()
+
+    def set_imu_debug(self, enabled: bool = True, interval: float = 0.5) -> None:
+        """Enable/disable IMU control-loop diagnostics."""
+        self.imu_debug = bool(enabled)
+        self.imu_debug_interval = max(0.05, float(interval))
+
+    def _imu_log(self, message: str) -> None:
+        print(f"[imu_ctrl] {message}")
 
     def _ensure_balanced_gait_mode(self) -> None:
         try:
@@ -509,7 +523,7 @@ class Robot:
         imu = self.get_imu()
         if imu is None:
             return None
-        return float(imu.rpy[2])
+        return self._normalize_yaw_rad(float(imu.rpy[2]))
 
     def is_moving(self, linear_eps: float = 0.03, yaw_eps: float = 0.08) -> bool:
         v = self.get_velocity()
@@ -565,8 +579,40 @@ class Robot:
         return a
 
     @staticmethod
+    def _normalize_yaw_rad(yaw_value: float) -> float:
+        """
+        Normalize IMU yaw to radians.
+        Some SDK variants expose rpy in degrees.
+        """
+        y = float(yaw_value)
+        if not math.isfinite(y):
+            return 0.0
+        if abs(y) > (2.0 * math.pi + 0.2):
+            y = math.radians(y)
+        return Robot._wrap_angle(y)
+
+    @staticmethod
     def _clamp(value: float, lo: float, hi: float) -> float:
         return max(lo, min(hi, value))
+
+    def _wait_for_live_pose_and_yaw(
+        self,
+        timeout: float = 2.0,
+        tick: float = 0.05,
+    ) -> tuple[tuple[float, float, float], float] | None:
+        """
+        Wait briefly for live sport-state pose + IMU yaw.
+        Returns (position, yaw) when available, otherwise None.
+        """
+        t0 = time.time()
+        self.wait_for_sport_state(timeout=min(max(0.0, float(timeout)), 0.5))
+        while (time.time() - t0) <= max(0.0, float(timeout)):
+            pos = self.get_position()
+            yaw = self.get_yaw()
+            if pos is not None and yaw is not None:
+                return (pos, float(yaw))
+            time.sleep(max(0.01, float(tick)))
+        return None
 
     def _move_for_feedback(
         self,
@@ -580,11 +626,27 @@ class Robot:
         tick: float,
         kp_lin: float,
         kp_yaw: float,
+        feedback_wait: float = 2.0,
+        debug: bool | None = None,
+        debug_interval: float | None = None,
     ) -> bool:
-        pos0 = self.get_position()
-        yaw0 = self.get_yaw()
-        if pos0 is None or yaw0 is None:
-            raise RuntimeError("walk_for/run_for requires live position and IMU yaw.")
+        log_enabled = self.imu_debug if debug is None else bool(debug)
+        log_interval = self.imu_debug_interval if debug_interval is None else max(0.05, float(debug_interval))
+
+        live = self._wait_for_live_pose_and_yaw(timeout=feedback_wait, tick=tick)
+        if live is None:
+            ts = self.get_sensor_timestamps()
+            stale = self.sensors_stale()
+            if log_enabled:
+                self._imu_log(
+                    "startup failed: no live pose/yaw "
+                    f"(sport_ts={ts.get('sport', 0.0):.3f}, sport_stale={stale.get('sport', True)})"
+                )
+            raise RuntimeError(
+                "walk_for/run_for requires live position and IMU yaw "
+                f"(sport_ts={ts.get('sport', 0.0):.3f}, sport_stale={stale.get('sport', True)})."
+            )
+        pos0, yaw0 = live
 
         d = float(distance)
         if abs(d) <= float(pos_tolerance):
@@ -592,31 +654,70 @@ class Robot:
             return True
 
         sign = 1.0 if d >= 0.0 else -1.0
+        yaw_ref = float(yaw0)
         target_x = float(pos0[0]) + d * math.cos(float(yaw0))
         target_y = float(pos0[1]) + d * math.sin(float(yaw0))
+        heading_hold_radius = max(0.20, 4.0 * float(pos_tolerance))
+
+        if log_enabled:
+            self._imu_log(
+                "start move "
+                f"distance={d:+.3f}m gait={int(gait_type)} "
+                f"start=({float(pos0[0]):+.3f},{float(pos0[1]):+.3f}) yaw0={float(yaw0):+.3f}rad "
+                f"target=({target_x:+.3f},{target_y:+.3f}) "
+                f"kp_lin={float(kp_lin):.2f} kp_yaw={float(kp_yaw):.2f} "
+                f"max_vx={float(max_vx):.2f} max_vyaw={float(max_vyaw):.2f}"
+            )
 
         self.set_gait_type(int(gait_type))
         t0 = time.time()
         ok = False
+        last_dist = float("nan")
+        last_heading_err = float("nan")
+        missing_count = 0
+        next_log_ts = t0
         try:
             while (time.time() - t0) <= max(0.1, float(timeout)):
+                now = time.time()
                 pos = self.get_position()
                 yaw = self.get_yaw()
                 if pos is None or yaw is None:
+                    missing_count += 1
+                    if log_enabled and now >= next_log_ts:
+                        ts = self.get_sensor_timestamps()
+                        stale = self.sensors_stale()
+                        self._imu_log(
+                            "feedback missing "
+                            f"count={missing_count} sport_ts={ts.get('sport', 0.0):.3f} "
+                            f"sport_stale={stale.get('sport', True)}"
+                        )
+                        next_log_ts = now + log_interval
                     time.sleep(max(0.01, float(tick)))
                     continue
 
                 dx = target_x - float(pos[0])
                 dy = target_y - float(pos[1])
                 dist = math.hypot(dx, dy)
+                last_dist = dist
                 if dist <= float(pos_tolerance):
                     ok = True
+                    last_heading_err = 0.0
                     break
 
-                target_heading = math.atan2(dy, dx)
+                target_heading_to_goal = math.atan2(dy, dx)
+                if dist < heading_hold_radius:
+                    # Near the target, hold the original travel heading to avoid
+                    # atan2 jitter that can trigger rotate-in-place behavior.
+                    blend = self._clamp(dist / heading_hold_radius, 0.0, 1.0)
+                    d_heading = self._wrap_angle(target_heading_to_goal - yaw_ref)
+                    target_heading = self._wrap_angle(yaw_ref + blend * d_heading)
+                else:
+                    target_heading = target_heading_to_goal
                 heading_err = self._wrap_angle(target_heading - float(yaw))
+                last_heading_err = heading_err
 
-                if abs(heading_err) > float(yaw_tolerance):
+                yaw_gate_on = (abs(heading_err) > float(yaw_tolerance)) and (dist >= heading_hold_radius)
+                if yaw_gate_on:
                     vx_cmd = 0.0
                 else:
                     vx_cmd = sign * self._clamp(float(kp_lin) * dist, 0.0, max(0.0, float(max_vx)))
@@ -625,10 +726,29 @@ class Robot:
                     -max(0.0, float(max_vyaw)),
                     max(0.0, float(max_vyaw)),
                 )
+                vyaw_cmd *= self.yaw_cmd_sign
                 self.loco_move(vx_cmd, 0.0, vyaw_cmd)
+                if log_enabled and now >= next_log_ts:
+                    elapsed = now - t0
+                    self._imu_log(
+                        f"t={elapsed:5.2f}s pos=({float(pos[0]):+.3f},{float(pos[1]):+.3f}) yaw={float(yaw):+.3f} "
+                        f"dx={dx:+.3f} dy={dy:+.3f} dist={dist:.3f} "
+                        f"heading_err={heading_err:+.3f}rad({math.degrees(heading_err):+.1f}deg) "
+                        f"cmd_vx={vx_cmd:+.3f} cmd_vyaw={vyaw_cmd:+.3f} "
+                        f"yaw_gate={'ON' if yaw_gate_on else 'off'}"
+                    )
+                    next_log_ts = now + log_interval
                 time.sleep(max(0.01, float(tick)))
         finally:
             self.stop()
+            if log_enabled:
+                elapsed = time.time() - t0
+                self._imu_log(
+                    "end move "
+                    f"ok={ok} elapsed={elapsed:.2f}s "
+                    f"final_dist={last_dist:.3f} final_heading_err={last_heading_err:+.3f}rad "
+                    f"missing_feedback_count={missing_count}"
+                )
         return ok
 
     def walk_for(
@@ -642,6 +762,8 @@ class Robot:
         tick: float = 0.05,
         kp_lin: float = 0.9,
         kp_yaw: float = 1.6,
+        debug: bool | None = None,
+        debug_interval: float | None = None,
     ) -> bool:
         """
         Balanced gait (type 0), move for a relative distance (meters) with
@@ -658,6 +780,9 @@ class Robot:
             tick=tick,
             kp_lin=kp_lin,
             kp_yaw=kp_yaw,
+            feedback_wait=2.0,
+            debug=debug,
+            debug_interval=debug_interval,
         )
 
     def run_for(
@@ -671,6 +796,8 @@ class Robot:
         tick: float = 0.05,
         kp_lin: float = 1.0,
         kp_yaw: float = 1.8,
+        debug: bool | None = None,
+        debug_interval: float | None = None,
     ) -> bool:
         """
         Continuous gait (type 1), move for a relative distance (meters) with
@@ -687,25 +814,47 @@ class Robot:
             tick=tick,
             kp_lin=kp_lin,
             kp_yaw=kp_yaw,
+            feedback_wait=2.0,
+            debug=debug,
+            debug_interval=debug_interval,
         )
 
     def turn_for(
         self,
         angle_deg: float,
-        max_vyaw: float = 0.8,
-        yaw_tolerance_deg: float = 2.5,
+        max_vyaw: float = 0.30,
+        min_vyaw: float = 0.06,
+        yaw_tolerance_deg: float = 1.5,
         timeout: float = 10.0,
         tick: float = 0.05,
-        kp_yaw: float = 1.8,
+        kp_yaw: float = 0.95,
+        kd_yaw: float = 0.12,
+        settle_cycles: int = 4,
         gait_type: int = 0,
+        debug: bool | None = None,
+        debug_interval: float | None = None,
     ) -> bool:
         """
         Turn in place by a relative angle in degrees (can be negative).
         Uses IMU yaw feedback to converge accurately to the target heading.
         """
-        yaw0 = self.get_yaw()
-        if yaw0 is None:
-            raise RuntimeError("turn_for requires live IMU yaw.")
+        log_enabled = self.imu_debug if debug is None else bool(debug)
+        log_interval = self.imu_debug_interval if debug_interval is None else max(0.05, float(debug_interval))
+
+        live = self._wait_for_live_pose_and_yaw(timeout=2.0, tick=tick)
+        if live is None:
+            ts = self.get_sensor_timestamps()
+            stale = self.sensors_stale()
+            if log_enabled:
+                self._imu_log(
+                    "turn startup failed: no live yaw "
+                    f"(sport_ts={ts.get('sport', 0.0):.3f}, sport_stale={stale.get('sport', True)})"
+                )
+            raise RuntimeError(
+                "turn_for requires live IMU yaw "
+                f"(sport_ts={ts.get('sport', 0.0):.3f}, sport_stale={stale.get('sport', True)})."
+            )
+        _, yaw0 = live
 
         delta = math.radians(float(angle_deg))
         tol = math.radians(max(0.1, float(yaw_tolerance_deg)))
@@ -716,27 +865,113 @@ class Robot:
         target = self._wrap_angle(float(yaw0) + delta)
         self.set_gait_type(int(gait_type))
 
+        if log_enabled:
+            self._imu_log(
+                "start turn "
+                f"delta={float(angle_deg):+.2f}deg yaw0={float(yaw0):+.3f}rad "
+                f"target={target:+.3f}rad tol={tol:.3f}rad({math.degrees(tol):.2f}deg) "
+                f"kp_yaw={float(kp_yaw):.2f} kd_yaw={float(kd_yaw):.2f} "
+                f"max_vyaw={float(max_vyaw):.2f} min_vyaw={max(0.0, float(min_vyaw)):.2f} "
+                f"settle_cycles={max(1, int(settle_cycles))}"
+            )
+
         t0 = time.time()
         ok = False
+        last_err = float("nan")
+        stable_hits = 0
+        last_err_abs = float("inf")
+        no_progress_hits = 0
+        missing_count = 0
+        next_log_ts = t0
+        stalled_limit = max(3, int(0.4 / max(0.01, float(tick))))
         try:
             while (time.time() - t0) <= max(0.1, float(timeout)):
+                now = time.time()
                 yaw = self.get_yaw()
                 if yaw is None:
+                    missing_count += 1
+                    if log_enabled and now >= next_log_ts:
+                        ts = self.get_sensor_timestamps()
+                        stale = self.sensors_stale()
+                        self._imu_log(
+                            "turn feedback missing "
+                            f"count={missing_count} sport_ts={ts.get('sport', 0.0):.3f} "
+                            f"sport_stale={stale.get('sport', True)}"
+                        )
+                        next_log_ts = now + log_interval
                     time.sleep(max(0.01, float(tick)))
                     continue
                 err = self._wrap_angle(target - float(yaw))
-                if abs(err) <= tol:
+                last_err = err
+                imu = self.get_imu()
+                yaw_rate = 0.0
+                if imu is not None and imu.gyro is not None:
+                    try:
+                        yaw_rate = float(imu.gyro[2])
+                        if not math.isfinite(yaw_rate):
+                            yaw_rate = 0.0
+                    except Exception:
+                        yaw_rate = 0.0
+
+                err_abs = abs(err)
+                within_tol = err_abs <= tol
+                if within_tol and abs(yaw_rate) <= math.radians(6.0):
+                    stable_hits += 1
+                else:
+                    stable_hits = 0
+                if err_abs < (last_err_abs - math.radians(0.10)):
+                    no_progress_hits = 0
+                else:
+                    no_progress_hits += 1
+                last_err_abs = err_abs
+
+                if stable_hits >= max(1, int(settle_cycles)):
                     ok = True
                     break
-                vyaw_cmd = self._clamp(
-                    float(kp_yaw) * err,
-                    -max(0.0, float(max_vyaw)),
-                    max(0.0, float(max_vyaw)),
-                )
+                if no_progress_hits >= stalled_limit and err_abs <= max(1.5 * tol, math.radians(2.5)):
+                    ok = True
+                    break
+
+                # Conservative near-target profile to avoid overshoot.
+                if err_abs >= math.radians(30.0):
+                    max_cmd = max(0.0, float(max_vyaw))
+                elif err_abs >= math.radians(10.0):
+                    k = (err_abs - math.radians(10.0)) / math.radians(20.0)
+                    max_cmd = 0.12 + k * (max(0.0, float(max_vyaw)) - 0.12)
+                else:
+                    max_cmd = min(max(0.0, float(max_vyaw)), 0.12)
+
+                # PD heading controller (uses IMU yaw rate damping when available).
+                vyaw_raw = float(kp_yaw) * err - float(kd_yaw) * yaw_rate
+                vyaw_cmd = self._clamp(vyaw_raw, -max_cmd, max_cmd)
+
+                # Adaptive floor to overcome actuator deadband without forcing overshoot near tolerance.
+                min_cmd = min(max(0.0, float(min_vyaw)), max_cmd)
+                needs_deadband_boost = (err_abs >= (2.0 * tol)) or (no_progress_hits >= stalled_limit)
+                if (not within_tol) and needs_deadband_boost and abs(vyaw_cmd) < min_cmd:
+                    vyaw_cmd = min_cmd if vyaw_cmd >= 0.0 else -min_cmd
+
+                vyaw_cmd *= self.yaw_cmd_sign
                 self.loco_move(0.0, 0.0, vyaw_cmd)
+                if log_enabled and now >= next_log_ts:
+                    elapsed = now - t0
+                    self._imu_log(
+                        f"turn t={elapsed:5.2f}s yaw={float(yaw):+.3f} err={err:+.3f}rad({math.degrees(err):+.1f}deg) "
+                        f"yaw_rate={yaw_rate:+.3f} within_tol={within_tol} "
+                        f"stable={stable_hits}/{max(1, int(settle_cycles))} no_progress={no_progress_hits} "
+                        f"max_cmd={max_cmd:.3f} raw_vyaw={vyaw_raw:+.3f} cmd_vyaw={vyaw_cmd:+.3f}"
+                    )
+                    next_log_ts = now + log_interval
                 time.sleep(max(0.01, float(tick)))
         finally:
             self.stop()
+            if log_enabled:
+                elapsed = time.time() - t0
+                self._imu_log(
+                    "end turn "
+                    f"ok={ok} elapsed={elapsed:.2f}s final_err={last_err:+.3f}rad "
+                    f"missing_feedback_count={missing_count}"
+                )
         return ok
 
     def stop(self) -> None:
