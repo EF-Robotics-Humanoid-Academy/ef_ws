@@ -1,139 +1,34 @@
-# G1 SDK Details: Arme und "Hände" (High-Level + Low-Level)
+# G1 SDK Details: Arme und Wrist (nur Low-Level)
 
-Diese Datei fasst zusammen, was ein neuer Lernender braucht, um beim Unitree G1 Arme und handnahe Funktionen (Gesten/Wrist) sicher zu steuern.
+Diese Datei beschreibt ausschliesslich die Low-Level-Steuerung fuer G1-Arm- und Wrist-Gelenke.
+High-Level-Loco/Arm-Task-Ansatze sind hier bewusst ausgeschlossen.
 
 ## 1. Wichtige Einordnung
 
-- In diesem Repo gibt es fuer G1 keine separate Finger-/Greifer-API (kein explizites "Dexterous Hand"-Beispiel).
-- "Hand"-Funktionen sind hier:
-  - High-Level Gesten/Tasks (`WaveHand`, `ShakeHand`, Arm-Action-Posen)
-  - Wrist-Gelenke auf Low-Level (`LeftWristRoll`, `LeftWristPitch`, `LeftWristYaw`, rechts analog; je nach DOF verfuegbar)
 - G1 nutzt `idl/unitree_hg` (nicht `unitree_go`).
+- Fuer Armkontrolle werden direkt Gelenkkommandos gesetzt: `q`, `dq`, `kp`, `kd`, `tau`.
+- Relevante Topics:
+  - `rt/arm_sdk` (arm-spezifischer Low-Level-Kanal)
+  - `rt/lowcmd` (voller Low-Level-Pfad)
+  - `rt/lowstate` (Rueckmeldung)
 
 ## 2. Schnellstart und Laufvoraussetzungen
 
 - Netzwerkinterface mitgeben, z. B.:
-  - `python3 g1_arm_action_example.py enp3s0`
+  - `python3 g1_arm5_sdk_dds_example.py enp3s0`
   - `python3 g1_arm7_sdk_dds_example.py enp3s0`
 - DDS initialisieren:
   - `ChannelFactoryInitialize(0, sys.argv[1])`
-- Sicherheitsdialog in Beispielen beachten (`WARNING ... no obstacles`).
+- Vor dem Senden immer erst gueltigen `LowState` empfangen.
 
-## 3. High-Level Steuerung (einfachster Einstieg)
+## 3. Low-Level Steuerung fuer Arme/Wrist
 
-High-Level ist robust fuer erste Schritte, weil der Roboter intern Trajektorien/Tasks behandelt.
+Es gibt zwei Wege:
 
-### 3.1 Variante A: `LocoClient` (sport/locomotion + Arm-Tasks)
+- `rt/arm_sdk`: gezielte Armsteuerung mit Enable-Flag auf Index `29`
+- `rt/lowcmd`: voller Roboterpfad; aktive Modi vorher freigeben
 
-### Notwendige Imports
-
-```python
-import time
-import sys
-from unitree_sdk2py.core.channel import ChannelFactoryInitialize
-from unitree_sdk2py.g1.loco.g1_loco_client import LocoClient
-```
-
-### Minimalbeispiel: Winken + Handschlag-Task
-
-```python
-import time
-import sys
-from unitree_sdk2py.core.channel import ChannelFactoryInitialize
-from unitree_sdk2py.g1.loco.g1_loco_client import LocoClient
-
-if len(sys.argv) < 2:
-    print(f"Usage: python3 {sys.argv[0]} networkInterface")
-    sys.exit(-1)
-
-ChannelFactoryInitialize(0, sys.argv[1])
-
-client = LocoClient()
-client.SetTimeout(10.0)
-client.Init()
-
-client.WaveHand()          # task_id 0
-time.sleep(2)
-client.WaveHand(True)      # task_id 1 (mit Drehen)
-time.sleep(2)
-client.ShakeHand()         # toggelt intern zwischen task_id 2 und 3
-```
-
-### Relevante interne IDs
-
-- Service: `"sport"`
-- `SetVelocity`: API 7105
-- `SetTaskId` (Arm-Task): API 7106
-- Arm-Task IDs:
-  - `WaveHand(False)` -> `task_id=0`
-  - `WaveHand(True)` -> `task_id=1`
-  - `ShakeHand()` -> wechselt zwischen `task_id=2` und `task_id=3`
-
-## 3.2 Variante B: `G1ArmActionClient` (vordefinierte Armgesten)
-
-### Notwendige Imports
-
-```python
-import sys
-import time
-from unitree_sdk2py.core.channel import ChannelFactoryInitialize
-from unitree_sdk2py.g1.arm.g1_arm_action_client import G1ArmActionClient, action_map
-```
-
-### Minimalbeispiel
-
-```python
-import sys
-import time
-from unitree_sdk2py.core.channel import ChannelFactoryInitialize
-from unitree_sdk2py.g1.arm.g1_arm_action_client import G1ArmActionClient, action_map
-
-if len(sys.argv) < 2:
-    print(f"Usage: python3 {sys.argv[0]} networkInterface")
-    sys.exit(-1)
-
-ChannelFactoryInitialize(0, sys.argv[1])
-
-client = G1ArmActionClient()
-client.SetTimeout(10.0)
-client.Init()
-
-client.ExecuteAction(action_map["shake hand"])   # 27
-time.sleep(2)
-client.ExecuteAction(action_map["release arm"])  # 99
-```
-
-### Wichtige Action-IDs (`action_map`)
-
-- `"release arm"`: 99
-- `"two-hand kiss"`: 11
-- `"left kiss"`: 12
-- `"right kiss"`: 13
-- `"hands up"`: 15
-- `"clap"`: 17
-- `"high five"`: 18
-- `"hug"`: 19
-- `"heart"`: 20
-- `"right heart"`: 21
-- `"reject"`: 22
-- `"right hand up"`: 23
-- `"x-ray"`: 24
-- `"face wave"`: 25
-- `"high wave"`: 26
-- `"shake hand"`: 27
-
-Hinweis: Die Demo `g1_arm_action_example.py` nutzt eigene lokale Menue-IDs `0..15`. Fuer echte API-Aufrufe zaehlen die IDs aus `action_map`.
-
-## 4. Low-Level Steuerung fuer Arme/Wrist
-
-Low-Level bedeutet: du setzt direkt `q/dq/kp/kd/tau` pro Gelenk.
-
-Es gibt zwei relevante Wege:
-
-- `rt/arm_sdk` (arm-spezifisch, siehe `g1_arm5_sdk_dds_example.py`, `g1_arm7_sdk_dds_example.py`)
-- `rt/lowcmd` (voller Roboter, siehe `../low_level/g1_low_level_example.py`)
-
-## 4.1 Joint-Indizes und Konstanten (wichtig)
+## 4. Joint-Indizes und Konstanten
 
 ### Arm/Waist Indizes
 
@@ -155,14 +50,14 @@ Es gibt zwei relevante Wege:
 - `RightWristPitch = 27` (ungueltig bei G1 23DOF)
 - `RightWristYaw = 28` (ungueltig bei G1 23DOF)
 
-### Sonstige Schluesselkonstanten
+### Schluesselkonstanten
 
 - `G1_NUM_MOTOR = 29` (voller `lowcmd` Pfad)
-- `kNotUsedJoint = 29` (im `arm_sdk` Beispiel als Enable-Channel genutzt)
-  - `motor_cmd[29].q = 1` -> arm_sdk aktiv
-  - `motor_cmd[29].q = 0` -> arm_sdk freigeben/deaktivieren
+- `kNotUsedJoint = 29` (`arm_sdk` Enable-Channel)
+  - `motor_cmd[29].q = 1` -> `arm_sdk` aktiv
+  - `motor_cmd[29].q = 0` -> `arm_sdk` freigeben/deaktivieren
 
-## 4.2 Notwendige Imports fuer `rt/arm_sdk`
+## 5. Notwendige Imports fuer `rt/arm_sdk`
 
 ```python
 import time
@@ -179,7 +74,6 @@ from unitree_sdk2py.utils.thread import RecurrentThread
 
 ```python
 import time
-import numpy as np
 from unitree_sdk2py.core.channel import ChannelPublisher, ChannelSubscriber
 from unitree_sdk2py.idl.default import unitree_hg_msg_dds__LowCmd_
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_, LowState_
@@ -215,7 +109,7 @@ low_cmd.crc = crc.Crc(low_cmd)
 pub.Write(low_cmd)
 ```
 
-## 4.3 Notwendige Imports fuer `rt/lowcmd` (voller Low-Level Pfad)
+## 6. Notwendige Imports fuer `rt/lowcmd`
 
 ```python
 import time
@@ -234,7 +128,7 @@ Wichtiger Unterschied:
 - Bei `rt/lowcmd` musst du vor Kontrolle aktive Modi freigeben (`MotionSwitcherClient.CheckMode/ReleaseMode`).
 - Bei `rt/arm_sdk` uebernimmst du gezielt Armkontrolle mit dem Enable-Wert auf Index `29`.
 
-## 5. Sicherheitsregeln (unbedingt)
+## 7. Sicherheitsregeln
 
 - Arbeitsraum freihalten, keine Personen im Schwenkbereich.
 - Roboter stabil aufstellen (fester, rutschfester Boden).
@@ -243,30 +137,18 @@ Wichtiger Unterschied:
   - Keine Spruenge in `q`.
 - Erst steuern, wenn gueltiger `LowState` empfangen wurde.
 - Moderate Gains fuer Einstieg:
-  - Armbeispiele nutzen typischerweise `kp=60`, `kd=1.5` (arm_sdk).
+  - Typisch `kp=60`, `kd=1.5` (arm_sdk).
 - Kontrollrate sinnvoll halten:
   - arm_sdk-Beispiel: `control_dt=0.02` (50 Hz)
   - full lowcmd Beispiel: `control_dt=0.002` (500 Hz)
 - Immer sauber freigeben:
-  - arm_sdk zum Ende deaktivieren (`motor_cmd[29].q -> 0`).
+  - am Ende `motor_cmd[29].q -> 0`.
 - Not-Aus und Fernbedienung griffbereit halten.
 - Bei unbekanntem DOF-Setup (23DOF/29DOF):
   - `WristPitch/WristYaw` sowie ggf. `WaistRoll/WaistPitch` nicht blind anfahren.
 
-## 6. Typischer Lernpfad (empfohlen)
+## 8. Wichtige lokale Dateien
 
-1. `g1_arm_action_example.py` ausfuehren und Action-IDs verstehen.
-2. `g1_loco_client_example.py` fuer `WaveHand/ShakeHand` testen.
-3. `g1_arm5_sdk_dds_example.py` (konservativer Armkanal) verstehen.
-4. `g1_arm7_sdk_dds_example.py` (mehr Wrist-DOF) erweitern.
-5. Erst danach `../low_level/g1_low_level_example.py` fuer umfassende Low-Level-Kontrolle nutzen.
-
-## 7. Wichtige lokale Dateien
-
-- `g1_arm_action_example.py`
-- `g1_loco_client_example.py`
 - `g1_arm5_sdk_dds_example.py`
 - `g1_arm7_sdk_dds_example.py`
 - `../low_level/g1_low_level_example.py`
-- `../../../unitree_sdk2py/g1/arm/g1_arm_action_client.py`
-- `../../../unitree_sdk2py/g1/loco/g1_loco_client.py`
