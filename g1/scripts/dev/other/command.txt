@@ -1,5 +1,0 @@
-export LD_LIBRARY_PATH=/home/ag/Livox-SDK/build/sdk_core:/usr/local/lib:$LD_LIBRARY_PATH
-  LIBGL_ALWAYS_SOFTWARE=true \
-  LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libstdc++.so.6 \
-  python /home/ag/academy/academy_content/ef_ws/g1/scripts/unsorted/live_slam.py --iface enp1s0
-
