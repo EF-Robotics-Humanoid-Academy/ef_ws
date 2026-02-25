@@ -1,0 +1,118 @@
+REQUIREMENTS.txt:
+
+1. ef_ws/g1/scripts/arm_motion/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+numpy
+pygame
+pynput
+unitree_sdk2py
+
+2.ef_ws/g1/scripts/basic/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+gtts
+pygame
+pynput
+sounddevice
+soundfile
+unitree_sdk2py
+
+3. ef_ws/g1/scripts/dev/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+PyQt5
+PySide6
+cv2
+dash
+dash_bootstrap_components
+gi
+numpy
+plotly
+unitree_sdk2py
+
+4.ef_ws/g1/scripts/navigation/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+PySide6
+cv2
+gi
+kiss_icp
+matplotlib
+numpy
+open3d
+pynput
+pyqtgraph
+scipy
+unitree_sdk2py
+
+5. ef_ws/g1/scripts/obstacle_avoidance/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+# (No third-party imports detected)
+
+6. ef_ws/g1/scripts/obj_detection/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+PIL
+cv2
+numpy
+open_clip
+pyrealsense2
+torch
+transformers
+unitree_sdk2py
+
+7. ef_ws/g1/scripts/safety/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+# (No third-party imports detected)
+
+8. ef_ws/g1/scripts/sensors/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+PIL
+cv2
+gi
+matplotlib
+numpy
+open3d
+open_clip
+pyrealsense2
+torch
+unitree_sdk2py
+zmq
+
+9.ef_ws/g1/scripts/troubleshooting/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+PIL
+cyclonedds
+flask
+numpy
+pandas
+rich
+unitree_sdk2py
+yaml
+
+10.ef_ws/g1/scripts/usecases/requirements.txt
+# Auto-generated per-folder requirements for this submodule.
+# Review and prune based on actual usage before installing.
+
+PIL
+cv2
+numpy
+open_clip
+rich
+soda_can_detect
+torch
+unitree_sdk2py
