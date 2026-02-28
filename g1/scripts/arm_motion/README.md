@@ -1,121 +1,41 @@
-1.READ ME für /ef_ws/g1/scripts/arm_motion/README.md
 # arm_motion
 
-Arm control examples and SDK demos for the G1.
+Arm control scripts for Unitree G1, including direct DDS command examples and programming-by-demonstration (PBD) workflows.
 
-**What you’ll find**
-- Arm DDS examples and PBD demos
-- Safety helper scripts
+## Contents
+- `g1_arm7_sdk_dds_example.py`
+  - Low-level DDS arm command example on `rt/arm_sdk`.
+  - Shows joint indexing, CRC handling, and staged motion playback.
+- `pbd/`
+  - `pbd_demonstrate.py`: record arm trajectories from manual demonstration.
+  - `pbd_reproduce.py`: replay recorded trajectories (CSV/NPZ).
+  - `pbd_docs.md`: file format and usage notes.
+  - `motion_databse/*.csv`: sample trajectories.
+- `safety/`
+  - `hanger_boot_sequence.py`: safe startup helper.
+  - keyboard/controller helpers used by motion and navigation scripts.
+- `sdk_details.md`
+  - arm SDK notes and setup details.
 
-**Notes**
-- Check `sdk_details.md` for setup details.
+## Recommended Workflow
+1. Ensure safe boot / balanced stand.
+2. Record a motion with `pbd/pbd_demonstrate.py` (optional).
+3. Replay via `pbd/pbd_reproduce.py`.
+4. Move to direct DDS authoring with `g1_arm7_sdk_dds_example.py` when needed.
 
-2.ef_ws/g1/scripts/basic/README.md
+## Typical Commands
+```bash
+# Record a demonstration
+python3 pbd/pbd_demonstrate.py --iface enp1s0 --arm both --out /tmp/pbd_motion.npz
 
-# basic
+# Replay a demonstration
+python3 pbd/pbd_reproduce.py --iface enp1s0 --file /tmp/pbd_motion.npz --arm both
 
-Core locomotion and high‑level motion examples.
+# Run DDS arm control example
+python3 g1_arm7_sdk_dds_example.py enp1s0
+```
 
-**What you’ll find**
-- High‑level gait and motion sequences
-- Basic locomotion client examples
-- Finger motion test
-
-**Notes**
-- See `commands.txt` and `FAQ.txt` for quick references.
-
-3./ef_ws/g1/scripts/dev/README.md
-
-# dev
-
-Development tools and client utilities.
-
-**What you’ll find**
-- Dashboard control and client helpers
-- SDK integration notes
-
-**Notes**
-- Check `sdk_details.md` and `sdk_details_ef_client.md`.
-
-4./ef_ws/g1/scripts/navigation/README.md
-
-# navigation
-
-Navigation and SLAM related scripts.
-
-**What you’ll find**
-- SLAM demos and visualization tools
-- Stack runners and helpers
-
-**Notes**
-- Some scripts depend on external SLAM toolchains.
-
-5./ef_ws/g1/scripts/obstacle_avoidance/README.md
-# obstacle_avoidance
-
-Obstacle avoidance demos and path planning utilities.
-
-**What you’ll find**
-- SLAM map creation and navigation
-- Path planning and obstacle detection tools
-
-**Notes**
-- See the `slam_sdk_example/` folder for a C++ demo.
-
-6./ef_ws/g1/scripts/obj_detection/README.md
-
-# obj_detection
-
-Object detection examples and experiments.
-
-**What you’ll find**
-- RGBD and CLIP-based detection scripts
-- Test scripts and demos
-
-**Notes**
-- There are duplicate/experimental files here. Choose the canonical script before running.
-
-7.ef_ws/g1/scripts/safety/README.md
-
-# obj_detection
-
-Object detection examples and experiments.
-
-**What you’ll find**
-- RGBD and CLIP-based detection scripts
-- Test scripts and demos
-
-**Notes**
-- There are duplicate/experimental files here. Choose the canonical script before running.
-
-8./ef_ws/g1/scripts/sensors/README.md
-
-
-# sensors
-
-Sensor streaming and visualization tools.
-
-**What you’ll find**
-- Lidar and IMU visualizers
-- RGBD camera clients
-- Manual streaming utilities
-
-9.ef_ws/g1/scripts/troubleshooting/README.md
-# troubleshooting
-
-Diagnostics and troubleshooting helpers.
-
-**What you’ll find**
-- Polling tools and webapp diagnostics
-- Example topic configs
-
-10. /ef_ws/g1/scripts/usecases/README.md
-
-# usecases
-
-End‑to‑end task demos and application scripts.
-
-**What you’ll find**
-- Navigation and manipulation scenarios
-- Task‑level example scripts
- 
+## Notes
+- Keep a spotter and clear workspace for all arm motion tests.
+- Joint index validity depends on robot variant (23 DoF vs 29 DoF / hand configuration).
+- Many scripts assume `unitree_sdk2py` is installed editable and CycloneDDS is available.

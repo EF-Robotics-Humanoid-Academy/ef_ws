@@ -1,32 +1,34 @@
-Safety FAQ
-==========
+Safety FAQ (arm_motion/pbd/safety)
+==================================
 
-Q: What does `keyboard_controller.py` do?
-A: It runs the hanger boot sequence, then opens a small curses HUD for driving the Unitree G-1 with WASD-style keys. It sends velocity commands at 10 Hz while keys are held.
+Q: What scripts are in this folder?
+A: `hanger_boot_sequence.py`, `keyboard_controller.py`, `usb_controller.py`.
 
-Q: How do I run it?
-A: `python3 keyboard_controller.py --iface enp68s0f1` where `--iface` is the robot network interface.
+Q: Why is there a safety folder under PBD?
+A: PBD record/replay workflows can put the robot in unusual postures. These
+   utilities provide safe startup and manual repositioning before/after demos.
 
-Q: What are the controls?
-A: `W/S` forward/back, `A/D` yaw left/right, `Q/E` strafe left/right, `Space` zero all velocities, `Z` damp and exit, `Esc` StopMove + ZeroTorque (emergency stop) and exit.
+Q: How do I run keyboard tele-op?
+A: `python3 keyboard_controller.py --iface enp1s0`
 
-Q: Why does motion stop as soon as I release a key?
-A: This is intentional. The script continuously sends commands only while the key is physically held, and resets the velocity to zero on key release.
+Q: Keyboard input mode options?
+A: `--input pynput` (default, true key release handling) and `--input curses`.
 
-Q: Can I hold multiple keys at once?
-A: Yes. The controller supports simultaneous key holds (e.g., `W + A` to move forward while turning).
+Q: Keyboard controls?
+A: `W/S` forward/back, `Q/E` strafe, `A/D` yaw, `Space` stop,
+   `Z` Damp + exit, `Esc` StopMove + ZeroTorque + exit.
 
-Q: What dependencies does the keyboard controller need?
-A: It uses `pynput` for key state, `curses` for the HUD, and the Unitree SDK client used by `hanger_boot_sequence.py`. Install `pynput` with `pip install pynput`.
+Q: How do I run USB gamepad tele-op?
+A: `python3 usb_controller.py --iface enp1s0 --joy 0`
 
-Q: Why does `pynput` sometimes fail on Wayland?
-A: On Wayland, `pynput` may fall back to `/dev/input/event*`, which can require extra permissions or udev group tweaks. On X11, it generally works without sudo.
+Q: USB mappings summary?
+A: Left stick Y -> `vx`, left stick X -> `vy`, right stick X -> `vyaw`.
+   Buttons: `A` Damp, `B` BalanceStand, `X` Dev/Start mode, `Y` ZeroTorque,
+   `Start` StopMove.
 
-Q: What does `hanger_boot_sequence.py` do?
-A: It brings a hanging G-1 from Damp to a balanced stand ready for walking (FSM-200), and returns an initialized `LocoClient`.
+Q: What does `hanger_boot_sequence.py` guarantee?
+A: Safe startup sequence with checks around FSM/mode so operation starts from
+   a stable standing state.
 
-Q: What if the robot is already standing and balanced?
-A: The boot sequence checks for FSM-200 with feet loaded and returns immediately without re-running the sequence to avoid jolting the robot.
-
-Q: What if the feet never “load” during the stand-height sweep?
-A: The script warns, reduces stand height, prompts you to adjust the hanger height, and repeats the sweep until feet loaded (mode 0) is detected.
+Q: Safety warning?
+A: `ZeroTorque` removes support. Use spotter + clear workspace.

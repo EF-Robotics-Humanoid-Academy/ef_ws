@@ -1,100 +1,60 @@
-G1 High-Level Gait Measurement - FAQ
-===================================
+G1 Basic Scripts FAQ
+====================
 
-What is this script for?
-It measures how far the G1 travels during high-level gait and estimates step
-count from foot contact signals. It also reports displacement and gait activity.
+Q: Which scripts are covered here?
+A: This folder's primary runtime scripts:
+   - `g1_loco_client_example.py`
+   - `g1_hl_motion_sequence.py`
+   - `g1_hl_gait_measure.py`
+   - `test_finger_motion.py`
 
-Which script does this FAQ cover?
-`g1/scripts/measurements/g1_hl_gait_measure.py`
+Q: What is `g1_loco_client_example.py` for?
+A: Interactive high-level locomotion/FSM actions via terminal input. It uses
+   `hanger_boot_sequence` first, then lets you trigger actions such as Move,
+   LowStand/HighStand, WaveHand, ZeroTorque, etc.
 
-How does it measure distance?
-It subscribes to `rt/sportmodestate` and integrates changes in the reported
-`position` to compute path length and displacement.
+Q: How do I run the locomotion example?
+A: `python3 g1_loco_client_example.py <iface>`
+   Example: `python3 g1_loco_client_example.py enp1s0`
 
-How are steps counted?
-If `foot_force` is present in the `SportModeState_` message, steps are counted
-on rising edges (contact transitions) for each foot. The total step count is
-the sum of those transitions across all feet.
+Q: What is `g1_hl_motion_sequence.py` for?
+A: A scripted demo sequence:
+   1) walk forward
+   2) wave right hand (optional)
+   3) turn in place
+   4) walk forward again
 
-What if `foot_force` is missing?
-The script falls back to an estimated step count using:
-  estimated_steps = path_length / stride_length
-You can set `--stride-m` to match your expected gait.
+Q: Common `g1_hl_motion_sequence.py` args?
+A: `--iface`, `--walk-m`, `--walk-v`, `--turn-deg`, `--turn-vyaw`,
+   `--no-wave`, `--ramp-time`, `--no-imu`, plus advanced wave tuning args.
 
-Does it command the robot to walk?
-By default, yes. It sends velocity commands at `--cmd-hz` using `LocoClient`.
-Use `--no-command` if the robot is already walking or you only want to measure.
+Q: Example motion-sequence command?
+A: `python3 g1_hl_motion_sequence.py --iface enp1s0 --walk-m 1.0 --turn-deg 180`
 
-What gait does it use?
-It does not change the gait mode itself. It just sends high-level velocity
-commands (or not, if `--no-command`). Gait type is reported if the state message
-includes `gait_type`.
+Q: What is `g1_hl_gait_measure.py` for?
+A: Measures distance/steps from `rt/sportmodestate` while optionally commanding
+   motion. It can estimate steps from `foot_force` transitions and write CSV.
 
-How do I set the network interface?
-Use `--iface`, e.g.:
-  python3 g1/scripts/measurements/g1_hl_gait_measure.py --iface enp1s0
+Q: Common `g1_hl_gait_measure.py` args?
+A: `--iface`, `--duration`, `--vx`, `--vy`, `--vyaw`, `--target-m`,
+   `--no-command`, `--no-imu`, `--csv`.
 
-How do I log a CSV?
-Pass `--csv` with a file path:
-  --csv /tmp/g1_gait_log.csv
-The CSV includes time, position, gait_type, total_dist, step_total, and foot_force.
+Q: Example gait-measure command?
+A: `python3 g1_hl_gait_measure.py --iface enp1s0 --vx 0.25 --target-m 1.0 --csv /tmp/g1_gait.csv`
 
-How do I tune the step detection threshold?
-Use `--force-threshold`. If step counts are too low, lower the threshold. If
-counts are noisy or too high, increase it.
+Q: What is `test_finger_motion.py` for?
+A: Sequential Dex3 finger test (thumb, middle, index) on left or right hand.
 
-What if the script prints "No position source"?
-That means `rt/sportmodestate` is not delivering a `position` field. Confirm the
-SDK is running and the DDS network interface is correct.
+Q: Common `test_finger_motion.py` args?
+A: `--hand`, `--iface`, `--domain_id`, `--rate`, `--hold`, `--settle`.
 
-Is this safe to run?
-It uses the same high-level velocity commands as other G1 examples. Ensure the
-area is clear and the robot is stable before commanding movement.
+Q: Example finger-test command?
+A: `python3 test_finger_motion.py --hand right --iface eth0`
 
-Can I measure without moving?
-Yes. Use `--no-command` and start/stop measurement while the robot is walking.
+Q: What topics are most used in this folder?
+A: High-level motion generally uses Unitree locomotion APIs and sport state;
+   finger test publishes hand commands on Dex3 hand topics.
 
-How do I change walking speed and duration?
-Use `--vx` and `--duration`, for example:
-  --vx 0.4 --duration 15
-
-Where do I change lateral or turning motion?
-Use `--vy` (lateral) and `--vyaw` (yaw rate). Set them to 0 for straight walking.
-
-What should I do if `unitree_sdk2py` is not installed?
-Install it in editable mode as described in the error message:
-  pip install -e <path-to-unitree_sdk2_python>
-
------------------------------------
-
-G1 High-Level Motion Sequence - FAQ
-===================================
-
-What is this script for?
-It runs a simple multi-step motion sequence: walk 1 meter, wave the right hand,
-turn 180 degrees, then walk 1 meter.
-
-Which script does this FAQ cover?
-`g1_hl_motion_sequence.py`
-
-How do I run it on eth0?
-Use `--iface eth0`, for example:
-  python3 g1_hl_motion_sequence.py --iface eth0
-
-How do I change the walk distance or speed?
-Use `--walk-m` and `--walk-v`, for example:
-  --walk-m 1.5 --walk-v 0.4
-
-How do I change the turn angle or rate?
-Use `--turn-deg` and `--turn-vyaw`, for example:
-  --turn-deg 90 --turn-vyaw 0.6
-
-What if the right-hand wave does not happen?
-The script tries common high-level arm/hand clients. If your SDK build does not
-expose a wave method, it will print a message and skip the wave. You can also
-skip it explicitly with `--no-wave`.
-
-Is this safe to run?
-It uses high-level velocity commands. Make sure the area is clear and the robot
-is stable before running the sequence.
+Q: Safety notes before running?
+A: Clear the area, keep a spotter, and ensure fast access to stop controls.
+   `ZeroTorque` will remove support and can cause a fall.

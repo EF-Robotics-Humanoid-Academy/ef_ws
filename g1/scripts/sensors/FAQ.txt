@@ -1,28 +1,57 @@
-FAQ: G1 Stability Visualization Approach
+Sensors FAQ
+===========
 
-Q: What does the script connect to?
-A: It uses Unitree SDK2 DDS topics via ChannelFactoryInitialize and subscribes to `rt/lowstate` for IMU and `rt/odom` for pose when available.
+Q: Which scripts are covered here?
+A: Primary scripts in this folder:
+   - `imu_plot.py`
+   - `lidar_points.py`
+   - `live_points.py`
+   - `rgbd_cam.py`
+   - `manual_streaming/*` helpers
 
-Q: Why use `rt/lowstate` for stability?
-A: `rt/lowstate` contains IMU rpy (roll, pitch, yaw). Stability is derived from roll/pitch tilt, which is a direct indicator of balance.
+Q: What is `imu_plot.py` for?
+A: Real-time IMU stability plotting from `rt/lowstate` (roll/pitch/yaw/tilt +
+   stability score), with optional odom context.
 
-Q: How is the stability score computed?
-A: Stability = 1.0 - (tilt_deg / max_tilt_deg), clamped at 0.0. Tilt is sqrt(roll^2 + pitch^2) converted to degrees.
+Q: How do I run `imu_plot.py`?
+A: `python3 imu_plot.py --iface eth0 --domain-id 0`
 
-Q: What do the plots show?
-A: The top plot shows roll, pitch, yaw, and tilt in degrees over a moving time window. The bottom plot shows the stability score in real time.
+Q: Useful `imu_plot.py` options?
+A: `--history`, `--max-tilt-deg`, `--lowstate-topic`, `--odom-topic`,
+   `--odom-type`, `--log-level`.
 
-Q: Why include odometry if stability is IMU-based?
-A: Odometry is optional context. The script reports the latest (x, y) pose in the status line to correlate tilt events with motion.
+Q: What is `lidar_points.py` for?
+A: DDS PointCloud2 top-down viewer (OpenCV) for topics like
+   `rt/utlidar/cloud_livox_mid360`.
 
-Q: What network interface and domain id should I use?
-A: For real robot: `--iface eth0 --domain-id 0`. For simulation: `--iface lo --domain-id 1`, unless your setup differs.
+Q: How do I run `lidar_points.py`?
+A: `python3 lidar_points.py --iface enp1s0 --topic rt/utlidar/cloud_livox_mid360`
 
-Q: Why use Matplotlib instead of OpenCV?
-A: Matplotlib is already installed in the repo and provides clean time-series plots for roll/pitch/yaw and stability.
+Q: Useful `lidar_points.py` options?
+A: `--range-m`, `--z-min`, `--z-max`, `--stride`, `--size`.
 
-Q: How do I adjust sensitivity?
-A: Change `--max-tilt-deg`. Lower values make the stability score drop faster for small tilts.
+Q: What is `live_points.py` for?
+A: Open3D live viewer for Livox streams (SDK wrappers), useful as a quick
+   sanity check before running full SLAM.
 
-Q: What if I do not see data?
-A: Confirm the DDS domain id, network interface, and that `rt/lowstate` is being published. The script will display “Waiting for rt/lowstate...” until data arrives.
+Q: What is `rgbd_cam.py` for?
+A: Laptop-side camera viewer with mode selection:
+   - DDS subscribe mode,
+   - VideoClient RPC mode,
+   - auto fallback from DDS to RPC.
+
+Q: How do I run `rgbd_cam.py`?
+A: `python3 rgbd_cam.py --iface eth0 --mode auto`
+
+Q: Useful `rgbd_cam.py` options?
+A: `--mode {auto,dds,rpc}`, `--rgb-topic`, `--depth-topic`, `--rgb-type`,
+   `--depth-type`, `--video-field`, `--rpc-timeout`, `--dds-wait`.
+
+Q: Where are RealSense network streaming scripts?
+A: `g1/scripts/sensors/manual_streaming/` includes sender/receiver and CLIP
+   overlay variants (`jetson_realsense_stream.py`, `receive_realsense_gst.py`,
+   `receive_realsense_gst_clip_can.py`, etc.).
+
+Q: What if no data appears?
+A: Verify domain/interface first, then verify topic/type pairing and that
+   the producer script/service is running.
