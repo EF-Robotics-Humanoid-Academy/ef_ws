@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "title": "G1 Academy Wissensdatenbank (Deutsch)",
+    "purpose": "Beispiel-Wissensbasis fuer Task 13 (RAG). Struktur wie modules/scripts/ollama_ai/*.sample.json.",
+    "language": "de"
+  },
+  "knowledge": [
+    {
+      "title": "Der Roboter",
+      "category": "g1 hardware",
+      "faqs": [
+        {"question": "Was ist der Unitree G1?",
+         "answer": "Der Unitree G1 ist ein humanoider Roboter von Unitree Robotics fuer Fortbewegung, Manipulation und Robotik-Forschung."},
+        {"question": "Wie viele Finger hat die Dex3 Hand?",
+         "answer": "Die Dex3 Hand hat drei Finger mit insgesamt sieben aktiven Gelenken sowie Tastsensoren an den Fingerspitzen."},
+        {"question": "Ist die Taille des G1 beweglich?",
+         "answer": "Bei den Robotern dieser Academy ist die Taille mechanisch gesperrt -- nur das Gelenk WaistYaw (Drehung) ist frei, Roll und Pitch sind fest."}
+      ]
+    },
+    {
+      "title": "Die Academy",
+      "category": "g1 academy course",
+      "faqs": [
+        {"question": "Wie viele Tage dauert die G1 Academy?",
+         "answer": "Die G1 Academy Bonus-Woche dauert vier Tage: Grundlagen, Fortbewegung und SLAM, Arme und Haende, und schliesslich Wahrnehmung und KI."},
+        {"question": "Was macht man an Tag 4?",
+         "answer": "An Tag 4 geht es um Wahrnehmung und KI: einen Sprachassistenten mit der OpenAI API, Wissensabfragen, Gesten, Bilderkennung und eine abschliessende Liefer-Aufgabe mit SLAM."},
+        {"question": "Was ist sdk_wrapper.G1?",
+         "answer": "sdk_wrapper.G1 ist die fertige Python-Klasse, die alle Roboterfaehigkeiten dieses Kurses als einzelne Methoden bereitstellt, zum Beispiel g1.say() oder g1.loco_move()."}
+      ]
+    },
+    {
+      "title": "Sicherheit",
+      "category": "safety",
+      "faqs": [
+        {"question": "Was ist der Damp Modus?",
+         "answer": "Damp (FSM id 1) ist der immer verfuegbare Sicherheitsmodus: die Gelenke daempfen sanft ab, ohne Fortbewegung. Er ist der Rueckfallmodus bei jedem Notfall."},
+        {"question": "Wie schnell darf sich ein Gelenk bei interpolate_to_pose bewegen?",
+         "answer": "Standardmaessig hoechstens 0.6 rad/s pro Gelenk (DEFAULT_MAX_JOINT_SPEED_RAD_S) -- interpolate_to_pose verlaengert die Bewegungsdauer automatisch, falls noetig, um dieses Limit einzuhalten."}
+      ]
+    }
+  ]
+}
