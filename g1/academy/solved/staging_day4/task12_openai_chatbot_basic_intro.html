@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Task 12 Intro — Text Chatbot with the OpenAI API</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Pre-task knowledge and reference for Task 12 Intro — a text chatbot using the OpenAI API and sdk_wrapper.G1.say.">
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f27; --muted:#5b6472; --border:#dfe3ea;
+  --accent:#2454ff; --code-bg:#eef1f6; --zebra:#f9fafc;
+  --good:#0f7a3d; --good-bg:#e6f6ec;
+  --info:#1b5fd6; --info-bg:#e8f0fe;
+  --warn:#b5750a; --warn-bg:#fbf1de;
+  --caution:#c1272d; --caution-bg:#fdeaea;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#14171c; --panel:#1b1f27; --ink:#e7e9ee; --muted:#9aa3b2; --border:#2c313b;
+    --accent:#6f92ff; --code-bg:#232833; --zebra:#1f242e;
+    --good:#5fd38a; --good-bg:#123a24;
+    --info:#8fb0ff; --info-bg:#152548;
+    --warn:#e3ab53; --warn-bg:#3a2c10;
+    --caution:#ff8b8f; --caution-bg:#3a1616;
+  }
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+code, .mono, pre{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;}
+code{background:var(--code-bg); padding:1px 5px; border-radius:4px;}
+pre code{background:none; padding:0;}
+a{color:var(--accent);}
+header.top{padding:26px clamp(16px,4vw,48px) 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.eyebrow{color:var(--muted); font-size:12.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 6px;}
+header.top h1{margin:0 0 8px; font-size:1.55rem;}
+header.top p.lede{margin:4px 0; color:var(--muted); max-width:900px;}
+.badges{margin:10px 0 0; display:flex; flex-wrap:wrap; gap:8px;}
+.badge{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.02em;
+  padding:3px 9px; border-radius:99px; white-space:nowrap;}
+.b-info{color:var(--info); background:var(--info-bg);}
+.b-good{color:var(--good); background:var(--good-bg);}
+.b-warn{color:var(--warn); background:var(--warn-bg);}
+.b-caution{color:var(--caution); background:var(--caution-bg);}
+.crumbs{margin:14px 0 0; font-size:12.5px;}
+.crumbs a{color:var(--muted); text-decoration:none; margin-right:4px;}
+.crumbs a:hover{color:var(--accent);}
+main{max-width:980px; margin:0 auto; padding:28px clamp(16px,4vw,48px) 90px;}
+h2{font-size:1.25rem; margin:38px 0 6px; padding-top:14px; border-top:3px solid var(--accent);}
+h2 .num{color:var(--muted); font-weight:600; margin-right:6px;}
+h3{font-size:1.02rem; margin:22px 0 6px;}
+p{margin:8px 0;}
+.card{border:1px solid var(--border); border-radius:12px; background:var(--panel); padding:16px 18px; margin:14px 0;}
+.card h4{margin:0 0 6px; font-size:.95rem;}
+.card.knowledge{border-left:4px solid var(--info);}
+.card.warn{border-left:4px solid var(--warn); background:var(--warn-bg);}
+.card.caution{border-left:4px solid var(--caution); background:var(--caution-bg);}
+.card.good{border-left:4px solid var(--good); background:var(--good-bg);}
+table{border-collapse:collapse; width:100%; margin:12px 0; font-size:13.5px;}
+th, td{border:1px solid var(--border); padding:6px 10px; text-align:left; vertical-align:top;}
+th{background:var(--code-bg);}
+tr:nth-child(even) td{background:var(--zebra);}
+pre.block{background:var(--code-bg); border:1px solid var(--border); border-radius:10px;
+  padding:12px 14px; overflow-x:auto; margin:10px 0;}
+.cell{border:1px solid var(--border); border-radius:10px; margin:12px 0; overflow:hidden;}
+.cell .cellhead{background:var(--code-bg); padding:6px 12px; font-size:12px; color:var(--muted);
+  border-bottom:1px solid var(--border); display:flex; justify-content:space-between;}
+.cell pre{margin:0; padding:12px 14px; overflow-x:auto;}
+.todo{color:var(--warn);}
+ul, ol{padding-left:22px;}
+li{margin:4px 0;}
+.stepgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:12px 0;}
+.step{border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:12.5px; background:var(--panel);}
+.step b{display:block; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:.04em;}
+.tocwrap{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0;}
+.tocwrap a{font-size:12px; padding:4px 9px; border:1px solid var(--border); border-radius:99px;
+  text-decoration:none; color:var(--muted); background:var(--panel);}
+.tocwrap a:hover{color:var(--accent); border-color:var(--accent);}
+footer{padding:26px clamp(16px,4vw,48px) 60px; color:var(--muted); font-size:12.5px; border-top:1px solid var(--border);}
+footer a{color:var(--muted);}
+.navrow{display:flex; justify-content:space-between; gap:12px; margin-top:10px; flex-wrap:wrap;}
+</style>
+</head>
+
+<body>
+<header class="top">
+  <p class="eyebrow">Day 4 &middot; G1 Academy Bonus</p>
+  <h1>Task 12 &mdash; Text Chatbot with the OpenAI API</h1>
+  <p class="lede">Text in (English or German), a reply from the OpenAI API, printed and spoken back through
+  <code>g1.say()</code>. This is the foundation Tasks 13&ndash;15 extend.</p>
+  <div class="badges">
+    <span class="badge b-info">Builds on: Task 1's <code>g1 = G1(iface=..., domain_id=...)</code> construction</span>
+    <span class="badge b-good">New module: <code>openai_api_util.py</code> &mdash; get_client, chat_reply</span>
+  </div>
+  <div class="card good"><p><strong>Use Codex/AI here.</strong> Tasks 13-15 are mostly Codex work: you already have the building blocks (<code>openai_api_util.py</code>, <code>sdk_wrapper.G1</code>), and each task gives you the exact prompt to extend the chatbot with. Read what Codex produces before you run it.</p></div>
+  <div class="tocwrap"><a href="../day_1/task1_sdkwrapper_usage_intro.html">T1</a><a href="../day_1/task2_necessary_dds_init_pubsub_intro.html">T2</a><a href="../day_1/task3_say_and_headlight_helpers_intro.html">T3</a><a href="../day_1/task4_robot_state_observation_intro.html">T4</a><a href="../day_2/task5_services_and_mode_switching_intro.html">T5</a><a href="../day_2/task6_basic_locomotion_intro.html">T6</a><a href="../day_2/task7_slam_operation_and_map_visualization_intro.html">T7</a><a href="../day_3/task8_hl_arm_gestures_intro.html">T8</a><a href="../day_3/task9_ll_control_intro.html">T9</a><a href="../day_3/task10_ik_control_intro.html">T10</a><a href="../day_3/task11_dex3_gradual_gripping_intro.html">T11</a><a href="task12_openai_chatbot_basic_intro.html" style="border-color:var(--accent);color:var(--accent)">T12</a><a href="task13_openai_chatbot_rag_intro.html">T13</a><a href="task14_openai_chatbot_gestures_and_movement_intro.html">T14</a><a href="task15_openai_chatbot_vision_intro.html">T15</a><a href="task16_slam_pickup_delivery_intro.html">T16</a></div>
+</header>
+<main>
+
+<h2><span class="num">&#167;1</span>Knowledge &mdash; openai_api_util.py</h2>
+<div class="card knowledge">
+<table>
+<tr><th>Call</th><th>Does</th></tr>
+<tr><td><code>openai_api_util.get_client()</code></td><td>returns an OpenAI client; reads <code>OPENAI_API_KEY</code> from your environment automatically &mdash; it is already set on your account</td></tr>
+<tr><td><code>openai_api_util.chat_reply(client, text, history=history)</code></td><td>sends <code>text</code> plus the running <code>history</code> list to the model, returns its reply as a string</td></tr>
+</table>
+<p>The default system prompt tells the model to always answer in German, whatever language it is asked in
+&mdash; that is why <code>g1.say(reply, language="DE")</code> is safe to hardcode.</p>
+</div>
+
+<h2><span class="num">&#167;2</span>Knowledge &mdash; keeping context with history</h2>
+<div class="card knowledge">
+<p><code>history</code> is a plain list of <code>{"role": "user"|"assistant", "content": str}</code> dicts.
+Append the user's line and the model's reply to it after every turn, and pass the same list back in next
+time &mdash; that is the whole mechanism behind a chatbot "remembering" earlier turns.</p>
+</div>
+
+<h2><span class="num">&#167;3</span>Cell &mdash; setup</h2>
+<div class="cell"><div class="cellhead"><span>Cell (code)</span></div>
+<pre><code>import sys
+sys.path.append("..")
+from sdk_wrapper import G1
+import openai_api_util
+
+g1 = G1(iface="eth0", domain_id=0)
+client = openai_api_util.get_client()</code></pre></div>
+
+<h2><span class="num">&#167;4</span>Cell &mdash; one chat turn</h2>
+<div class="cell"><div class="cellhead"><span>Cell (code)</span><span class="todo">TODO</span></div>
+<pre><code>history = []
+
+def chat_turn(text):
+    # TODO: call openai_api_util.chat_reply(client, text, history=history) and store it in `reply`.
+    # TODO: append the user line and the reply to history, print(reply), then g1.say(reply, language="DE").
+    raise NotImplementedError("Complete this task section")</code></pre></div>
+<pre class="block"><code>history = []
+
+def chat_turn(text):
+    reply = openai_api_util.chat_reply(client, text, history=history)
+    history.append({"role": "user", "content": text})
+    history.append({"role": "assistant", "content": reply})
+    print(reply)
+    g1.say(reply, language="DE")
+    return reply</code></pre>
+
+<div class="card caution">
+  <h4>Safety</h4>
+  <p>This task never moves the robot &mdash; only speech. Construct <code>g1</code> the usual way regardless.</p>
+</div>
+
+</main>
+<footer>
+  <div class="navrow">
+    <span>Reference: <code>openai_api_util.get_client / chat_reply</code> &middot;
+    Notebook: <code>task12_openai_chatbot_basic.ipynb</code> &middot; Slides: <code>day4_slides.html</code></span>
+    <span><a href="../day_3/task11_dex3_gradual_gripping_intro.html">&larr; Task 11</a> &middot; <a href="task13_openai_chatbot_rag_intro.html">Task 13 &rarr;</a></span>
+  </div>
+</footer>
+</body>
+</html>
