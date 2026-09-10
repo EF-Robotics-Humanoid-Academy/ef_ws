@@ -343,6 +343,12 @@ class SingleControllerLock:
     def acquire(self) -> None:
         fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
         try:
+            # The lock is deliberately shared by all workshop accounts.  The
+            # process holding it is protected by flock; write permission is
+            # also needed by the next participant to update the owner record.
+            # Do this explicitly because the user's umask otherwise turns a
+            # newly created 0666 file into 0644.
+            os.fchmod(fd, 0o666)
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
             owner = self._read_owner(fd)

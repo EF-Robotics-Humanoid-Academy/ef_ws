@@ -40,7 +40,6 @@ from ik_pose_cli_v3 import (
     ARM_JOINTS, JOINT_LABELS, UPPER_BODY_JOINTS, WAIST_JOINTS,
     LEFT_ARM_JOINTS, RIGHT_ARM_JOINTS,
     _rpy_from_R,
-    STABLE_HOLD_POSE_NAME,
 )
 
 import dash
@@ -1282,24 +1281,21 @@ def pose_actions(*_):
         elif trig == "pose-delete":
             idx = selected
             if idx is not None and 0 <= idx < len(c.saved_poses):
-                if c.saved_poses[idx].get("name") == STABLE_HOLD_POSE_NAME:
-                    c.status = "stable_hold is built-in and cannot be deleted"
-                else:
-                    pname = c.saved_poses[idx].get("name", "?")
-                    new_steps = []
-                    for step in c.sequence_steps:
-                        pi = step.get("pose_index", -1)
-                        if pi == idx:
-                            continue
-                        new_steps.append({
-                            "pose_index": pi - (1 if pi > idx else 0),
-                            "include_waist": step.get("include_waist", True),
-                        })
-                    c.sequence_steps = new_steps
-                    del c.saved_poses[idx]
-                    c.sequence_running = False
-                    c._write_pose_file()
-                    c.status = f"Deleted pose '{pname}'"
+                pname = c.saved_poses[idx].get("name", "?")
+                new_steps = []
+                for step in c.sequence_steps:
+                    pi = step.get("pose_index", -1)
+                    if pi == idx:
+                        continue
+                    new_steps.append({
+                        "pose_index": pi - (1 if pi > idx else 0),
+                        "include_waist": step.get("include_waist", True),
+                    })
+                c.sequence_steps = new_steps
+                del c.saved_poses[idx]
+                c.sequence_running = False
+                c._write_pose_file()
+                c.status = f"Deleted pose '{pname}'"
         elif trig == "pose-add-seq":
             idx = selected
             if idx is not None and 0 <= idx < len(c.saved_poses):
