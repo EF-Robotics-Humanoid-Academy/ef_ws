@@ -1,5 +1,7 @@
 import audioop
+import asyncio
 import importlib
+import inspect
 import json
 import math
 import os
@@ -804,6 +806,33 @@ def _modbus_move(host, port, unit_id, values, timeout=2.0):
         request(struct.pack(">BHHB", 16, 1486, 6, len(payload)) + payload)
     finally:
         sock.close()
+
+
+def _run_async(coro):
+    """Run an SDK coroutine from scripts and Jupyter kernels alike.
+
+    Jupyter already owns an event loop, so asyncio.run() cannot be called on
+    its main thread.  In that case use a short-lived worker thread instead.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    result = {}
+
+    def runner():
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:  # re-raise the original SDK error below
+            result["error"] = exc
+
+    worker = threading.Thread(target=runner, name="brainco-sdk-call", daemon=True)
+    worker.start()
+    worker.join()
+    if "error" in result:
+        raise result["error"]
+    return result.get("value")
 
 
 class G1:
@@ -1719,6 +1748,88 @@ class G1:
             except Exception as exc:
                 out[side] = self._hand_error(side, "close_inspire_hand", exc)
         return out if len(sides) > 1 else out[sides[0]]
+
+    def _brainco_hand_positions(self, positions, device_index=0, duration_ms=1500):
+        """Command a detected BrainCo Revo 2 hand, then close its SDK handle.
+
+        The BrainCo SDK is optional and imported only here.  A Revo hand is
+        independent of Unitree DDS, so this deliberately does not share a
+        connection with the G1 clients above.  ``device_index`` selects an
+        item returned by BrainCo's auto-detection (zero is the first hand).
+        """
+        try:
+            from bc_stark_sdk import main_mod as brainco_sdk
+        except ImportError as exc:
+            raise RuntimeError(
+                "BrainCo SDK is not installed. Install bc_stark_sdk in this "
+                "Python environment before using BrainCo hand methods."
+            ) from exc
+
+        values = [int(max(0, min(1000, int(value)))) for value in positions]
+        if len(values) != 6:
+            raise ValueError("BrainCo Revo 2 expects exactly six finger positions")
+        index = int(device_index)
+        if index < 0:
+            raise ValueError("device_index must be zero or greater")
+        duration = max(1, int(duration_ms))
+
+        async def maybe_await(value):
+            return await value if inspect.isawaitable(value) else value
+
+        async def command():
+            devices = await maybe_await(brainco_sdk.auto_detect(scan_all=False))
+            if not devices:
+                raise RuntimeError("No BrainCo hand found by auto-detection")
+            if index >= len(devices):
+                raise ValueError(f"device_index {index} is out of range; found {len(devices)} BrainCo hand(s)")
+            detected = devices[index]
+            context = await maybe_await(brainco_sdk.init_from_detected(detected))
+            try:
+                slave_id = int(detected.slave_id)
+                if hasattr(context, "set_finger_positions_and_durations"):
+                    await maybe_await(context.set_finger_positions_and_durations(
+                        slave_id, values, [duration] * 6
+                    ))
+                else:
+                    await maybe_await(context.set_finger_positions(slave_id, values))
+                return {
+                    "ok": True,
+                    "action": "set_brainco_hand_positions",
+                    "device_index": index,
+                    "slave_id": slave_id,
+                    "positions": values,
+                    "duration_ms": duration,
+                }
+            finally:
+                close = getattr(brainco_sdk, "close_device_handler", None)
+                if callable(close):
+                    await maybe_await(close(context))
+                else:
+                    close = getattr(context, "close", None)
+                    if callable(close):
+                        await maybe_await(close())
+
+        return _run_async(command())
+
+    def open_brainco_hand(self, device_index=0, duration_ms=1500):
+        """Open all six fingers of one auto-detected BrainCo Revo 2 hand.
+
+        Position values use BrainCo's normalized 0–1000 range; zero is fully
+        open.  ``device_index=0`` selects the first detected hand.
+        """
+        result = self._brainco_hand_positions([0] * 6, device_index, duration_ms)
+        result["action"] = "open_brainco_hand"
+        return result
+
+    def close_brainco_hand(self, device_index=0, duration_ms=1500):
+        """Close all six fingers of one auto-detected BrainCo Revo 2 hand.
+
+        Position values use BrainCo's normalized 0–1000 range; 1000 is fully
+        closed. Keep fingers and objects clear before invoking this command.
+        """
+        result = self._brainco_hand_positions([1000] * 6, device_index, duration_ms)
+        result["action"] = "close_brainco_hand"
+        return result
 
     def start_mapping(self, slam_type="indoor"):
         self._initial_slam_pose = self._slam_pose()

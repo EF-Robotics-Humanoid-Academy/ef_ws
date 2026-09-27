@@ -134,9 +134,9 @@ exactly what <code>academy/visualizations/service_view.py</code> does.</p>
 
 <h2><span class="num">&#167;3</span>Knowledge &mdash; the full FSM table</h2>
 <div class="card knowledge">
-<p>Do not invent an id beyond this table. This academy's G1 units run <strong>waist-locked</strong> (only
-<code>WaistYaw</code> is a free joint), so walk/balanced-stand is FSM <code>500</code>, not the
-waist-unlocked variant's <code>501</code>.</p>
+<p>Do not invent an id beyond this table. Walk/balanced-stand is FSM <code>500</code>, not
+<code>501</code>, on this hardware. Use <code>g1.walk_mode(waist_locked=False)</code> for this
+robot's walk transition.</p>
 <table>
 <tr><th>ID</th><th>Name</th><th>Typical use</th></tr>
 <tr><td>0</td><td>Zero-Torque</td><td>motors off &mdash; safe to handle legs</td></tr>
@@ -144,11 +144,11 @@ waist-unlocked variant's <code>501</code>.</p>
 <tr><td>2</td><td><i>unlabeled / "airborne"</i></td><td><strong>NOT a confirmed squat mode</strong> &mdash; do not map this id</td></tr>
 <tr><td>3</td><td>Sit</td><td>dog-sit posture</td></tr>
 <tr><td>4</td><td>Stand-up / prepare</td><td>firmware-defined stand, good after Damp</td></tr>
-<tr><td>500</td><td>Start / walk</td><td>balance controller &amp; gait planner (waist-locked units)</td></tr>
+<tr><td>500</td><td>Start / walk</td><td>balance controller &amp; gait planner; call <code>walk_mode(waist_locked=False)</code></td></tr>
 <tr><td>802</td><td>Run</td><td>running gait</td></tr>
 </table>
 <p>This course's <code>FSM_IDS = {"zero_torque": 0, "damp": 1, "prepare": 4, "walk": 500, "run": 802}</code>
-covers the five you'll actually call via <code>damp_mode()</code>/<code>prepare_mode()</code>/<code>walk_mode()</code>/<code>run_mode()</code>.</p>
+covers the five you'll actually call via <code>damp_mode()</code>/<code>prepare_mode()</code>/<code>walk_mode(waist_locked=False)</code>/<code>run_mode()</code>.</p>
 <div class="card caution">
 <p><strong>Ids 702/706 are not confirmed</strong> for this hardware &mdash; <code>academy/mappings_and_constraints.html</code>
 (this repo's own audited FSM reference) does not list them. Treat only <code>0/1/3/4/500/802</code> as verified.</p>
@@ -158,10 +158,10 @@ covers the five you'll actually call via <code>damp_mode()</code>/<code>prepare_
 <h2><span class="num">&#167;4</span>Knowledge &mdash; the safe mode ladder</h2>
 <div class="card knowledge">
 <p><code>damp_mode()</code> (FSM id 1) is always available: bounded joint damping, no locomotion authority.
-Always step <code>damp_mode()</code> &rarr; <code>prepare_mode()</code> &rarr; <code>walk_mode()</code>, one at a
+Always step <code>damp_mode()</code> &rarr; <code>prepare_mode()</code> &rarr; <code>walk_mode(waist_locked=False)</code>, one at a
 time, checking <code>get_state()</code> between steps &mdash; never jump straight to <code>run_mode()</code>.
 <code>toggle_dev_mode()</code> flips the <code>ai_sport</code> service; several Day 3 low-level control calls
-need dev mode enabled first.</p>
+need dev mode enabled first. Leave it commented out in this task unless an instructor explicitly asks for it.</p>
 </div>
 
 <h2><span class="num">&#167;5</span>Cell 2 &mdash; construct the wrapper (and make services reliable)</h2>
@@ -208,12 +208,15 @@ g1.say("Voice service restored.")</code></pre>
 
 <h2><span class="num">&#167;8</span>Task 3 &mdash; step through modes safely</h2>
 <div class="cell"><div class="cellhead"><span>Cell (code)</span><span class="todo">TODO</span></div>
-<pre><code># TODO: g1.damp_mode(), then g1.prepare_mode(), then g1.walk_mode(), then g1.toggle_dev_mode().
+<pre><code># TODO: run g1.damp_mode(), then g1.prepare_mode(). Check g1.get_state() between steps.
 raise NotImplementedError("Complete this task section")</code></pre></div>
 <pre class="block"><code>g1.damp_mode()
-g1.prepare_mode()
-g1.walk_mode()
-g1.toggle_dev_mode()</code></pre>
+g1.prepare_mode()</code></pre>
+<div class="cell"><div class="cellhead"><span>Cell (code)</span><span class="todo">TODO</span></div>
+<pre><code># TODO: only after Prepare succeeds, run this in its own cell.
+g1.walk_mode(waist_locked=False)</code></pre></div>
+<pre class="block"><code># Keep developer mode disabled during this task.
+# g1.toggle_dev_mode()</code></pre>
 
 <h2><span class="num">&#167;9</span>Final part &mdash; build a mode-switching dashboard with Codex</h2>
 <div class="card good">

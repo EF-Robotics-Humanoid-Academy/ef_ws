@@ -1,0 +1,7 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Task 11: BrainCo Revo 2</title></head>
+<body><h1>Task 11: BrainCo Revo 2 open and close</h1>
+<p>This is the BrainCo version of the Dex3 hand task. It does not use Unitree Dex3 DDS topics.</p>
+<ol><li>Use a Python 3.9–3.12 kernel and install <code>bc_stark_sdk</code> in that environment. For serial connections, add the user to <code>dialout</code> and log in again.</li><li>Connect the intended hand and make sure fingers and objects are clear.</li><li>Run the notebook. The wrapper detects BrainCo devices automatically; <code>device_index=0</code> selects the first one.</li><li>Observe open, close, then the final open command.</li></ol>
+<p>The BrainCo normalized position range is 0–1000: zero opens all six fingers and 1000 closes them. Do not run a close command until the hand is clear.</p>
+</body></html>

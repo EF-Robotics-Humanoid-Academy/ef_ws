@@ -303,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </div>
 <h1 class="slide-title">Task &mdash; read state, list/toggle services, switch modes safely</h1>
 <div class="slide-body">
-<ol><li>Call <code>get_lowstate()</code>, <code>get_odom()</code>, <code>get_battery()</code>, and <code>get_state()</code>; print a short summary of each.</li><li>List all services with <code>get_service()</code>, then toggle one (e.g. <code>"vui_service"</code>) off and back on with <code>toggle_service(name)</code>, printing the row before/after.</li><li>Step <code>damp_mode()</code> &rarr; <code>prepare_mode()</code> &rarr; <code>walk_mode()</code>, checking <code>get_state()</code> between each step, then call <code>toggle_dev_mode()</code> and confirm it flipped via <code>get_service("ai_sport")</code>.</li></ol>
+<ol><li>Call <code>get_lowstate()</code>, <code>get_odom()</code>, <code>get_battery()</code>, and <code>get_state()</code>; print a short summary of each.</li><li>List all services with <code>get_service()</code>, then toggle one (e.g. <code>"vui_service"</code>) off and back on with <code>toggle_service(name)</code>, printing the row before/after.</li><li>Step <code>damp_mode()</code> &rarr; <code>prepare_mode()</code>, checking <code>get_state()</code> between each step; then, in its own cell, call <code>walk_mode(waist_locked=False)</code>. Keep <code>toggle_dev_mode()</code> commented out unless instructed otherwise.</li></ol>
 <div class="hint"><span class="hint-tag">Hint &mdash; where to start</span>Do the read-only calls first (state/services) and get comfortable with their return shapes before you touch mode switching &mdash; nothing in step 1 or the listing half of step 2 can move the robot.</div>
 </div>
 </div>
@@ -324,9 +324,9 @@ notebook cell that:
 2. Calls `g1.get_service()` to list every service, prints name/status for each, then calls
    `g1.toggle_service(&quot;vui_service&quot;)`, and prints `g1.get_service(&quot;vui_service&quot;)` before and after
    to confirm the flip.
-3. Calls `g1.damp_mode()`, then `g1.prepare_mode()`, then `g1.walk_mode()`, printing
-   `g1.get_state()[&quot;id&quot;]` after each call, then calls `g1.toggle_dev_mode()` and confirms via
-   `g1.get_service(&quot;ai_sport&quot;)`.
+3. Calls `g1.damp_mode()`, then `g1.prepare_mode()`, printing
+   `g1.get_state()[&quot;id&quot;]` after each call. In a separate cell, calls
+   `g1.walk_mode(waist_locked=False)`; leaves `g1.toggle_dev_mode()` commented out.
 
 Do not reimplement any of these as raw DDS/RPC calls &mdash; only call the existing `g1.*` methods.
 Add a short comment above each call explaining what it does, for future reference.</pre></div>
@@ -354,10 +354,9 @@ print(&quot;vui_service:&quot;, before[&quot;status&quot;], &quot;-&gt;&quot;, a
 
 g1.damp_mode();    print(&quot;fsm:&quot;, g1.get_state()[&quot;id&quot;])
 g1.prepare_mode(); print(&quot;fsm:&quot;, g1.get_state()[&quot;id&quot;])
-g1.walk_mode();    print(&quot;fsm:&quot;, g1.get_state()[&quot;id&quot;])
+g1.walk_mode(waist_locked=False); print(&quot;fsm:&quot;, g1.get_state()[&quot;id&quot;])
 
-g1.toggle_dev_mode()
-print(&quot;ai_sport:&quot;, g1.get_service(&quot;ai_sport&quot;))</code></pre>
+# g1.toggle_dev_mode()</code></pre>
 <div class="note"><b>Bonus, built with Codex:</b> a live dashboard listing every service with a toggle button, using exactly <code>get_service()</code>/<code>toggle_service()</code> above &mdash; see the reference Dash UI on the earlier slide (<code>academy/visualizations/mode_control.py</code>) for one finished example of the same idea applied to FSM modes instead of services. Full reference: <code>staging_day2/task5_services_and_mode_switching.ipynb</code> and its <code>task5_services_and_mode_switching_intro.html</code>.</div>
 </div>
 </div>
