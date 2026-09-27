@@ -90,7 +90,8 @@ footer a{color:var(--muted);}
   deliver it to the other &mdash; the capstone task, combining Day 2's SLAM with Day 3's arm/hand control.</p>
   <div class="badges">
     <span class="badge b-info">Builds on: Day 2's <code>add_point</code>/<code>remove_point</code>, Day 3's <code>interpolate_to_pose</code></span>
-    <span class="badge b-good">Wrapper methods: start_mapping, stop_mapping, relocate, navigate_to_point, open_dex3_hand, close_dex3_hand</span>
+    <span class="badge b-good">Wrapper methods: start_mapping, stop_mapping, relocate, navigate_to_point, open_dex3_hand, close_dex3_hand, interpolate_to_pose, release_arms</span>
+    <span class="badge b-good">openai_api_util: detect_object</span>
   </div>
   <div class="card good"><p><strong>Use Codex/AI here.</strong> Tasks 13-15 are mostly Codex work: you already have the building blocks (<code>openai_api_util.py</code>, <code>sdk_wrapper.G1</code>), and each task gives you the exact prompt to extend the chatbot with. Read what Codex produces before you run it.</p></div>
   <div class="tocwrap"><a href="../day_1/task1_sdkwrapper_usage_intro.html">T1</a><a href="../day_1/task2_necessary_dds_init_pubsub_intro.html">T2</a><a href="../day_1/task3_say_and_headlight_helpers_intro.html">T3</a><a href="../day_1/task4_robot_state_observation_intro.html">T4</a><a href="../day_2/task5_services_and_mode_switching_intro.html">T5</a><a href="../day_2/task6_basic_locomotion_intro.html">T6</a><a href="../day_2/task7_slam_operation_and_map_visualization_intro.html">T7</a><a href="../day_3/task8_hl_arm_gestures_intro.html">T8</a><a href="../day_3/task9_ll_control_intro.html">T9</a><a href="../day_3/task10_ik_control_intro.html">T10</a><a href="../day_3/task11_dex3_gradual_gripping_intro.html">T11</a><a href="task12_openai_chatbot_basic_intro.html">T12</a><a href="task13_openai_chatbot_rag_intro.html">T13</a><a href="task14_openai_chatbot_gestures_and_movement_intro.html">T14</a><a href="task15_openai_chatbot_vision_intro.html">T15</a><a href="task16_slam_pickup_delivery_intro.html" style="border-color:var(--accent);color:var(--accent)">T16</a></div>
@@ -102,7 +103,7 @@ footer a{color:var(--muted);}
 <table>
 <tr><th>Call</th><th>Does</th></tr>
 <tr><td><code>g1.start_mapping(slam_type="indoor")</code></td><td>starts building a map from the LiDAR</td></tr>
-<tr><td><code>g1.stop_mapping(save_path=...)</code></td><td>finishes and saves the map</td></tr>
+<tr><td><code>g1.stop_mapping()</code></td><td>finishes mapping and saves the map on the mainboard &mdash; call it with <strong>no</strong> argument. You do not pass a path: the map is stored on the mainboard (not retrievable from here) at the same address <code>relocate()</code> loads from. A host path like <code>"/home/&lt;user&gt;/academy"</code> is rejected with <code>errorCode 12, "The directory is illegal."</code></td></tr>
 <tr><td><code>g1.relocate()</code></td><td>relocalizes against the saved map at the current/last-known pose</td></tr>
 </table>
 <p>Drive the robot around between <code>start_mapping</code> and <code>stop_mapping</code> (e.g.
@@ -139,13 +140,16 @@ def remove_point(name, points_path=POINTS_PATH):
 <code>g1.save(...)</code> first.</p>
 <table>
 <tr><th>Call</th><th>Does</th></tr>
+<tr><td><code>openai_api_util.detect_object(label)</code></td><td>grabs one camera frame from the RGBD stream and asks a vision model whether <code>label</code> (e.g. <code>"soda can"</code>) is visible &mdash; returns <code>True</code>/<code>False</code>. Takes just the label; it fetches the frame and the OpenAI client itself. Use it to gate the reach so the robot only grips when it actually sees the object.</td></tr>
 <tr><td><code>g1.interpolate_to_pose(pose)</code></td><td>smoothly moves the arm/waist to the given pose (per-joint speed capped at <code>DEFAULT_MAX_JOINT_SPEED_RAD_S = 0.6</code> rad/s, damping capped at <code>MAX_KD = 10.0</code> &mdash; enforced by the wrapper, not something you set)</td></tr>
 <tr><td><code>g1.open_dex3_hand()</code> / <code>g1.close_dex3_hand()</code></td><td>opens/closes both Dex3 fingers</td></tr>
 <tr><td><code>g1.navigate_to_point(name)</code></td><td>navigates to a saved named point and blocks until arrival</td></tr>
+<tr><td><code>g1.release_arms()</code></td><td>hands the arm back to AI Sport at the end</td></tr>
 </table>
-<p>Order: <code>navigate_to_point("pickup")</code> &rarr; <code>open_dex3_hand()</code> &rarr;
-<code>interpolate_to_pose(pose)</code> &rarr; <code>close_dex3_hand()</code> &rarr;
-<code>navigate_to_point("dropoff")</code> &rarr; <code>open_dex3_hand()</code>.</p>
+<p>Order: <code>navigate_to_point("pickup")</code> &rarr; <code>if detect_object("soda can")</code>:
+<code>open_dex3_hand()</code> &rarr; <code>interpolate_to_pose(pose)</code> &rarr; <code>close_dex3_hand()</code> &rarr;
+<code>navigate_to_point("dropoff")</code> &rarr; <code>open_dex3_hand()</code> &rarr; <code>release_arms()</code>.</p>
+<p><code>detect_object</code> lives in <code>openai_api_util</code> (<code>from openai_api_util import detect_object</code>) and uses the same <code>OPENAI_API_KEY</code> already set in your account &mdash; you never type the key.</p>
 </div>
 
 <div class="card caution">

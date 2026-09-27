@@ -3135,7 +3135,7 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="G1 recognition layer web app.")
     p.add_argument("--iface", default="eth0")
     p.add_argument("--domain-id", type=int, default=0)
-    p.add_argument("--rgbd-host", default="192.168.2.41")
+    p.add_argument("--rgbd-host", default="10.34.0.47")
     p.add_argument("--rgbd-port", type=int, default=5555)
     p.add_argument("--rgbd-topic", default="")
     p.add_argument(

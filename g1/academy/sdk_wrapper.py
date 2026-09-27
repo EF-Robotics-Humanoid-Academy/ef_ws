@@ -1727,16 +1727,28 @@ class G1:
 
     def stop_mapping(self, save_path=None, save=True):
         """Stop mapping. By default (save=True) SAVES the map with the
-        end_mapping RPC to `save_path`, or -- when omitted -- to the wrapper's
-        hardcoded map path (G1_SLAM_MAP_PATH env, else /home/unitree/test.pcd),
-        so callers never need to know the mainboard path. Pass save=False to
-        close SLAM without saving (close_slam)."""
-        if save:
-            if save_path:
-                self._slam_map_path = str(save_path)
-            code, raw = self._slam_client().stop_mapping(self._slam_map_path)
-        else:
+        end_mapping RPC. `save_path` is a path on the *mainboard*, not the
+        host -- you normally omit it and let the wrapper use its hardcoded
+        default (G1_SLAM_MAP_PATH env, else /home/unitree/test.pcd), which is
+        also the address relocate() loads from. A host path (e.g.
+        "/home/teilnehmer13/academy") or a bare/relative name is rejected by
+        the mainboard with errorCode 12 ("The directory is illegal."); if that
+        happens we transparently retry with the known-good default so
+        stop_mapping never fails on the path alone. The saved map lives on the
+        mainboard and is not retrievable from here afterward. Pass save=False
+        to close SLAM without saving (close_slam)."""
+        if not save:
             code, raw = self._slam_client().stop_mapping(None)
+            return {"code": code, "raw": raw}
+        path = str(save_path) if save_path else self._slam_map_path
+        code, raw = self._slam_client().stop_mapping(path)
+        if int(code) != 0 and path != self._slam_map_path:
+            # A caller-supplied path failed (usually errorCode 12): fall back to
+            # the known-good mainboard default rather than surfacing the error.
+            path = self._slam_map_path
+            code, raw = self._slam_client().stop_mapping(path)
+        if int(code) == 0:
+            self._slam_map_path = path
         return {"code": code, "raw": raw}
 
     def relocate(self, map_path=None, pose=None):

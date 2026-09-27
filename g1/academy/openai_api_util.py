@@ -88,3 +88,49 @@ def retrieve_relevant(knowledge, query, top_k=3):
     ]
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [entry for _score, entry in scored[:top_k]]
+
+
+def _grab_rgb_jpeg(endpoints=None, timeout_ms=3000):
+    """Grab one RGB JPEG frame from the robot's RGBD ZMQ stream (the same
+    endpoints G1.get_rgbd() uses). Returns the JPEG bytes, or None if no frame
+    / no zmq is available. This is the one place in this module that reads from
+    the robot's camera stream."""
+    try:
+        import zmq
+    except ModuleNotFoundError:
+        return None
+    for endpoint in (endpoints or ["tcp://127.0.0.1:5555", "tcp://0.0.0.0:5555", "tcp://localhost:5555"]):
+        try:
+            ctx = zmq.Context.instance()
+            sock = ctx.socket(zmq.SUB)
+            sock.setsockopt(zmq.SUBSCRIBE, b"")
+            sock.setsockopt(zmq.RCVTIMEO, int(timeout_ms))
+            sock.connect(endpoint)
+            try:
+                parts = sock.recv_multipart()
+            finally:
+                sock.close(0)
+            if parts and parts[0] and parts[0] != b"0":
+                return bytes(parts[0])
+        except Exception:
+            continue
+    return None
+
+
+def detect_object(label, jpeg_bytes=None, client=None, model=None):
+    """Return True if `label` (e.g. "soda can") appears to be clearly visible in
+    the robot's current camera frame. Grabs one RGB frame from the RGBD
+    stream (pass `jpeg_bytes` to skip that, e.g. g1.get_rgbd()["rgb_jpeg"]),
+    asks a vision model a yes/no question via describe_image(), and parses the
+    answer to a bool. Creates a client from OPENAI_API_KEY if none is given.
+    Returns False when no camera frame is available."""
+    if jpeg_bytes is None:
+        jpeg_bytes = _grab_rgb_jpeg()
+        if jpeg_bytes is None:
+            return False
+    if client is None:
+        client = get_client()
+    question = (f"Is there a {label} clearly visible in this image? "
+                "Answer with only the single word yes or no.")
+    answer = describe_image(client, jpeg_bytes, question, model=model)
+    return str(answer).strip().lower().startswith("y")

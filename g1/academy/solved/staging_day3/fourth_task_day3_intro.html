@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>G1 Academy Day 3 - Task 4: Build an IK Dashboard with Codex</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Day 3 Task 4 reference for the G1 Academy.">
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#1b1f27; --muted:#5b6472; --border:#dfe3ea;
+  --accent:#2454ff; --code-bg:#eef1f6; --zebra:#f9fafc;
+  --good:#0f7a3d; --good-bg:#e6f6ec;
+  --info:#1b5fd6; --info-bg:#e8f0fe;
+  --warn:#b5750a; --warn-bg:#fbf1de;
+  --caution:#c1272d; --caution-bg:#fdeaea;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#14171c; --panel:#1b1f27; --ink:#e7e9ee; --muted:#9aa3b2; --border:#2c313b;
+    --accent:#6f92ff; --code-bg:#232833; --zebra:#1f242e;
+    --good:#5fd38a; --good-bg:#123a24;
+    --info:#8fb0ff; --info-bg:#152548;
+    --warn:#e3ab53; --warn-bg:#3a2c10;
+    --caution:#ff8b8f; --caution-bg:#3a1616;
+  }
+}
+*{box-sizing:border-box;}
+body{margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+code, .mono, pre{font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;}
+code{background:var(--code-bg); padding:1px 5px; border-radius:4px;}
+pre code{background:none; padding:0;}
+a{color:var(--accent);}
+header.top{padding:26px clamp(16px,4vw,48px) 18px; border-bottom:1px solid var(--border); background:var(--panel);}
+.eyebrow{color:var(--muted); font-size:12.5px; text-transform:uppercase; letter-spacing:.05em; margin:0 0 6px;}
+header.top h1{margin:0 0 8px; font-size:1.55rem;}
+header.top p.lede{margin:4px 0; color:var(--muted); max-width:900px;}
+.badges{margin:10px 0 0; display:flex; flex-wrap:wrap; gap:8px;}
+.badge{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.02em;
+  padding:3px 9px; border-radius:99px; white-space:nowrap;}
+.b-info{color:var(--info); background:var(--info-bg);}
+.b-good{color:var(--good); background:var(--good-bg);}
+.b-warn{color:var(--warn); background:var(--warn-bg);}
+.b-caution{color:var(--caution); background:var(--caution-bg);}
+.crumbs{margin:14px 0 0; font-size:12.5px;}
+.crumbs a{color:var(--muted); text-decoration:none; margin-right:4px;}
+.crumbs a:hover{color:var(--accent);}
+main{max-width:980px; margin:0 auto; padding:28px clamp(16px,4vw,48px) 90px;}
+h2{font-size:1.25rem; margin:38px 0 6px; padding-top:14px; border-top:3px solid var(--accent);}
+h2 .num{color:var(--muted); font-weight:600; margin-right:6px;}
+h3{font-size:1.02rem; margin:22px 0 6px;}
+p{margin:8px 0;}
+.card{border:1px solid var(--border); border-radius:12px; background:var(--panel); padding:16px 18px; margin:14px 0;}
+.card h4{margin:0 0 6px; font-size:.95rem;}
+.card.knowledge{border-left:4px solid var(--info);}
+.card.warn{border-left:4px solid var(--warn); background:var(--warn-bg);}
+.card.caution{border-left:4px solid var(--caution); background:var(--caution-bg);}
+.card.good{border-left:4px solid var(--good); background:var(--good-bg);}
+table{border-collapse:collapse; width:100%; margin:12px 0; font-size:13.5px;}
+th, td{border:1px solid var(--border); padding:6px 10px; text-align:left; vertical-align:top;}
+th{background:var(--code-bg);}
+tr:nth-child(even) td{background:var(--zebra);}
+pre.block{background:var(--code-bg); border:1px solid var(--border); border-radius:10px;
+  padding:12px 14px; overflow-x:auto; margin:10px 0;}
+.cell{border:1px solid var(--border); border-radius:10px; margin:12px 0; overflow:hidden;}
+.cell .cellhead{background:var(--code-bg); padding:6px 12px; font-size:12px; color:var(--muted);
+  border-bottom:1px solid var(--border); display:flex; justify-content:space-between;}
+.cell pre{margin:0; padding:12px 14px; overflow-x:auto;}
+.todo{color:var(--warn);}
+ul, ol{padding-left:22px;}
+li{margin:4px 0;}
+.stepgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:12px 0;}
+.step{border:1px solid var(--border); border-radius:8px; padding:8px 10px; font-size:12.5px; background:var(--panel);}
+.step b{display:block; color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:.04em;}
+.tocwrap{display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 0;}
+.tocwrap a{font-size:12px; padding:4px 9px; border:1px solid var(--border); border-radius:99px;
+  text-decoration:none; color:var(--muted); background:var(--panel);}
+.tocwrap a:hover{color:var(--accent); border-color:var(--accent);}
+footer{padding:26px clamp(16px,4vw,48px) 60px; color:var(--muted); font-size:12.5px; border-top:1px solid var(--border);}
+footer a{color:var(--muted);}
+.navrow{display:flex; justify-content:space-between; gap:12px; margin-top:10px; flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<header class="top">
+  <p class="eyebrow">Day 3 &middot; G1 Academy</p>
+  <h1>G1 Academy Day 3 - Task 4: Build an IK Dashboard with Codex</h1>
+  <p class="lede">Reference for <code>fourth_task_day3.ipynb</code>. Read each section before running its cell in the notebook.</p>
+  <div class="tocwrap"><a href="first_task_day3_intro.html">T1</a><a href="second_task_day3_intro.html">T2</a><a href="third_task_day3_intro.html">T3</a><a href="fourth_task_day3_intro.html">T4</a></div>
+</header>
+<main>
+<h2>Introduction</h2>
+<p>Every other task today had you call G1 SDK functions directly from a notebook. This task is different: instead of writing robot-control code by hand, you&#x27;ll use <strong>Codex</strong> (an AI coding agent, run from a terminal) to build a small web dashboard on top of an *existing* script -- <code>/home/EF/ef_ws/g1/WBC/ik_pose_cli_v3.py</code>.</p>
+<p><code>ik_pose_cli_v3.py</code> is a terminal (curses) UI that controls the end effector&#x27;s full 6D Cartesian pose (x, y, z, roll, pitch, yaw) via the same kind of incremental IK step you used in Task 3 (<code>ik_move_ee</code>), one key press at a time. Your goal is a <strong>dashboard version</strong> of it with a more ergonomic control layout:</p>
+<ul><li><strong>x / y</strong> of the end effector -&gt; one on-screen <strong>joystick</strong> widget (drag/touch, both axes at once)</li><li><strong>z</strong> of the end effector -&gt; two discrete <strong>buttons</strong> (&quot;Z Up&quot; / &quot;Z Down&quot;)</li><li><strong>roll / pitch / yaw</strong> of the end effector -&gt; three <strong>sliders</strong>, one per axis</li></ul>
+<p>You are not writing the IK or the safety clamps yourself -- they already exist in <code>ik_pose_cli_v3.py</code>. Your job (with Codex&#x27;s help) is to read that file, reuse it correctly, and wire it to the new controls.</p>
+<h2>What you&#x27;re working with</h2>
+<p>Two files in <code>g1/WBC/</code> matter before you write a prompt:</p>
+<ul><li><strong><code>ik_pose_cli_v3.py</code></strong> -- the class <code>IKPoseCLI</code> holds all the control logic: <code>DOF_NAMES = (&quot;x&quot;, &quot;y&quot;, &quot;z&quot;, &quot;roll&quot;, &quot;pitch&quot;, &quot;yaw&quot;)</code>, an internal <code>dof_idx</code> selecting which DOF is &quot;active&quot;, and <code>_adjust_dof(delta)</code>, which nudges the active DOF on the active arm(s) by <code>delta</code>, running IK and applying the same per-step Cartesian/joint-delta safety clamps you saw in Task 3. <code>tick()</code> must be called repeatedly (on a timer or background thread) to actually ramp toward the last-solved target and publish it. <code>_release_arms()</code> / <code>_unrelease_arms()</code> are the handoff helpers (same idea as <code>release_arms()</code>/<code>engage_arms()</code> from Task 1). A lock file prevents two processes from fighting over the arm at once.</li><li><strong><code>ik_pose_dash.py</code></strong> and <strong><code>ik_pose_dash_v2.py</code></strong> -- existing Dash web apps that *already* wrap <code>IKPoseCLI</code> in a browser UI, using generic +/- step buttons for all six DOF (<code>from ik_pose_cli_v3 import IKPoseCLI, ...</code>). Read <code>ik_pose_dash_v2.py</code> first: it&#x27;s your template for &quot;how do I turn a UI event into a call into <code>IKPoseCLI</code>&quot; -- you&#x27;re building the same kind of app, just with a joystick + 2 buttons + 3 sliders instead of 12 step buttons.</li></ul>
+<p>These are internal (<code>_</code>-prefixed) methods, not a documented public API -- reuse them the way the existing dashboards already do, rather than re-deriving the IK or the ramping logic yourself.</p>
+<h2>Safety constraints your dashboard must keep</h2>
+<p>These limits already live inside <code>ik_pose_cli_v3.py</code> -- your dashboard should respect them, not work around them:</p>
+<ul><li><strong>Per-step clamps.</strong> Every call into the control loop clamps the Cartesian step and the resulting joint delta, the same way <code>ik_move_ee</code> did in Task 3. Don&#x27;t add a &quot;big jump&quot; shortcut that bypasses <code>_adjust_dof</code>/<code>tick()</code>.</li><li><strong>Single owner.</strong> Only one process may hold the pose lock / own <code>rt/arm_sdk</code> at a time. Your dashboard must go through the CLI&#x27;s existing release/engage path rather than opening a second, competing publisher.</li><li><strong><code>kd</code> ceiling.</strong> <code>sdk_wrapper.py</code> hard-clamps every commanded joint&#x27;s <code>kd</code> to <code>MAX_KD = 10.0</code> no matter what&#x27;s requested. This task doesn&#x27;t ask for a gain/stiffness control, but if you (or Codex) ever add one later, clamp it client-side too, so the UI never implies a value the robot won&#x27;t actually honor.</li><li><strong>A reachable STOP.</strong> Add a visible, always-available &quot;STOP / release arms&quot; control. Never ship a version where the only way to stop a runaway joystick input is to close the browser tab.</li></ul>
+<h2>Using Codex</h2>
+<p>Run <code>codex</code> from a terminal in <code>g1/WBC/</code> (or point it at the repo root and mention the path). Give it a clear, scoped prompt, <strong>review every diff it proposes before running it</strong>, and test against the robot in <code>damp</code> / on a stand before trying anything free-standing.</p>
+<p>Example prompt:</p>
+<pre class="block"><code>I&#x27;m working in g1/WBC/. Read ik_pose_cli_v3.py (class IKPoseCLI) and
+ik_pose_dash_v2.py (an existing Dash web UI that wraps IKPoseCLI with
++/- step buttons for all 6 DOF) to understand the pattern.
+
+Create a new file, ik_pose_joystick_dash.py, that wraps IKPoseCLI in a
+Dash app with this control layout instead:
+
+- A 2D joystick widget (drag or touch) that continuously streams
+  (dx, dy) while held, mapped to the x and y DOF (index 0 and 1 in
+  DOF_NAMES) via the same _adjust_dof()-style step used by the
+  existing dashboards -- do not bypass the per-step Cartesian clamp
+  already inside ik_pose_cli_v3.py.
+- Two buttons, &quot;Z Up&quot; and &quot;Z Down&quot;, that each nudge the z DOF (index 2)
+  by one step per click (and optionally repeat while held).
+- Three sliders, one each for roll, pitch, and yaw (DOF indices 3, 4,
+  5), where each slider change is applied as an incremental adjustment
+  from its previous value, not sent as an absolute target -- follow
+  how ik_pose_dash_v2.py already turns a UI event into a delta call.
+- Keep the hand selector (left/right/both), the release/re-engage arm
+  buttons, and a visible STOP button that calls the same
+  release-arms path as the &#x27;r&#x27; key in the CLI.
+- Reuse IKPoseCLI&#x27;s existing tick()/background-thread pattern from
+  ik_pose_dash_v2.py rather than writing a new control loop.
+
+Don&#x27;t change ik_pose_cli_v3.py. Ask me before running anything against
+the real robot.</code></pre>
+<p>Adjust the prompt as you go -- e.g. tell Codex what actually happened when you ran the app, and let it iterate.</p>
+<h2>Deliverable / how to check your work</h2>
+<p>Run the generated app and confirm, in this order:</p>
+<p>1. The joystick moves x/y smoothly as you drag it (small continuous steps, not one giant jump per drag). 2. The two z buttons each move the end effector by one small, fixed increment per click. 3. Each slider moves the corresponding orientation axis (roll/pitch/yaw) as you drag it. 4. The STOP button reliably releases the arm (equivalent to <code>release_arms()</code>/the CLI&#x27;s <code>r</code> key) -- test this *before* you rely on it for anything else. 5. Nothing in the new file changes or bypasses the clamps in <code>ik_pose_cli_v3.py</code>.</p>
+<p>Review the diff Codex produced end-to-end before your first real run, the same as you would for a teammate&#x27;s pull request.</p>
+<h3>Safety</h3>
+<p>Review every diff Codex proposes before running it -- never let generated code run unattended against the physical robot. Keep FSM <code>damp</code> reachable, test on a stand first, and confirm the STOP control in your dashboard actually reaches the release-arms path before you rely on it. Code in this notebook is never invoked automatically -- you decide when each cell runs.</p>
+</main>
+</body>
+</html>
