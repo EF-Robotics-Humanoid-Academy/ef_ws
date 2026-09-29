@@ -50,29 +50,43 @@ os.environ.setdefault(
 )
 
 
+# Flipped: the dex3 hand units are physically installed on the wrong wrists
+# (the left-designed hand sits on the right wrist and vice versa), so both
+# of the following have to be swapped here to make the API-level "left"/
+# "right" side match the anatomical wrist -- see the matching comment in
+# academy/sdk_wrapper.py's HAND_CMD_TOPICS for the full rationale:
+#  1. TOPIC_HAND_BY_SIDE/HAND_STATE_TOPIC_BY_SIDE -- each hand unit's own DDS
+#     topic follows the unit, not the wrist, so this reaches the correct
+#     wrist.
+#  2. HAND_MAX_LIMITS/HAND_MIN_LIMITS/HAND_THUMB_0_HOLD_TARGETS -- the
+#     joint-limit geometry is a property of the hand unit's own (mirrored)
+#     design, so this must match whichever unit that wrist's topic now
+#     points at. Everything below (HAND_CLOSED_LIMITS/HAND_OPEN_LIMITS/
+#     clamp_hand_targets) derives from these, so swapping only these five
+#     dicts keeps it all self-consistent.
 TOPIC_HAND_BY_SIDE = {
-    "left": "rt/dex3/left/cmd",
-    "right": "rt/dex3/right/cmd",
+    "left": "rt/dex3/right/cmd",
+    "right": "rt/dex3/left/cmd",
 }
 
 HAND_STATE_TOPIC_BY_SIDE = {
-    "left": "rt/dex3/left/state",
-    "right": "rt/dex3/right/state",
+    "left": "rt/dex3/right/state",
+    "right": "rt/dex3/left/state",
 }
 
 HAND_MAX_LIMITS = {
-    "left": [1.05, 1.05, 1.75, 0.0, 0.0, 0.0, 0.0],
-    "right": [1.05, 0.742, 0.0, 1.57, 1.75, 1.57, 1.75],
+    "left": [1.05, 0.742, 0.0, 1.57, 1.75, 1.57, 1.75],
+    "right": [1.05, 1.05, 1.75, 0.0, 0.0, 0.0, 0.0],
 }
 
 HAND_MIN_LIMITS = {
-    "left": [-1.05, -0.724, 0.0, -1.57, -1.75, -1.57, -1.75],
-    "right": [-1.05, -1.05, -1.75, 0.0, 0.0, 0.0, 0.0],
+    "left": [-1.05, -1.05, -1.75, 0.0, 0.0, 0.0, 0.0],
+    "right": [-1.05, -0.724, 0.0, -1.57, -1.75, -1.57, -1.75],
 }
 
 HAND_THUMB_0_HOLD_TARGETS = {
-    "left": -0.09927542507648468,
-    "right": -0.03510913997888565,
+    "left": -0.03510913997888565,
+    "right": -0.09927542507648468,
 }
 
 # Backwards-compatible right-hand presets. New code should use
