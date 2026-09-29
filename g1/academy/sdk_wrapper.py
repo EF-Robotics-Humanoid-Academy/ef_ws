@@ -68,8 +68,13 @@ UPPER_BODY_JOINTS = WAIST_JOINTS + LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS
 DEFAULT_MAX_JOINT_SPEED_RAD_S = 0.6
 MAX_KD = 10.0  # hard cap applied to every commanded joint Kd (damping) gain
 HAND_JOINT_NAMES = ["thumb_0", "thumb_1", "thumb_2", "middle_0", "middle_1", "index_0", "index_1"]
-HAND_CMD_TOPICS = {"left": "rt/dex3/left/cmd", "right": "rt/dex3/right/cmd"}
-HAND_STATE_TOPICS = {"left": "rt/dex3/left/state", "right": "rt/dex3/right/state"}
+# Flipped: the dex3 hands are wired backwards on the physical robot, so the
+# "left"/"right" topic each API-level side talks to has to be swapped here to
+# make open_dex3_hand("left")/close_dex3_hand("left") actually move the left
+# hand. Joint-limit math (HAND_MAX/MIN/THUMB0/CLOSED/OPEN below) stays keyed
+# to the API-level side and is untouched -- only the wire it goes out on flips.
+HAND_CMD_TOPICS = {"left": "rt/dex3/right/cmd", "right": "rt/dex3/left/cmd"}
+HAND_STATE_TOPICS = {"left": "rt/dex3/right/state", "right": "rt/dex3/left/state"}
 HAND_MAX = {"left": [1.05, 1.05, 1.75, 0.0, 0.0, 0.0, 0.0], "right": [1.05, 0.742, 0.0, 1.57, 1.75, 1.57, 1.75]}
 HAND_MIN = {"left": [-1.05, -0.724, 0.0, -1.57, -1.75, -1.57, -1.75], "right": [-1.05, -1.05, -1.75, 0.0, 0.0, 0.0, 0.0]}
 HAND_THUMB0 = {"left": -0.09927542507648468, "right": -0.03510913997888565}
