@@ -88,9 +88,16 @@ HAND_STATE_TOPICS = {"left": "rt/dex3/right/state", "right": "rt/dex3/left/state
 HAND_MAX = {"left": [1.05, 0.742, 0.0, 1.57, 1.75, 1.57, 1.75], "right": [1.05, 1.05, 1.75, 0.0, 0.0, 0.0, 0.0]}
 HAND_MIN = {"left": [-1.05, -1.05, -1.75, 0.0, 0.0, 0.0, 0.0], "right": [-1.05, -0.724, 0.0, -1.57, -1.75, -1.57, -1.75]}
 HAND_THUMB0 = {"left": -0.03510913997888565, "right": -0.09927542507648468}
+# The MAX-then-MIN vs. MIN-then-MAX pattern below is a property of which
+# mechanical hand design the data belongs to (its closing direction), not of
+# the dict key -- since HAND_MAX/HAND_MIN/HAND_THUMB0 above are now keyed by
+# wrist (post-swap), the pattern has to swap along with them so each key
+# keeps using its own hand's actual closing direction. Otherwise open/close
+# end up inverted (fixed 2 revisions ago, when this pattern didn't move
+# along with the data swap above).
 HAND_CLOSED = {
-    "left": [HAND_THUMB0["left"], HAND_MAX["left"][1], HAND_MAX["left"][2], HAND_MIN["left"][3], HAND_MIN["left"][4], HAND_MIN["left"][5], HAND_MIN["left"][6]],
-    "right": [HAND_THUMB0["right"], HAND_MIN["right"][1], HAND_MIN["right"][2], HAND_MAX["right"][3], HAND_MAX["right"][4], HAND_MAX["right"][5], HAND_MAX["right"][6]],
+    "left": [HAND_THUMB0["left"], HAND_MIN["left"][1], HAND_MIN["left"][2], HAND_MAX["left"][3], HAND_MAX["left"][4], HAND_MAX["left"][5], HAND_MAX["left"][6]],
+    "right": [HAND_THUMB0["right"], HAND_MAX["right"][1], HAND_MAX["right"][2], HAND_MIN["right"][3], HAND_MIN["right"][4], HAND_MIN["right"][5], HAND_MIN["right"][6]],
 }
 HAND_OPEN = {
     side: [closed[0]] + [hi if abs(v - lo) < abs(v - hi) else lo for v, lo, hi in zip(closed[1:], HAND_MIN[side][1:], HAND_MAX[side][1:])]

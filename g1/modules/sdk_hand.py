@@ -91,17 +91,14 @@ HAND_THUMB_0_HOLD_TARGETS = {
 
 # Backwards-compatible right-hand presets. New code should use
 # hand_open_targets(), hand_closed_targets(), or hand_grip_targets().
+#
+# The MAX-then-MIN vs. MIN-then-MAX pattern in each block below is a
+# property of which mechanical hand design the data belongs to (its closing
+# direction), not of the dict key -- since HAND_MAX_LIMITS/HAND_MIN_LIMITS/
+# HAND_THUMB_0_HOLD_TARGETS above are now keyed by wrist (post-swap), the
+# pattern has to swap along with them so each key/preset keeps using its own
+# hand's actual closing direction. Otherwise open/close end up inverted.
 HAND_OPEN = [
-    HAND_THUMB_0_HOLD_TARGETS["right"],
-    HAND_MAX_LIMITS["right"][1],
-    HAND_MAX_LIMITS["right"][2],
-    HAND_MIN_LIMITS["right"][3],
-    HAND_MIN_LIMITS["right"][4],
-    HAND_MIN_LIMITS["right"][5],
-    HAND_MIN_LIMITS["right"][6],
-]
-
-HAND_CLOSED = [
     HAND_THUMB_0_HOLD_TARGETS["right"],
     HAND_MIN_LIMITS["right"][1],
     HAND_MIN_LIMITS["right"][2],
@@ -111,24 +108,34 @@ HAND_CLOSED = [
     HAND_MAX_LIMITS["right"][6],
 ]
 
+HAND_CLOSED = [
+    HAND_THUMB_0_HOLD_TARGETS["right"],
+    HAND_MAX_LIMITS["right"][1],
+    HAND_MAX_LIMITS["right"][2],
+    HAND_MIN_LIMITS["right"][3],
+    HAND_MIN_LIMITS["right"][4],
+    HAND_MIN_LIMITS["right"][5],
+    HAND_MIN_LIMITS["right"][6],
+]
+
 HAND_CLOSED_LIMITS = {
     "left": [
         HAND_THUMB_0_HOLD_TARGETS["left"],
-        HAND_MAX_LIMITS["left"][1],
-        HAND_MAX_LIMITS["left"][2],
-        HAND_MIN_LIMITS["left"][3],
-        HAND_MIN_LIMITS["left"][4],
-        HAND_MIN_LIMITS["left"][5],
-        HAND_MIN_LIMITS["left"][6],
+        HAND_MIN_LIMITS["left"][1],
+        HAND_MIN_LIMITS["left"][2],
+        HAND_MAX_LIMITS["left"][3],
+        HAND_MAX_LIMITS["left"][4],
+        HAND_MAX_LIMITS["left"][5],
+        HAND_MAX_LIMITS["left"][6],
     ],
     "right": [
         HAND_THUMB_0_HOLD_TARGETS["right"],
-        HAND_MIN_LIMITS["right"][1],
-        HAND_MIN_LIMITS["right"][2],
-        HAND_MAX_LIMITS["right"][3],
-        HAND_MAX_LIMITS["right"][4],
-        HAND_MAX_LIMITS["right"][5],
-        HAND_MAX_LIMITS["right"][6],
+        HAND_MAX_LIMITS["right"][1],
+        HAND_MAX_LIMITS["right"][2],
+        HAND_MIN_LIMITS["right"][3],
+        HAND_MIN_LIMITS["right"][4],
+        HAND_MIN_LIMITS["right"][5],
+        HAND_MIN_LIMITS["right"][6],
     ],
 }
 
