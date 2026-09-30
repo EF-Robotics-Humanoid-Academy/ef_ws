@@ -15,6 +15,13 @@ not enforce a request timeout. Override via OLLAMA_CHAT_MODEL (e.g. back to
 qwen3.5:9b for higher quality when latency doesn't matter, or down to
 gemma3:1b/qwen2.5:0.5b for even faster replies). No API key needed --
 everything runs on-machine.
+
+Every reply is in English (DEFAULT_SYSTEM_PROMPT, used by both chat_reply()
+and describe_image()) and capped to DEFAULT_MAX_REPLY_TOKENS tokens
+(OLLAMA_MAX_TOKENS) regardless of how the question was asked -- kept short
+because every reply here is meant to be read aloud via g1.say(), and a long
+reply is both a long wait on this hardware and a long silence-free monologue
+from the robot.
 """
 from __future__ import annotations
 
@@ -29,11 +36,15 @@ from pathlib import Path
 DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "granite4.2:3b")
 DEFAULT_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")
+# Caps every reply's length via Ollama's num_predict (max tokens to
+# generate) -- a hard, server-enforced limit, unlike the prompt's own
+# "keep it short" instruction, which a smaller model won't always follow.
+DEFAULT_MAX_REPLY_TOKENS = int(os.environ.get("OLLAMA_MAX_TOKENS", "150"))
 
-DEFAULT_SYSTEM_PROMPT_DE = (
-    "Du bist der Sprachassistent eines Unitree G1 Roboters bei der EF Robotics Academy. "
-    "Antworte immer auf Deutsch, auch wenn die Frage auf Englisch gestellt wird. "
-    "Antworte kurz (1-3 Saetze) und klar, da deine Antwort per Text-zu-Sprache vorgelesen wird."
+DEFAULT_SYSTEM_PROMPT = (
+    "You are the voice assistant of a Unitree G1 robot at the EF Robotics Academy. "
+    "Always reply in English, even if the question is asked in German or another language. "
+    "Keep your reply short (1-3 sentences) and clear, since it will be read aloud via text-to-speech."
 )
 
 
@@ -55,7 +66,12 @@ def _chat(client, messages, model, images_b64=None):
     payload_messages = [dict(message) for message in messages]
     if images_b64:
         payload_messages[-1]["images"] = list(images_b64)
-    body = {"model": model, "messages": payload_messages, "stream": False}
+    body = {
+        "model": model,
+        "messages": payload_messages,
+        "stream": False,
+        "options": {"num_predict": DEFAULT_MAX_REPLY_TOKENS},
+    }
     request = urllib.request.Request(
         url=f"{client.host.rstrip('/')}/api/chat",
         data=json.dumps(body).encode("utf-8"),
@@ -89,17 +105,20 @@ def chat_reply(client, user_text, history=None, system_prompt=None, model=None):
     {"role": "user"|"assistant", "content": str} dicts -- pass the list back
     in on every call (and append the new turns to it) to keep context across
     turns; omit it for a single stateless reply."""
-    messages = [{"role": "system", "content": system_prompt or DEFAULT_SYSTEM_PROMPT_DE}]
+    messages = [{"role": "system", "content": system_prompt or DEFAULT_SYSTEM_PROMPT}]
     messages.extend(history or [])
     messages.append({"role": "user", "content": user_text})
     return _chat(client, messages, model or DEFAULT_CHAT_MODEL)
 
 
-def describe_image(client, jpeg_bytes, question, model=None):
+def describe_image(client, jpeg_bytes, question, model=None, system_prompt=None):
     """Asks a local vision-capable model a question about one RGB JPEG frame,
     e.g. from g1.get_rgbd()["rgb_jpeg"]. Returns the model's text answer."""
     image_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
-    messages = [{"role": "user", "content": question}]
+    messages = [
+        {"role": "system", "content": system_prompt or DEFAULT_SYSTEM_PROMPT},
+        {"role": "user", "content": question},
+    ]
     return _chat(client, messages, model or DEFAULT_VISION_MODEL, images_b64=[image_b64])
 
 

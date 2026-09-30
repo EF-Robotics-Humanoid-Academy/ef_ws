@@ -127,10 +127,10 @@ Write a new function chat_turn_with_vision(text) that:
    "beschreibe").
 2. If so: calls g1.get_rgbd(), checks the frame is not None, calls
    ollama_api_util.describe_image(client, frame["rgb_jpeg"], text), prints the answer, and speaks it
-   with g1.say(answer, language="DE").
+   with g1.say(answer, language="EN").
 3. Otherwise, fall back to chat_turn_with_actions(text).
 
-Handle a None frame from get_rgbd() by speaking a short German error message instead of crashing.</code></pre>
+Handle a None frame from get_rgbd() by speaking a short English error message instead of crashing.</code></pre>
 </div>
 
 </main>

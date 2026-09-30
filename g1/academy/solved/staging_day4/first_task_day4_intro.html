@@ -104,8 +104,8 @@ footer a{color:var(--muted);}
 <tr><td><code>ollama_api_util.get_client()</code></td><td>returns an Ollama client; reads <code>OLLAMA_HOST</code> from your environment automatically &mdash; it is already set on your account</td></tr>
 <tr><td><code>ollama_api_util.chat_reply(client, text, history=history)</code></td><td>sends <code>text</code> plus the running <code>history</code> list to the model, returns its reply as a string</td></tr>
 </table>
-<p>The default system prompt tells the model to always answer in German, whatever language it is asked in
-&mdash; that is why <code>g1.say(reply, language="DE")</code> is safe to hardcode.</p>
+<p>The default system prompt tells the model to always answer in English, whatever language it is asked in
+&mdash; that is why <code>g1.say(reply, language="EN")</code> is safe to hardcode.</p>
 </div>
 
 <h2><span class="num">&#167;2</span>Knowledge &mdash; keeping context with history</h2>
@@ -131,7 +131,7 @@ client = ollama_api_util.get_client()</code></pre></div>
 
 def chat_turn(text):
     # TODO: call ollama_api_util.chat_reply(client, text, history=history) and store it in `reply`.
-    # TODO: append the user line and the reply to history, print(reply), then g1.say(reply, language="DE").
+    # TODO: append the user line and the reply to history, print(reply), then g1.say(reply, language="EN").
     raise NotImplementedError("Complete this task section")</code></pre></div>
 <pre class="block"><code>history = []
 
@@ -140,7 +140,7 @@ def chat_turn(text):
     history.append({"role": "user", "content": text})
     history.append({"role": "assistant", "content": reply})
     print(reply)
-    g1.say(reply, language="DE")
+    g1.say(reply, language="EN")
     return reply</code></pre>
 
 <div class="card caution">
