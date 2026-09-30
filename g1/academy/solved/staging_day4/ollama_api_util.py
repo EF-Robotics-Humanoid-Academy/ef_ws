@@ -4,9 +4,12 @@ Small, dependency-light building blocks the Day 4 chatbot tasks call
 directly. Nothing here talks to the robot -- these functions only talk to a
 local Ollama server and to local JSON knowledge files.
 
-Requires a local Ollama server already running (it is, on the academy
-accounts) and the models below already pulled (`ollama pull <model>`). No
-API key needed -- everything runs on-machine.
+Requires a local Ollama server already running on the academy accounts
+(`ollama serve`, listening on 127.0.0.1:11434) with these models pulled --
+`qwen3.5:9b` (chat) and `qwen2.5vl:7b` (vision, the only vision-language
+model in the pulled set); also available for a lighter/faster chat model
+via OLLAMA_CHAT_MODEL: `granite4.2:3b`, `gemma3:1b`, `qwen2.5:0.5b`. No API
+key needed -- everything runs on-machine.
 """
 from __future__ import annotations
 
@@ -18,9 +21,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "llama3.1")
-DEFAULT_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llava")
+DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
+DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3.5:9b")
+DEFAULT_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")
 
 DEFAULT_SYSTEM_PROMPT_DE = (
     "Du bist der Sprachassistent eines Unitree G1 Roboters bei der EF Robotics Academy. "
