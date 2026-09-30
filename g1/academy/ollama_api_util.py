@@ -6,10 +6,15 @@ local Ollama server and to local JSON knowledge files.
 
 Requires a local Ollama server already running on the academy accounts
 (`ollama serve`, listening on 127.0.0.1:11434) with these models pulled --
-`qwen3.5:9b` (chat) and `qwen2.5vl:7b` (vision, the only vision-language
-model in the pulled set); also available for a lighter/faster chat model
-via OLLAMA_CHAT_MODEL: `granite4.2:3b`, `gemma3:1b`, `qwen2.5:0.5b`. No API
-key needed -- everything runs on-machine.
+`granite4.2:3b` (chat) and `qwen2.5vl:7b` (vision, the only vision-language
+model in the pulled set). granite4.2:3b is the smallest generally-capable
+chat model in the pulled set; on this hardware qwen3.5:9b (also pulled) was
+too slow for interactive use -- a first call took over a minute just to
+load the model, which is also why chat_reply()/describe_image() below do
+not enforce a request timeout. Override via OLLAMA_CHAT_MODEL (e.g. back to
+qwen3.5:9b for higher quality when latency doesn't matter, or down to
+gemma3:1b/qwen2.5:0.5b for even faster replies). No API key needed --
+everything runs on-machine.
 """
 from __future__ import annotations
 
@@ -22,7 +27,7 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "qwen3.5:9b")
+DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "granite4.2:3b")
 DEFAULT_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")
 
 DEFAULT_SYSTEM_PROMPT_DE = (
@@ -58,7 +63,11 @@ def _chat(client, messages, model, images_b64=None):
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        # No timeout: a cold model load on this hardware can take well over
+        # a minute before the server sends anything back (stream=False means
+        # Ollama replies in one shot once generation is fully done), and
+        # there's nothing useful to do with a partial/aborted chat reply.
+        with urllib.request.urlopen(request, timeout=None) as response:
             raw = response.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
