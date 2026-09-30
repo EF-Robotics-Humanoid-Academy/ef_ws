@@ -86,13 +86,15 @@ footer a{color:var(--muted);}
 <header class="top">
   <p class="eyebrow">Day 4 &middot; G1 Academy Bonus</p>
   <h1>Task 2 &mdash; Knowledge (RAG) for the Chatbot</h1>
-  <p class="lede">Extend Task 1's <code>chat_turn</code> so it can answer questions using a German knowledge
-  file &mdash; look up relevant facts first (retrieval), then let the model answer using them (generation).</p>
+  <p class="lede">Extend Task 1's <code>chat_turn</code> pattern so it can answer questions using a German knowledge
+  file &mdash; look up relevant facts first (retrieval), then let the model answer using them (generation).
+  This notebook sets up its own <code>g1</code>/<code>client</code>/<code>history</code>, so you don't need to
+  have run Task 1 first.</p>
   <div class="badges">
-    <span class="badge b-info">Builds on: Task 1's <code>chat_turn</code>, <code>client</code>, <code>history</code></span>
+    <span class="badge b-info">Extends: Task 1's <code>chat_turn</code> pattern</span>
     <span class="badge b-good">New: <code>load_knowledge_base</code>, <code>retrieve_relevant</code></span>
   </div>
-  <div class="card good"><p><strong>Use Codex/AI here.</strong> Tasks 13-15 are mostly Codex work: you already have the building blocks (<code>ollama_api_util.py</code>, <code>sdk_wrapper.G1</code>), and each task gives you the exact prompt to extend the chatbot with. Read what Codex produces before you run it.</p></div>
+  <div class="card good"><p><strong>Use Codex/AI here.</strong> Tasks 2-4 are mostly Codex work: you already have the building blocks (<code>ollama_api_util.py</code>, <code>sdk_wrapper.G1</code>), and each task gives you the exact prompt to extend the chatbot with. Read what Codex produces before you run it.</p></div>
   <div class="tocwrap"><a href="first_task_day4_intro.html">T1</a><a href="second_task_day4_intro.html" style="border-color:var(--accent);color:var(--accent)">T2</a><a href="third_task_day4_intro.html">T3</a><a href="fourth_task_day4_intro.html">T4</a><a href="fifth_task_day4_intro.html">T5</a></div>
 </header>
 <main>
@@ -110,13 +112,24 @@ pairs.</p>
 </table>
 </div>
 
-<h2><span class="num">&#167;2</span>Cell &mdash; load the knowledge base</h2>
+<h2><span class="num">&#167;2</span>Cell &mdash; setup</h2>
+<div class="cell"><div class="cellhead"><span>Cell (code)</span></div>
+<pre><code>import sys
+sys.path.append("..")
+from sdk_wrapper import G1
+import ollama_api_util
+
+g1 = G1(iface="eth0", domain_id=0)
+client = ollama_api_util.get_client()
+history = []</code></pre></div>
+
+<h2><span class="num">&#167;3</span>Cell &mdash; load the knowledge base</h2>
 <div class="cell"><div class="cellhead"><span>Cell (code)</span><span class="todo">TODO</span></div>
 <pre><code># TODO: knowledge = ollama_api_util.load_knowledge_base("g1_academy_knowledge_de.json")
 raise NotImplementedError("Complete this task section")</code></pre></div>
 <pre class="block"><code>knowledge = ollama_api_util.load_knowledge_base("g1_academy_knowledge_de.json")</code></pre>
 
-<h2><span class="num">&#167;3</span>Codex prompt</h2>
+<h2><span class="num">&#167;4</span>Codex prompt</h2>
 <div class="card good">
 <pre class="block"><code>I already have chat_turn(text) from Task 1 (uses ollama_api_util.chat_reply(client, text,
 history=history) and speaks the reply with g1.say(reply, language="EN")).
