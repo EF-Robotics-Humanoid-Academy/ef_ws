@@ -1299,7 +1299,13 @@ class G1:
         with tempfile.TemporaryDirectory(prefix="g1_say_") as td:
             wav_path = Path(td) / "speech.wav"
             robot_wav = Path(td) / "speech_robot.wav"
-            subprocess.run([piper, "--model", str(model), "--output-file", str(wav_path)], input=str(text), text=True, check=True)
+            # cwd=td, not inherited from this process: if a restage script rm -rf'd and
+            # recreated the directory this kernel started in (e.g. ~/academy/day_4) while
+            # the kernel kept running, this process's cwd now points at a deleted inode --
+            # piper's own library evaluates Path.cwd() on import and raises
+            # FileNotFoundError on that stale cwd. td is a directory we just created, so
+            # it's always valid regardless of what this process's cwd currently resolves to.
+            subprocess.run([piper, "--model", str(model), "--output-file", str(wav_path)], input=str(text), text=True, check=True, cwd=td)
             with wave.open(str(wav_path), "rb") as wf:
                 channels, sample_width, frame_rate = wf.getnchannels(), wf.getsampwidth(), wf.getframerate()
                 pcm = wf.readframes(wf.getnframes())

@@ -6,22 +6,30 @@ local Ollama server and to local JSON knowledge files.
 
 Requires a local Ollama server already running on the academy accounts
 (`ollama serve`, listening on 127.0.0.1:11434) with these models pulled --
-`granite4.2:3b` (chat) and `qwen2.5vl:7b` (vision, the only vision-language
-model in the pulled set). granite4.2:3b is the smallest generally-capable
-chat model in the pulled set; on this hardware qwen3.5:9b (also pulled) was
-too slow for interactive use -- a first call took over a minute just to
+`gemma3:1b` (chat) and `qwen2.5vl:7b` (vision, the only vision-language
+model in the pulled set). granite4.2:3b was tried first and dropped: in
+testing it repeatedly produced rambling, off-topic meta-commentary (e.g.
+inventing JSON schemas or Codewars-style problems nobody asked for) even
+with think=False set below, as if it has some built-in elaboration/
+reasoning habit that flag doesn't actually suppress for this model.
+gemma3:1b is a different model family without that behavior and is also
+smaller/faster. qwen3.5:9b (also pulled) was tried too and is too slow for
+interactive use on this hardware -- a first call took over a minute just to
 load the model, which is also why chat_reply()/describe_image() below do
-not enforce a request timeout. Override via OLLAMA_CHAT_MODEL (e.g. back to
-qwen3.5:9b for higher quality when latency doesn't matter, or down to
-gemma3:1b/qwen2.5:0.5b for even faster replies). No API key needed --
-everything runs on-machine.
+not enforce a request timeout. Override via OLLAMA_CHAT_MODEL if needed
+(qwen2.5:0.5b is smaller/faster still but noticeably lower quality;
+qwen3.5:9b is higher quality if latency stops mattering). No API key
+needed -- everything runs on-machine.
 
 Every reply is in English (DEFAULT_SYSTEM_PROMPT, used by both chat_reply()
 and describe_image()) and capped to DEFAULT_MAX_REPLY_TOKENS tokens
 (OLLAMA_MAX_TOKENS) regardless of how the question was asked -- kept short
 because every reply here is meant to be read aloud via g1.say(), and a long
 reply is both a long wait on this hardware and a long silence-free monologue
-from the robot.
+from the robot. The cap is deliberately tight (not just "short-ish"): it is
+the backstop against exactly the kind of rambling described above, on
+whatever model ends up configured -- a model that starts down that path
+gets cut off quickly rather than eating the whole budget.
 """
 from __future__ import annotations
 
@@ -34,12 +42,15 @@ import urllib.request
 from pathlib import Path
 
 DEFAULT_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "granite4.2:3b")
+DEFAULT_CHAT_MODEL = os.environ.get("OLLAMA_CHAT_MODEL", "gemma3:1b")
 DEFAULT_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "qwen2.5vl:7b")
 # Caps every reply's length via Ollama's num_predict (max tokens to
 # generate) -- a hard, server-enforced limit, unlike the prompt's own
 # "keep it short" instruction, which a smaller model won't always follow.
-DEFAULT_MAX_REPLY_TOKENS = int(os.environ.get("OLLAMA_MAX_TOKENS", "150"))
+# Deliberately tight: ~60 tokens is roughly 1-3 short spoken sentences, and
+# cuts off a rambling model fast instead of letting it run to 150+ tokens
+# of unrelated text before the cap even kicks in.
+DEFAULT_MAX_REPLY_TOKENS = int(os.environ.get("OLLAMA_MAX_TOKENS", "60"))
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are the voice assistant of a Unitree G1 robot at the EF Robotics Academy. "
