@@ -24,7 +24,7 @@
         {"question": "Wie viele Tage dauert die G1 Academy?",
          "answer": "Die G1 Academy Bonus-Woche dauert vier Tage: Grundlagen, Fortbewegung und SLAM, Arme und Haende, und schliesslich Wahrnehmung und KI."},
         {"question": "Was macht man an Tag 4?",
-         "answer": "An Tag 4 geht es um Wahrnehmung und KI: einen Sprachassistenten mit der OpenAI API, Wissensabfragen, Gesten, Bilderkennung und eine abschliessende Liefer-Aufgabe mit SLAM."},
+         "answer": "An Tag 4 geht es um Wahrnehmung und KI: einen Sprachassistenten mit einem lokalen Ollama-Modell, Wissensabfragen, Gesten, Bilderkennung und eine abschliessende Liefer-Aufgabe mit SLAM."},
         {"question": "Was ist sdk_wrapper.G1?",
          "answer": "sdk_wrapper.G1 ist die fertige Python-Klasse, die alle Roboterfaehigkeiten dieses Kurses als einzelne Methoden bereitstellt, zum Beispiel g1.say() oder g1.loco_move()."}
       ]

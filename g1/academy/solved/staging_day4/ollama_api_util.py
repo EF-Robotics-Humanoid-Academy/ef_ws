@@ -70,6 +70,12 @@ def _chat(client, messages, model, images_b64=None):
         "model": model,
         "messages": payload_messages,
         "stream": False,
+        # Some pulled models (e.g. granite4.2:3b) emit a reasoning/"thinking"
+        # preamble before their real answer; with num_predict capped short,
+        # that preamble alone can eat the whole budget and get cut off
+        # mid-ramble, so the reply looks like confused unfinished reasoning.
+        # Ollama ignores this field for models with no thinking mode.
+        "think": False,
         "options": {"num_predict": DEFAULT_MAX_REPLY_TOKENS},
     }
     request = urllib.request.Request(
@@ -135,17 +141,34 @@ def load_knowledge_base(path):
     return flat
 
 
-def retrieve_relevant(knowledge, query, top_k=3):
+def retrieve_relevant(knowledge, query, top_k=3, min_score=0.45):
     """Ranks flattened knowledge entries (see load_knowledge_base) by plain
-    text similarity to `query` and returns the top_k best matches. This is a
-    simple baseline retriever -- good enough for a small FAQ file, and a
-    reasonable thing to swap out once you've got RAG working end to end."""
+    text similarity to `query` and returns the top_k best matches, dropping
+    any below min_score. This is a simple baseline retriever -- good enough
+    for a small FAQ file, and a reasonable thing to swap out once you've got
+    RAG working end to end.
+
+    The min_score floor matters more than it looks: without it, a question
+    with no real match in the knowledge base (e.g. "how are you today?")
+    still gets the top_k closest-by-coincidence entries forced in as
+    "known facts" -- which tends to confuse a small model into rambling
+    about those irrelevant facts instead of just answering. Returning an
+    empty list here when nothing truly matches is the fix; the caller
+    (chat_turn_with_knowledge) must skip the "Known facts" wrapper when
+    matches is empty rather than assume it's non-empty.
+
+    0.45 is an empirical, not principled, cutoff: SequenceMatcher is plain
+    character overlap, not semantic similarity, so an English query against
+    this German FAQ file scores ~0.3-0.42 on totally unrelated questions
+    just from shared spaces/short-word overlap, while a genuinely relevant
+    same-language match scored ~0.64 in testing. Re-check this number if the
+    knowledge file changes meaningfully in size or language mix."""
     scored = [
         (difflib.SequenceMatcher(None, query.lower(), entry["question"].lower()).ratio(), entry)
         for entry in knowledge
     ]
     scored.sort(key=lambda pair: pair[0], reverse=True)
-    return [entry for _score, entry in scored[:top_k]]
+    return [entry for score, entry in scored[:top_k] if score >= min_score]
 
 
 def _grab_rgb_jpeg(endpoints=None, timeout_ms=3000):
