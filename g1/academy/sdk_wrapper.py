@@ -1911,6 +1911,30 @@ class G1:
         """Public wrapper around _slam_pose(): last known (x, y, yaw), or None."""
         return self._slam_pose()
 
+    def add_point(self, name, points_path="slam_points.json"):
+        """Save the current SLAM ``(x, y, yaw)`` pose under ``name``.
+
+        Points are stored as JSON so they can later be used with
+        :meth:`navigate_to_point`.  Saving an existing name replaces its
+        previous pose.
+        """
+        pose = self.get_slam_pose()
+        if pose is None:
+            raise RuntimeError("No valid SLAM pose available")
+        path = Path(points_path)
+        points = json.loads(path.read_text()) if path.exists() else {}
+        points[str(name)] = list(pose)
+        path.write_text(json.dumps(points, indent=2))
+        return points[str(name)]
+
+    def remove_point(self, name, points_path="slam_points.json"):
+        """Remove the named saved SLAM point, if present, and return it."""
+        path = Path(points_path)
+        points = json.loads(path.read_text()) if path.exists() else {}
+        removed = points.pop(str(name), None)
+        path.write_text(json.dumps(points, indent=2))
+        return removed
+
     def pose_nav(self, x, y, yaw=0.0):
         """Single-shot nav to (x, y, yaw), without queuing (see navigate() for
         the queued/multi-point path). Does not wait for arrival -- pair with
