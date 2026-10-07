@@ -103,6 +103,26 @@ HAND_OPEN = {
     side: [closed[0]] + [hi if abs(v - lo) < abs(v - hi) else lo for v, lo, hi in zip(closed[1:], HAND_MIN[side][1:], HAND_MAX[side][1:])]
     for side, closed in HAND_CLOSED.items()
 }
+# Do not drive the proximal thumb joint into its calibrated hard stop.  This
+# joint is the one most likely to catch the thigh while the hand opens.  A
+# small retreat from the hard stop leaves enough travel for a usable open hand
+# while avoiding a sustained position-error/current spike at the stop.
+DEX3_THUMB_PROXIMAL_IDX = 1
+DEX3_THUMB_OPEN_MARGIN_RAD = 0.18
+HAND_SAFE_OPEN = {
+    side: [
+        value if idx != DEX3_THUMB_PROXIMAL_IDX else
+        value + math.copysign(DEX3_THUMB_OPEN_MARGIN_RAD, HAND_CLOSED[side][idx] - value)
+        for idx, value in enumerate(open_targets)
+    ]
+    for side, open_targets in HAND_OPEN.items()
+}
+# Abort a commanded hand motion before a blocked motor is driven long enough
+# for dex3_service to latch its protection state.  The confirmation interval
+# filters normal tracking lag during the smooth ramp.
+DEX3_STALL_ERROR_RAD = 0.16
+DEX3_STALL_SPEED_RAD_S = 0.12
+DEX3_STALL_CONFIRM_S = 0.16
 BMS_TOPICS = ["rt/lf/bmsstate", "rt/lf/agvbmsstate", "rt/bmsstate", "rt/agvbmsstate"]
 INSPIRE_CONFIGS = {"right": ("192.168.123.210", 6000, 1), "left": ("192.168.123.211", 6000, 1)}
 INSPIRE_OPEN = [1000, 1000, 1000, 1000, 1000, 250]
@@ -552,11 +572,14 @@ class _Dex3:
         self._last_targets = None
         self._release_stop = None
         self._release_thread = None
-    def _write(self, targets, kp=0.8, kd=0.05, tau=0.02):
+    def _write(self, targets, kp=0.8, kd=0.05, tau=0.02, release=False):
         msg = unitree_hg_msg_dds__HandCmd_()
         for i, q in enumerate(_clamp_hand(self.side, targets)):
             cmd = msg.motor_cmd[i]
-            cmd.mode = (i & 0x0F) | (1 << 4)
+            # Bit 7 is the DEX3 timeout/release bit.  Zero gains alone still
+            # leave the normal position-control mode selected; explicitly set
+            # it when backing away from a collision.
+            cmd.mode = (i & 0x0F) | (1 << 4) | ((1 if release else 0) << 7)
             cmd.q = float(q)
             cmd.dq = 0.0
             cmd.tau = float(tau)
@@ -577,6 +600,36 @@ class _Dex3:
             return _clamp_hand(self.side, [float(m.q) for m in list(msg.motor_state)[:7]])
         except Exception:
             return None
+    def _current_velocities(self, max_age=1.0):
+        msg, ts = self.state.get()
+        if msg is None or (time.time() - ts) > max_age:
+            return None
+        try:
+            return [float(m.dq) for m in list(msg.motor_state)[:7]]
+        except Exception:
+            return None
+    def _blocked_joint(self, targets, moving, dt, blocked_for):
+        """Return (joint, updated_duration) for a confirmed stalled motor."""
+        actual = self._current_positions(max_age=0.25)
+        velocities = self._current_velocities(max_age=0.25)
+        if actual is None or velocities is None:
+            return None, 0.0
+        stalled = any(
+            abs(float(target) - float(position)) >= DEX3_STALL_ERROR_RAD
+            and abs(float(velocity)) <= DEX3_STALL_SPEED_RAD_S
+            and abs(float(target) - float(start)) >= DEX3_STALL_ERROR_RAD
+            for target, position, velocity, start in zip(targets, actual, velocities, moving)
+        )
+        blocked_for = blocked_for + dt if stalled else 0.0
+        if blocked_for >= DEX3_STALL_CONFIRM_S:
+            joint = next(
+                i for i, (target, position, velocity, start) in enumerate(zip(targets, actual, velocities, moving))
+                if abs(float(target) - float(position)) >= DEX3_STALL_ERROR_RAD
+                and abs(float(velocity)) <= DEX3_STALL_SPEED_RAD_S
+                and abs(float(target) - float(start)) >= DEX3_STALL_ERROR_RAD
+            )
+            return joint, blocked_for
+        return None, blocked_for
     def set_targets(self, targets, hold_s=0.6, rate_hz=50.0, kp=1.2, kd=0.05, tau=0.05, ramp_s=None):
         """Like move(), but ramps smoothly from the current (or last
         commanded) position to `targets` first instead of snapping there --
@@ -587,18 +640,42 @@ class _Dex3:
         total_hold_s = max(0.0, float(hold_s))
         ramp_duration_s = min(total_hold_s, max(1.0 / rate, 0.4 if ramp_s is None else float(ramp_s)))
         start = self._current_positions() or (list(self._last_targets) if self._last_targets is not None else target_list)
+        dt = 1.0 / rate
+        blocked_for = 0.0
+        def write_or_release(frame):
+            nonlocal blocked_for
+            self._write(frame, kp=kp, kd=kd, tau=tau)
+            joint, blocked_for = self._blocked_joint(frame, start, dt, blocked_for)
+            if joint is None:
+                return None
+            # Use the live position, so releasing cannot pull the hand back
+            # into the obstruction.  This is intentionally a short one-shot
+            # release; the next explicit open/close call can re-engage it.
+            safe = self._current_positions(max_age=0.25) or list(frame)
+            # Repeat briefly so the DDS bridge/service reliably observes the
+            # timeout packet even when this was the first command after idle.
+            for _ in range(3):
+                self._write(safe, kp=0.0, kd=0.0, tau=0.0, release=True)
+                time.sleep(dt)
+            self._last_targets = None
+            return joint
         if any(abs(dst - src) > 1e-6 for src, dst in zip(start, target_list)) and ramp_duration_s > 0.0:
             ramp_steps = max(2, int(round(ramp_duration_s * rate)))
             for step in range(1, ramp_steps + 1):
                 alpha = _smoothstep(float(step) / float(ramp_steps))
                 frame = [s + (e - s) * alpha for s, e in zip(start, target_list)]
-                self._write(frame, kp=kp, kd=kd, tau=tau)
-                time.sleep(1.0 / rate)
+                blocked = write_or_release(frame)
+                if blocked is not None:
+                    return {"ok": False, "reason": "collision_or_stall", "joint": HAND_JOINT_NAMES[blocked]}
+                time.sleep(dt)
         remaining = max(0.0, total_hold_s - ramp_duration_s)
         for _ in range(max(1, int(remaining * rate)) if remaining > 0.0 else 1):
-            self._write(target_list, kp=kp, kd=kd, tau=tau)
-            time.sleep(1.0 / rate)
+            blocked = write_or_release(target_list)
+            if blocked is not None:
+                return {"ok": False, "reason": "collision_or_stall", "joint": HAND_JOINT_NAMES[blocked]}
+            time.sleep(dt)
         self._last_targets = target_list
+        return {"ok": True}
     def _stop_release_thread(self):
         if self._release_stop is not None:
             self._release_stop.set()
@@ -618,7 +695,7 @@ class _Dex3:
             def _loop():
                 dt = 1.0 / max(1.0, float(rate_hz))
                 while not stop_event.is_set():
-                    self._write(targets, kp=0.0, kd=0.0, tau=0.0)
+                    self._write(targets, kp=0.0, kd=0.0, tau=0.0, release=True)
                     time.sleep(dt)
             self._release_stop = stop_event
             self._release_thread = threading.Thread(target=_loop, name=f"dex3-{self.side}-release", daemon=True)
@@ -626,7 +703,7 @@ class _Dex3:
         else:
             dt = 1.0 / max(1.0, float(rate_hz))
             for _ in range(max(1, int(max(0.0, float(hold_s)) * max(1.0, float(rate_hz))))):
-                self._write(targets, kp=0.0, kd=0.0, tau=0.0)
+                self._write(targets, kp=0.0, kd=0.0, tau=0.0, release=True)
                 time.sleep(dt)
         self._last_targets = None
     def stop_release_fingers(self):
@@ -1656,23 +1733,29 @@ class G1:
         return ("left", "right") if str(hand).strip().lower() == "both" else (_normalize_side(hand),)
 
     def open_dex3_hand(self, hand="both", hold_s=0.6, rate_hz=50.0, ramp_s=None):
+        """Open Dex3 hands with a soft thumb limit and collision release.
+
+        A blocked hand is released and reported as ``collision_or_stall``;
+        it is not continuously re-driven into the obstacle.
+        """
         sides = self._dex3_sides(hand)
         out = {}
         for side in sides:
             try:
-                self._dex3_hand(side).set_targets(HAND_OPEN[side], hold_s=hold_s, rate_hz=rate_hz, kp=1.5, kd=0.1, tau=0.03, ramp_s=ramp_s)
-                out[side] = {"hand": side, "ok": True, "action": "open_dex3_hand"}
+                result = self._dex3_hand(side).set_targets(HAND_SAFE_OPEN[side], hold_s=hold_s, rate_hz=rate_hz, kp=1.0, kd=0.1, tau=0.0, ramp_s=ramp_s)
+                out[side] = {"hand": side, "action": "open_dex3_hand", **result}
             except Exception as exc:
                 out[side] = self._hand_error(side, "open_dex3_hand", exc)
         return out if len(sides) > 1 else out[sides[0]]
 
     def close_dex3_hand(self, hand="both", hold_s=0.6, rate_hz=50.0, ramp_s=None):
+        """Close Dex3 hands, releasing immediately when contact stalls one."""
         sides = self._dex3_sides(hand)
         out = {}
         for side in sides:
             try:
-                self._dex3_hand(side).set_targets(HAND_CLOSED[side], hold_s=hold_s, rate_hz=rate_hz, kp=1.5, kd=0.1, tau=0.03, ramp_s=ramp_s)
-                out[side] = {"hand": side, "ok": True, "action": "close_dex3_hand"}
+                result = self._dex3_hand(side).set_targets(HAND_CLOSED[side], hold_s=hold_s, rate_hz=rate_hz, kp=1.0, kd=0.1, tau=0.0, ramp_s=ramp_s)
+                out[side] = {"hand": side, "action": "close_dex3_hand", **result}
             except Exception as exc:
                 out[side] = self._hand_error(side, "close_dex3_hand", exc)
         return out if len(sides) > 1 else out[sides[0]]
