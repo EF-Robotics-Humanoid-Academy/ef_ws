@@ -20,6 +20,7 @@ import os
 import pickle
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import threading
@@ -37,7 +38,7 @@ from dds_env import (
 from sdk_audio import RobotAudio
 from sdk_boot import create_loco_client, rpc_get_int
 from sdk_hand import Dex3HandController
-from secure_boot import force_normal_gait, secure_boot
+from secure_boot import secure_boot
 from sdk_sensors import (
     LatestSubscriber,
     LidarImu_,
@@ -203,6 +204,17 @@ PBD_HAND_JOINT_LABELS = {
     "left": [f"left_hand.{name}" for name in HAND_JOINT_NAMES],
     "right": [f"right_hand.{name}" for name in HAND_JOINT_NAMES],
 }
+
+
+def _decode_depth_scale(payload: bytes, default: float = 0.001) -> float:
+    """Decode one little-endian float from RGB-D metadata safely."""
+    if len(payload) < 4:
+        return default
+    try:
+        scale = float(struct.unpack("<f", payload[:4])[0])
+    except (struct.error, TypeError, ValueError):
+        return default
+    return scale if math.isfinite(scale) and scale > 0.0 else default
 
 
 def _normalize_arm_selection(arm: str) -> str:
@@ -3003,7 +3015,6 @@ class Robot:
 
         btn_a = 0
         btn_b = 1
-        btn_x = 2
         btn_y = 3
         btn_start = 7
         axis_lx = 0
@@ -3430,7 +3441,6 @@ class Robot:
             return rgb_jpeg
         try:
             import cv2
-            import numpy as np
 
             frame = decode_video_frame_bgr(rgb_jpeg)
             height, width = frame.shape[:2]
@@ -4450,12 +4460,11 @@ class Robot:
                     continue
                 rgb_jpeg = bytes(parts[0])
                 depth_png = bytes(parts[1])
-                depth_scale = 0.001
-                if len(parts) >= 3 and len(parts[2]) >= 4:
-                    try:
-                        depth_scale = float(struct.unpack("f", parts[2][:4])[0])
-                    except Exception:
-                        depth_scale = 0.001
+                depth_scale = (
+                    _decode_depth_scale(bytes(parts[2]))
+                    if len(parts) >= 3
+                    else 0.001
+                )
                 return rgb_jpeg, depth_png, depth_scale, time.time()
         finally:
             try:

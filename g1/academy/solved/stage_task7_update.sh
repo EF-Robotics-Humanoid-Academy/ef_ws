@@ -31,6 +31,8 @@ INTRO_SRC="$SOLVED_DIR/staging_day2/$INTRO"
 WRAPPER="$ACADEMY_DIR/sdk_wrapper.py"
 
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root: sudo bash $0" >&2; exit 1; }
+[[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
+[[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || { echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2; exit 2; }
 for f in "$UNSOLVED_NB" "$SOLVED_NB" "$INTRO_SRC" "$WRAPPER"; do
   [[ -f "$f" ]] || { echo "Missing source: $f" >&2; exit 1; }
 done

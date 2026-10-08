@@ -17,6 +17,10 @@ USER_PREFIX="${USER_PREFIX:-teilnehmer}"
   echo "NUM_USERS must be 1..100" >&2
   exit 2
 }
+[[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || {
+  echo "USER_PREFIX must be a non-empty, safe Linux username prefix (max 24 characters)" >&2
+  exit 2
+}
 
 stopped=0
 already_stopped=0

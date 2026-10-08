@@ -57,7 +57,7 @@ from unitree_sdk2py.idl.unitree_hg.msg.dds_ import HandCmd_, HandState_, LowCmd_
 from unitree_sdk2py.rpc.client import Client
 from unitree_sdk2py.utils.crc import CRC
 
-from util import HAND_CLOSED, HAND_JOINT_NAMES, HAND_OPEN, play_piper_text
+from util import HAND_CLOSED, HAND_OPEN, play_piper_text
 
 try:
     from hand_pose_navigation.arm_fk import ArmFK
@@ -353,7 +353,11 @@ def get_rgbd(endpoints=("tcp://127.0.0.1:5555", "tcp://localhost:5555")):
             parts = sock.recv_multipart()
             if len(parts) < 3:
                 continue
-            scale = struct.unpack("f", parts[2])[0] if parts[2] != b"0" and len(parts[2]) == 4 else None
+            scale = None
+            if parts[2] != b"0" and len(parts[2]) == 4:
+                candidate = float(struct.unpack("<f", parts[2])[0])
+                if math.isfinite(candidate) and candidate > 0.0:
+                    scale = candidate
             return {
                 "timestamp": time.time(), "endpoint": endpoint, "rgb_jpeg": bytes(parts[0]),
                 "depth_png": None if parts[1] == b"0" else bytes(parts[1]), "depth_scale": scale,

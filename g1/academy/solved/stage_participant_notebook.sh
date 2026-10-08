@@ -42,16 +42,19 @@ name="$(basename "$notebook")"
 
 # Default to teilnehmer1..NUM_USERS when no explicit users were given.
 if [[ ${#users[@]} -eq 0 ]]; then
+  [[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
+  [[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || { echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2; exit 2; }
   for ((i=1; i<=NUM_USERS; i++)); do users+=("${USER_PREFIX}${i}"); done
 fi
 
 for user in "${users[@]}"; do
+  [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#user} <= 32 )) || { echo "Unsafe participant username: $user" >&2; exit 2; }
   home_dir="$(getent passwd "$user" | cut -d: -f6)"
   [[ -n "$home_dir" ]] || { echo "Missing account: $user" >&2; exit 1; }
   destination="$home_dir/academy/day_$day"
   install -d -m 0755 "$destination"
   rsync -a "$notebook" "$destination/"
-  chown "$user:$user" "$destination/$name"
+  chown -- "$user:$user" "$destination/$name"
   echo "updated $user: $destination/$name"
 done
 echo "Staged $name to ${#users[@]} participant(s)."
