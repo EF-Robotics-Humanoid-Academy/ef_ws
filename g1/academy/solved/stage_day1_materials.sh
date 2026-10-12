@@ -23,6 +23,7 @@ INTRO_FILES=(
 
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root: sudo bash $0" >&2; exit 1; }
 [[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
+[[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || { echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2; exit 2; }
 for source in \
   "$SOLVED_DIR/task1_sdkwrapper_usage.ipynb" \
   "$SOLVED_DIR/task2_necessary_dds_init_pubsub.ipynb" \
@@ -48,10 +49,6 @@ for ((i=1; i<=NUM_USERS; i++)); do
     "$SOLVED_DIR/task2_necessary_dds_init_pubsub.ipynb" \
     "$SOLVED_DIR/task3_say_and_headlight_helpers.ipynb" \
     "$SOLVED_DIR/task4_robot_state_observation.ipynb" \
-    "$INTRO_DIR/task1_sdkwrapper_usage_intro.html" \
-    "$INTRO_DIR/task2_necessary_dds_init_pubsub_intro.html" \
-    "$INTRO_DIR/task3_say_and_headlight_helpers_intro.html" \
-    "$INTRO_DIR/task4_robot_state_observation_intro.html" \
     "$ACADEMY_DIR/sdk_wrapper.py" "$ACADEMY_DIR/util.py" \
     "${INTRO_FILES[@]/#/$INTRO_DIR/}" \
     "$destination/"

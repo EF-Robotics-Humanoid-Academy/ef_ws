@@ -17,6 +17,20 @@ case "$day" in
   4) tasks=(12 13); first_slide=96; last_slide=109 ;;
   *) echo "DAY_NUMBER must be 2, 3, or 4" >&2; exit 2 ;;
 esac
+[[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || {
+  echo "NUM_USERS must be 1..100" >&2
+  exit 2
+}
+[[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || {
+  echo "USER_PREFIX must be a non-empty, safe Linux username prefix (max 24 characters)" >&2
+  exit 2
+}
+for required_command in getent install rsync python3 chown; do
+  command -v "$required_command" >/dev/null || {
+    echo "Required command is not installed: $required_command" >&2
+    exit 1
+  }
+done
 
 # Per-task knowledge/reference pages (see staging_dayN/) -- not part of the
 # solved/*.ipynb + slides.html pipeline above, staged separately here.

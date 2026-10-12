@@ -17,6 +17,7 @@ NODE_SHA256="${NODE_SHA256:-dbe339e55eb393955a213e6b872066880bb9feceaa494f4d44c7
 
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root: sudo $0" >&2; exit 1; }
 [[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
+[[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || { echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2; exit 2; }
 id "$ADMIN_USER" &>/dev/null || { echo "Missing admin account: $ADMIN_USER" >&2; exit 1; }
 command -v apt-get >/dev/null || { echo "This installer requires apt-get." >&2; exit 1; }
 
