@@ -134,6 +134,12 @@ class ArmIK:
                 return q_pos, pos_info
             info["fallback_error_pos_m"] = pos_info["error_pos_m"]
             return None, info
+        elif self.solver == "position_dls":
+            # For an RGB-D box/mask target, position is measured while full
+            # wrist orientation is only a grasp preference.  This mode lets
+            # the redundant wrist joints (especially wrist pitch) find the
+            # reachable position rather than forcing a brittle 6-D pose.
+            return self._solve_position_dls(T_base_desired, q)
         elif self.solver == "scipy":
             return self._solve_scipy(T_base_desired, q)
         elif self.solver == "pin":
