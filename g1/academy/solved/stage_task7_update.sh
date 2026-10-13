@@ -41,7 +41,7 @@ done
 stage_to() {
   local user="$1" notebook="$2"
   local home_dir destination
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   [[ -n "$home_dir" ]] || { echo "Missing account: $user" >&2; exit 1; }
   destination="$home_dir/academy/day_2"
   install -d -m 0755 "$destination"

@@ -49,7 +49,7 @@ for ((i = 1; i <= NUM_USERS; i++)); do
   done
   echo "$user:$PASSWORD" | chpasswd
 
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   sdk_dir="$home_dir/unitree_sdk2_python"
   rsync -a --delete --exclude=.git "$REF_SDK/" "$sdk_dir/"
 

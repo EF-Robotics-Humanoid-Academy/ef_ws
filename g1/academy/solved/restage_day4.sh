@@ -34,8 +34,30 @@ STAGING_DIR="$SOLVED_DIR/staging_day4"
 CURRENT_SDK_WRAPPER="$ACADEMY_DIR/sdk_wrapper.py"
 
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root: sudo bash $0" >&2; exit 1; }
-[[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
-[[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || { echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2; exit 2; }
+if [[ ! "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] || (( NUM_USERS > 100 )); then
+  echo "NUM_USERS must be 1..100" >&2
+  exit 2
+fi
+if [[ ! "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] || (( ${#USER_PREFIX} > 24 )); then
+  echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2
+  exit 2
+fi
+if [[ ! "$SOLVED_USER" =~ ^[a-z_][a-z0-9_-]*$ ]] || (( ${#SOLVED_USER} > 32 )); then
+  echo "SOLVED_USER must be a safe Linux username" >&2
+  exit 2
+fi
+for required_command in getent install mktemp cp mv chown; do
+  command -v "$required_command" >/dev/null || { echo "$required_command is required" >&2; exit 1; }
+done
+
+temporary_dirs=()
+cleanup_temporary_dirs() {
+  local directory
+  for directory in "${temporary_dirs[@]}"; do
+    [[ -d "$directory" ]] && rm -rf -- "$directory"
+  done
+}
+trap cleanup_temporary_dirs EXIT
 
 deps=(
   "$CURRENT_SDK_WRAPPER"
@@ -93,28 +115,50 @@ for pair in "${unsolved_pairs[@]}" "${solved_pairs[@]}"; do
   require_files "${pair%%::*}"
 done
 
+target_users=()
+for ((i=1; i<=NUM_USERS; i++)); do
+  user="${USER_PREFIX}${i}"
+  [[ "$user" == "$SOLVED_USER" ]] || target_users+=("$user")
+done
+target_users+=("$SOLVED_USER")
+for user in "${target_users[@]}"; do
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
+  [[ -n "$home_dir" ]] || { echo "Missing account: $user" >&2; exit 1; }
+  [[ "$home_dir" == /* && "$home_dir" != / && -d "$home_dir" ]] || {
+    echo "Unsafe or missing home directory for $user: $home_dir" >&2
+    exit 1
+  }
+done
+
 restage_user() {
   local user="$1"; shift
   local pairs=("$@")
-  local home_dir dest name
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  local home_dir academy_dir dest temp_dir name
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   [[ -n "$home_dir" ]] || { echo "Missing account: $user" >&2; exit 1; }
+  academy_dir="$home_dir/academy"
   dest="$home_dir/academy/day_4"
-  rm -rf "$dest"
-  install -d -m 0755 "$dest"
+  [[ "$dest" == "$academy_dir/day_4" && "$dest" != / ]] || { echo "Unsafe destination: $dest" >&2; exit 1; }
+  install -d -m 0755 "$academy_dir"
+  temp_dir="$(mktemp -d "$academy_dir/.day_4.stage.XXXXXX")"
+  temporary_dirs+=("$temp_dir")
   for pair in "${pairs[@]}"; do
-    cp "${pair%%::*}" "$dest/${pair##*::}"
+    cp -- "${pair%%::*}" "$temp_dir/${pair##*::}"
   done
-  cp "${intros[@]}" "$day_slides" "${deps[@]}" "$dest/"
+  cp -- "${intros[@]}" "$day_slides" "${deps[@]}" "$temp_dir/"
   for name in "${difficult_names[@]}"; do
-    rm -f "$dest/$name"
+    rm -f -- "$temp_dir/$name"
   done
-  chown -R "$user:$user" "$dest"
+  chown -R -- "$user:$user" "$temp_dir"
+  rm -rf -- "$dest"
+  mv -- "$temp_dir" "$dest"
   echo "restaged $user -> $dest"
 }
 
 for ((i=1; i<=NUM_USERS; i++)); do
-  restage_user "${USER_PREFIX}${i}" "${unsolved_pairs[@]}"
+  user="${USER_PREFIX}${i}"
+  [[ "$user" == "$SOLVED_USER" ]] && continue
+  restage_user "$user" "${unsolved_pairs[@]}"
 done
 restage_user "$SOLVED_USER" "${solved_pairs[@]}"
 

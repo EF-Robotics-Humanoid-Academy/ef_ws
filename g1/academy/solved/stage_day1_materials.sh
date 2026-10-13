@@ -40,7 +40,7 @@ done
 for ((i=1; i<=NUM_USERS; i++)); do
   user="${USER_PREFIX}${i}"
   id "$user" &>/dev/null || { echo "Missing account: $user" >&2; exit 1; }
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   destination="$home_dir/academy/day_1"
   install -d -m 0755 "$destination"
 

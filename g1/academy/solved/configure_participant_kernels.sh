@@ -27,7 +27,7 @@ PIPER_VOICE_DIR="${PIPER_VOICE_DIR:-/opt/academy-tools/piper-voices}"
 for ((i=1; i<=NUM_USERS; i++)); do
   user="${USER_PREFIX}${i}"
   id "$user" &>/dev/null || { echo "Missing account: $user" >&2; exit 1; }
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   sdk_dir="$home_dir/unitree_sdk2_python"
   [[ -d "$sdk_dir/unitree_sdk2py" ]] || { echo "Missing SDK checkout for $user" >&2; exit 1; }
 

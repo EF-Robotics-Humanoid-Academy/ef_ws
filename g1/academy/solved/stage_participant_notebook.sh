@@ -31,14 +31,36 @@ STAGING_DIR="$SOLVED_DIR/staging_day$day"
 
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root: sudo bash $0 $day $task ${users[*]}" >&2; exit 1; }
 [[ "$day" =~ ^[2-4]$ ]] || { echo "DAY must be 2, 3, or 4" >&2; exit 2; }
-[[ "$task" =~ ^[0-9]+$ ]] || { echo "TASK must be a task number, e.g. 6" >&2; exit 2; }
+
+case "$day:$task" in
+  2:[0-9]*|3:[0-9]*)
+    source_pattern="task${task}_*.ipynb"
+    destination_name=""
+    ;;
+  3:first|3:second|3:third|3:fourth)
+    source_pattern="${task}_task_day3_unsolved.ipynb"
+    destination_name="${task}_task_day3.ipynb"
+    ;;
+  4:first|4:second|4:third|4:fourth|4:fifth)
+    source_pattern="${task}_task_day4_unsolved.ipynb"
+    destination_name="${task}_task_day4.ipynb"
+    ;;
+  *)
+    echo "Unsupported task '$task' for Day $day (use the current task name for Days 3-4)" >&2
+    exit 2
+    ;;
+esac
 
 # Resolve the single source notebook (there must be exactly one match).
-matches=("$STAGING_DIR"/task"$task"_*.ipynb)
-[[ -f "${matches[0]}" ]] || { echo "No notebook task${task}_*.ipynb in $STAGING_DIR" >&2; exit 1; }
+matches=("$STAGING_DIR"/$source_pattern)
+[[ -f "${matches[0]}" ]] || { echo "No participant notebook matching $source_pattern in $STAGING_DIR" >&2; exit 1; }
 (( ${#matches[@]} == 1 )) || { echo "Ambiguous: ${#matches[@]} notebooks match task${task}_*.ipynb in $STAGING_DIR" >&2; exit 1; }
 notebook="${matches[0]}"
-name="$(basename "$notebook")"
+if [[ -n "$destination_name" ]]; then
+  name="$destination_name"
+else
+  name="$(basename "$notebook")"
+fi
 
 # Default to teilnehmer1..NUM_USERS when no explicit users were given.
 if [[ ${#users[@]} -eq 0 ]]; then
@@ -49,11 +71,12 @@ fi
 
 for user in "${users[@]}"; do
   [[ "$user" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#user} <= 32 )) || { echo "Unsafe participant username: $user" >&2; exit 2; }
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   [[ -n "$home_dir" ]] || { echo "Missing account: $user" >&2; exit 1; }
+  [[ "$home_dir" == /* && "$home_dir" != / ]] || { echo "Unsafe home directory for $user: $home_dir" >&2; exit 1; }
   destination="$home_dir/academy/day_$day"
   install -d -m 0755 "$destination"
-  rsync -a "$notebook" "$destination/"
+  rsync -a "$notebook" "$destination/$name"
   chown -- "$user:$user" "$destination/$name"
   echo "updated $user: $destination/$name"
 done

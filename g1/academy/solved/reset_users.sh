@@ -283,7 +283,7 @@ for u in "${USERS[@]}"; do
   done
   echo "$u:$TEILNEHMER_PASSWORD" | chpasswd
 
-  u_home="$(getent passwd "$u" | cut -d: -f6)"
+  u_home="$(getent passwd "$u" | cut -d: -f6 || true)"
   dest_ws="$u_home/$REF_WS_REL"
 
   # 3. Clone the unitree_sdk2_python / cyclonedds workspace.

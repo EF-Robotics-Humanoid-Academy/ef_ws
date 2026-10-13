@@ -46,7 +46,7 @@ PY
 for ((i=1; i<=NUM_USERS; i++)); do
   user="${USER_PREFIX}${i}"
   id "$user" &>/dev/null || { echo "Missing account: $user" >&2; exit 1; }
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
 
   tools_env="$home_dir/.academy-tools-env"
   cat >"$tools_env" <<EOF

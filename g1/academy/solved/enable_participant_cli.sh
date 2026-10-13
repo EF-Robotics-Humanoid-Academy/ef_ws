@@ -40,7 +40,7 @@ fi
 for ((i = 1; i <= NUM_USERS; i++)); do
   user="${USER_PREFIX}${i}"
   id "$user" &>/dev/null || { echo "Missing account: $user" >&2; exit 1; }
-  home_dir="$(getent passwd "$user" | cut -d: -f6)"
+  home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   env_file="$home_dir/.g1-unitree-env"
   [[ -f "$env_file" ]] || { echo "Missing managed environment: $env_file" >&2; exit 1; }
 
