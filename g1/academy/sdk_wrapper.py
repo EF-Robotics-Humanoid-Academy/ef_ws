@@ -123,6 +123,14 @@ HAND_SAFE_OPEN = {
 DEX3_STALL_ERROR_RAD = 0.16
 DEX3_STALL_SPEED_RAD_S = 0.12
 DEX3_STALL_CONFIRM_S = 0.16
+# Finger state is noisier than the arm encoders.  Sampling it at 50 Hz and
+# immediately replaying every sample makes Dex3 chase encoder noise, which is
+# audible and looks like a stutter.  These values retain deliberate finger
+# movements while rejecting that small, high-frequency correction signal.
+DEX3_TEACH_FILTER_ALPHA = 0.25
+DEX3_REPEAT_FILTER_ALPHA = 0.25
+DEX3_REPEAT_DEADBAND_RAD = 0.01
+DEX3_REPEAT_KEEPALIVE_S = 0.05
 BMS_TOPICS = ["rt/lf/bmsstate", "rt/lf/agvbmsstate", "rt/bmsstate", "rt/agvbmsstate"]
 INSPIRE_CONFIGS = {"right": ("192.168.123.210", 6000, 1), "left": ("192.168.123.211", 6000, 1)}
 INSPIRE_OPEN = [1000, 1000, 1000, 1000, 1000, 250]
@@ -793,6 +801,26 @@ def _lerp_row(ts, qs, t):
     span = ts[hi] - ts[lo]
     alpha = 0.0 if span <= 0.0 else (t - ts[lo]) / span
     return [qs[lo][i] + (qs[hi][i] - qs[lo][i]) * alpha for i in range(len(qs[lo]))]
+
+
+def _filter_row(previous, current, alpha):
+    """One-pole filter for a row of joint targets.
+
+    Unlike an average over a fixed window, this remains well behaved when a
+    recorded trajectory has irregular timestamps.
+    """
+    if previous is None:
+        return [float(value) for value in current]
+    alpha = max(0.0, min(1.0, float(alpha)))
+    return [float(old) + (float(new) - float(old)) * alpha
+            for old, new in zip(previous, current)]
+
+
+def _row_changed(previous, current, deadband):
+    return previous is None or any(
+        abs(float(new) - float(old)) >= float(deadband)
+        for old, new in zip(previous, current)
+    )
 
 
 def _safe_duration(start, target, duration_s, max_joint_speed):
@@ -2345,7 +2373,7 @@ class G1:
             pose = name_or_pose
         return {int(j): float(q) for j, q in pose.items()}
 
-    def teach(self, sequence_name, poll_s=0.02, arm_kd=3.0):
+    def teach(self, sequence_name, poll_s=0.02, arm_kd=0.5):
         """Record a hand-guided motion. The ARM joints are made backdrivable
         with light damping (kp=0, kd=`arm_kd`) so you can move them by hand
         without them snapping to zero torque and dropping fast; the WAIST is
@@ -2361,7 +2389,7 @@ class G1:
         initial = self._upper_body_pose()
         waist_hold = {j: float(initial[j]) for j in WAIST_JOINTS}
         # Record Dex3 fingers for every hand we can read; warn (don't raise) otherwise.
-        hands, hand_last = {}, {}
+        hands, hand_last, hand_filtered = {}, {}, {}
         for side in ("left", "right"):
             try:
                 pos = self._dex3_hand(side)._current_positions()
@@ -2372,6 +2400,7 @@ class G1:
             else:
                 hands[side] = []
                 hand_last[side] = list(pos)
+                hand_filtered[side] = None
         done = threading.Event()
         def _wait_enter():
             try:
@@ -2398,8 +2427,13 @@ class G1:
                     pos = hand_last[side]
                 else:
                     hand_last[side] = list(pos)
-                dex._write(pos, kp=0.0, kd=0.0, tau=0.0)  # keep fingers backdrivable
-                hands[side].append([float(v) for v in pos])
+                # Store a lightly filtered trajectory.  Dex3 encoder noise is
+                # otherwise recorded verbatim at 50 Hz and replayed as visible
+                # target chatter, even when the hand was held still.
+                filtered = _filter_row(hand_filtered[side], pos, DEX3_TEACH_FILTER_ALPHA)
+                hand_filtered[side] = filtered
+                dex._write(filtered, kp=0.0, kd=0.0, tau=0.0)  # keep fingers backdrivable
+                hands[side].append(filtered)
             if len(samples) - reported >= 10:
                 reported = len(samples)
                 print(f"\rcollected {len(samples)} samples ({timestamps[-1]:.1f}s)...", end="", flush=True)
@@ -2420,10 +2454,16 @@ class G1:
         return {"sequence": str(sequence_name), "samples": len(samples), "duration_s": timestamps[-1], "hands": list(hands)}
 
     def repeat(self, sequence_name=None, speed=1.0, rate_hz=50.0, start_ramp_s=0.8,
-               final_hold_s=0.6, max_joint_speed=DEFAULT_MAX_JOINT_SPEED_RAD_S):
+               final_hold_s=0.6, max_joint_speed=DEFAULT_MAX_JOINT_SPEED_RAD_S,
+               hand_filter_alpha=DEX3_REPEAT_FILTER_ALPHA,
+               hand_deadband_rad=DEX3_REPEAT_DEADBAND_RAD):
         """Replay a motion recorded with teach() over rt/arm_sdk (blends on top
         of AI Sport, no dev mode): ramps safely from the current pose to the
         first sample, plays back at `speed`x, then holds the final pose.
+        Finger targets are low-pass filtered and deadbanded independently so
+        encoder-scale noise from a taught hand pose is not replayed as Dex3
+        chatter.  Set `hand_filter_alpha=1.0` and `hand_deadband_rad=0.0`
+        only when an exact, unfiltered finger trajectory is required.
         Defaults to the most recently taught sequence when no name is given."""
         self._load_sequences()
         name = str(sequence_name) if sequence_name is not None else getattr(self, "_last_taught", None)
@@ -2456,6 +2496,25 @@ class G1:
             else:
                 print(f"[repeat] {side} Dex3 hand not accessible -- skipping its finger playback.")
         dt = 1.0 / max(1.0, float(rate_hz))
+        hand_filter_alpha = max(0.0, min(1.0, float(hand_filter_alpha)))
+        hand_deadband_rad = max(0.0, float(hand_deadband_rad))
+        hand_filtered = {side: None for side in hands}
+        hand_last_sent = {side: None for side in hands}
+        hand_last_write = {side: 0.0 for side in hands}
+
+        def write_hand_frame(side, desired, now):
+            """Filter targets and publish only material updates plus a safe
+            keepalive.  The keepalive retains the existing Dex3 command while
+            avoiding a new 50 Hz position correction for stationary fingers.
+            """
+            filtered = _filter_row(hand_filtered[side], desired, hand_filter_alpha)
+            hand_filtered[side] = filtered
+            if (_row_changed(hand_last_sent[side], filtered, hand_deadband_rad)
+                    or now - hand_last_write[side] >= DEX3_REPEAT_KEEPALIVE_S):
+                self._dex3_hand(side)._write(filtered, kp=1.5, kd=0.1, tau=0.03)
+                hand_last_sent[side] = list(filtered)
+                hand_last_write[side] = now
+
         start_pose = self._upper_body_pose()
         first = {j: float(qs[0][idx]) for idx, j in enumerate(joints)}
         ramp_duration = _safe_duration(start_pose, first, start_ramp_s, max_joint_speed)
@@ -2475,14 +2534,14 @@ class G1:
             arm_sdk.write({j: float(row[idx]) for idx, j in enumerate(joints)}, weight=1.0, kp=30.0, kd=5.0, waist_kp=waist_kp, waist_kd=waist_kd)
             for side, frames in hands.items():
                 hrow = _lerp_row(ts, frames, elapsed)
-                self._dex3_hand(side)._write([float(v) for v in hrow], kp=1.5, kd=0.1, tau=0.03)
+                write_hand_frame(side, hrow, time.monotonic())
             time.sleep(dt)
         final = {j: float(qs[-1][idx]) for idx, j in enumerate(joints)}
         hold_deadline = time.time() + max(0.0, float(final_hold_s))
         while time.time() < hold_deadline:
             arm_sdk.write(final, weight=1.0, kp=30.0, kd=5.0, waist_kp=waist_kp, waist_kd=waist_kd)
             for side, frames in hands.items():
-                self._dex3_hand(side)._write([float(v) for v in frames[-1]], kp=1.5, kd=0.1, tau=0.03)
+                write_hand_frame(side, frames[-1], time.monotonic())
             time.sleep(dt)
         return {"sequence": name, "samples": len(ts), "duration_s": t_final, "hands": list(hands)}
 
