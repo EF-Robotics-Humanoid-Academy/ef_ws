@@ -228,9 +228,15 @@ class SharedState:
         self.extended_hand_reference_T_base: Dict[str, np.ndarray] = {}
         self.object_mass_kg: float = DEFAULT_OBJECT_MASS_KG
         self.tactile_status: str = "tactile: starting…"
+        self.tactile_pressures: Dict[str, List[List[float]]] = {}
+        self.tactile_timestamps: Dict[str, float] = {}
+        self.tactile_direct_status: str = "tactile: subscriber starting…"
         self.last_grip_result: Dict[str, Any] = {}
         self.lift_confirmation_pending = False
         self.lift_arm: Optional[str] = None
+        self.lift_unverified = False
+        self.holding_object = False
+        self.holding_arm: Optional[str] = None
 
 
 STATE = SharedState()
@@ -294,10 +300,22 @@ DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.030
 # and let tactile feedback decide whether anything was actually grasped. This
 # prevents a visually correct approach from repeatedly resetting solely
 # because RGB-D/FK registration is a few centimetres off.
-DEFAULT_VISION_STALL_CLOSE_POS_M = 0.040
+# Tracking measures the palm-mount FK frame while the operator view draws
+# the palm centre (offset by ~4.5 cm).  Combined with RGB-D registration,
+# a visually aligned cup commonly plateaus near 6.5 cm.  Keep this below a
+# hand width but above that measured frame offset; tactile/manual review is
+# still required before lifting.
+DEFAULT_VISION_STALL_CLOSE_POS_M = 0.075
 DEFAULT_HAND_COMMAND_HOLD_S = 1.0
 DEFAULT_HAND_RECOVERY_HOLD_S = 1.6
 DEFAULT_HAND_TARGET_TOL_RAD = 0.12
+# Match the DEX3 jam detector used by academy/sdk_wrapper.py.  A joint that
+# has a meaningful remaining error, has been asked to move far enough to make
+# that error meaningful, and is essentially stationary is not pushed harder:
+# it receives the DEX3 timeout/release packet instead.
+DEX3_STALL_ERROR_RAD = 0.16
+DEX3_STALL_SPEED_RAD_S = 0.12
+DEX3_STALL_CONFIRM_S = 0.16
 DEFAULT_EXTEND_STAGE_DURATION_S = 1.2
 DEFAULT_EXTEND_FINAL_Y_DECREASE_M = 0.09
 DEFAULT_CENTER_WAIST_MAX_YAW_RAD = 0.25
@@ -305,10 +323,14 @@ DEFAULT_CENTER_WAIST_DEADBAND_RAD = 0.025
 DEFAULT_CENTER_WAIST_SPEED_RAD_S = 0.35
 DEFAULT_CENTER_WAIST_SETTLE_S = 0.4
 DEFAULT_POST_GRASP_LIFT_M = 0.08
+DEFAULT_BOARD_PLACE_APPROACH_M = 0.14
+DEFAULT_BOARD_PLACE_RELEASE_M = 0.12
 DEFAULT_POST_GRASP_LIFT_DURATION_S = 2.5
 DEFAULT_DETECTION_PROMPT = "coffee cup"
 DEFAULT_SURFACE_CLEARANCE_M = 0.03
 MAX_SURFACE_STANDOFF_M = 0.16
+WBC_SAVED_POSES_PATH = os.path.abspath(os.path.join(_DIR, "..", "WBC", "saved_ik_pose_cli_v3_poses.json"))
+WBC_RIGHT_ARM_FORWARD_POSE_NAME = "right arm forward"
 
 # Dex3 tactile (rt/dex3/{side}/state press_sensor_state) raw-value semantics
 # mirrored from modules/scripts/test_dex3_tactile.py: 30000 is the
@@ -765,6 +787,51 @@ def _hand_fk_loop(iface: str, domain_id: int) -> None:
             with STATE.lock:
                 STATE.hand_fk_status = f"FK hand error: {exc}"
         time.sleep(0.1)
+
+
+def _tactile_loop(iface: str, domain_id: int) -> None:
+    """Dedicated Dex3 state readers, independent of sdk_client.Robot.
+
+    RGB-D-only operation can create a separate control Robot after startup;
+    its internal hand subscriber may miss the feed.  Reading the canonical
+    state topics here also gives the UI a stable, inspectable data source.
+    """
+    try:
+        from dds_env import ensure_channel_factory_initialized
+        from sdk_sensors import LatestSubscriber
+        from unitree_sdk2py.idl.unitree_hg.msg.dds_ import HandState_
+
+        ensure_channel_factory_initialized(int(domain_id), iface)
+        topics = {"left": "rt/dex3/left/state", "right": "rt/dex3/right/state"}
+        subscribers = {side: LatestSubscriber(topic, HandState_) for side, topic in topics.items()}
+        for subscriber in subscribers.values():
+            subscriber.start(queue_len=20)
+    except Exception as exc:
+        with STATE.lock:
+            STATE.tactile_direct_status = f"tactile subscriber unavailable: {exc}"
+        return
+
+    while True:
+        saw_data = False
+        for side, subscriber in subscribers.items():
+            try:
+                msg, _ts = subscriber.get_latest()
+                if msg is None:
+                    continue
+                pressures = []
+                for sensor in list(getattr(msg, "press_sensor_state", []) or []):
+                    pressures.append([
+                        float(value) for value in list(getattr(sensor, "pressure", []) or [])
+                    ])
+                with STATE.lock:
+                    STATE.tactile_pressures[side] = pressures
+                    STATE.tactile_timestamps[side] = time.time()
+                    STATE.tactile_direct_status = "tactile: direct Dex3 state feed active"
+                saw_data = True
+            except Exception as exc:
+                with STATE.lock:
+                    STATE.tactile_direct_status = f"tactile subscriber error: {exc}"
+        time.sleep(0.03 if saw_data else 0.10)
 
 
 def _init_unitree_dds_once(iface: str, domain_id: int) -> str:
@@ -1423,12 +1490,19 @@ app.layout = dbc.Container([
             ),
             dbc.Button("Grab selected object", id="grab-btn", color="success",
                         className="mb-2", disabled=True),
-            dbc.Button("Confirm lift to extend pose", id="confirm-lift-btn", color="warning",
+            dbc.Button("Confirm lift to stable pose", id="confirm-lift-btn", color="warning",
                         className="mb-2 ms-2", disabled=True),
+            dbc.Button("Place on ArUco board", id="place-board-btn", color="info",
+                        className="mb-2 ms-2", disabled=True),
+            dbc.Button("Retract to stable pose", id="retract-stable-btn", color="secondary",
+                        className="mb-2 ms-2"),
             html.Div(id="lift-confirmation-status", className="mb-2", style={"fontSize": "12px", "color": "#fd8"}),
             html.Div(id="grab-selected-label", className="mb-2", style={"fontSize": "13px"}),
             html.Div(id="obstacle-status", className="mb-2", style={"fontSize": "12px", "color": "#aad"}),
-            html.Div(id="tactile-status", className="mb-2", style={"fontSize": "12px", "color": "#ada"}),
+            html.Pre(id="tactile-status", className="mb-2", style={
+                "fontSize": "11px", "color": "#ada", "marginBottom": 0,
+                "whiteSpace": "pre-wrap",
+            }),
             html.Hr(),
             dbc.ButtonGroup([
                 dbc.Button("Prepare", id="prepare-btn", color="secondary"),
@@ -1468,6 +1542,7 @@ app.layout = dbc.Container([
     Output("aruco-status", "children"),
     Output("confirm-lift-btn", "disabled"),
     Output("lift-confirmation-status", "children"),
+    Output("place-board-btn", "disabled"),
     Input("refresh-interval", "n_intervals"),
     Input("view-select", "value"),
 )
@@ -1504,6 +1579,13 @@ def _refresh(_n, view_name):
         )
         lift_pending = STATE.lift_confirmation_pending
         lift_arm = STATE.lift_arm
+        lift_unverified = STATE.lift_unverified
+        holding_object = STATE.holding_object
+        holding_arm = STATE.holding_arm
+        board_fresh = (
+            STATE.aruco_enabled and STATE.aruco_T_camera_board is not None
+            and (time.time() - STATE.aruco_last_seen_ts) <= STALE_AFTER_S
+        )
 
     tactile_status = _tactile_status_text()
 
@@ -1512,7 +1594,7 @@ def _refresh(_n, view_name):
         return (
             ph, "No detections yet.", status_msg, camera_tf_status,
             "\n".join(grab_log), True, "", obstacle_status, tactile_status, aruco_status,
-            True, "",
+            True, "", True,
         )
 
     # A frozen/erroring camera feed must not keep offering stale objects as
@@ -1635,7 +1717,13 @@ def _refresh(_n, view_name):
         view_src, det_list, status_msg, camera_tf_status,
         "\n".join(grab_log), grab_disabled, selected_label, obstacle_status,
         tactile_status, aruco_status,
-        not lift_pending, (f"Object held in {lift_arm} hand. Confirm before lifting to the extend pose." if lift_pending else ""),
+        not lift_pending, (
+            f"Close is unverified in {lift_arm} hand — inspect it, then confirm lift to the stable pose."
+            if lift_pending and lift_unverified else
+            f"Object held in {lift_arm} hand. Confirm before lifting to the stable pose."
+            if lift_pending else ""
+        ),
+        not (holding_object and holding_arm == "right" and board_fresh and not arm_motion_running),
     )
 
 
@@ -1790,6 +1878,8 @@ def _sync_planning_mode(value):
     Output("safety-status", "children"),
     Input("grab-btn", "n_clicks"),
     Input("confirm-lift-btn", "n_clicks"),
+    Input("place-board-btn", "n_clicks"),
+    Input("retract-stable-btn", "n_clicks"),
     Input("prepare-btn", "n_clicks"),
     Input("walk-btn", "n_clicks"),
     Input("stop-moving-btn", "n_clicks"),
@@ -1805,6 +1895,8 @@ def _sync_planning_mode(value):
 def _buttons(
     grab_clicks,
     confirm_lift_clicks,
+    place_board_clicks,
+    retract_stable_clicks,
     prepare_clicks,
     walk_clicks,
     stop_moving_clicks,
@@ -1827,7 +1919,13 @@ def _buttons(
         return "Grab started — see log below."
     if trigger == "confirm-lift-btn":
         threading.Thread(target=_run_confirm_lift, daemon=True).start()
-        return "Lift confirmed — returning to extend pose..."
+        return "Lift confirmed — moving to stable pose..."
+    if trigger == "place-board-btn":
+        threading.Thread(target=_run_place_on_board, daemon=True).start()
+        return "Placing object on the detected ArUco board..."
+    if trigger == "retract-stable-btn":
+        threading.Thread(target=_run_retract_stable_pose, daemon=True).start()
+        return "Retracting right arm to stable pose..."
     if trigger == "prepare-btn":
         threading.Thread(target=_run_prepare, daemon=True).start()
         return "Prepare sent..."
@@ -1868,6 +1966,10 @@ def _buttons(
 def _run_release_arms() -> None:
     ARM_CANCEL_EVENT.set()
     _stop_active_hold()
+    with ACTIVE_NAV_LOCK:
+        nav = ACTIVE_DIRECT_NAV
+    if nav is not None:
+        _shutdown_direct_nav(nav, "release arms")
     acquired = ARM_CONTROL_LOCK.acquire(timeout=3.0)
     if not acquired:
         with STATE.lock:
@@ -1883,9 +1985,24 @@ def _run_release_arms() -> None:
         global _ARM_AUTHORITY_ENGAGED
         _ARM_AUTHORITY_ENGAGED = False
         with STATE.lock:
+            STATE.grab_running = False
+            STATE.lift_confirmation_pending = False
+            STATE.lift_arm = None
+            STATE.lift_unverified = False
+            STATE.holding_object = False
+            STATE.holding_arm = None
+            STATE.extended_hand_R_base.clear()
+            STATE.extended_hand_reference_q.clear()
+            STATE.extended_hand_reference_T_base.clear()
             STATE.status_msg = f"release_arms() done: {result}"
     except Exception as exc:
         with STATE.lock:
+            STATE.grab_running = False
+            STATE.lift_confirmation_pending = False
+            STATE.lift_arm = None
+            STATE.lift_unverified = False
+            STATE.holding_object = False
+            STATE.holding_arm = None
             STATE.status_msg = f"release_arms() failed: {exc}"
     finally:
         with STATE.lock:
@@ -1994,6 +2111,85 @@ def _hand_target_error(side: str, target: List[float]) -> Optional[float]:
     return max(abs(goal - current) for goal, current in zip(target, actual))
 
 
+def _hand_stalled_joints(
+    side: str,
+    target: List[float],
+    start: Optional[List[float]] = None,
+) -> List[str]:
+    """Return DEX3 joints which are physically stalled against a command.
+
+    This is the same three-part test used by academy/sdk_wrapper: the command
+    must have requested a substantial move, the live joint must still be far
+    from that command, and its measured speed must be near zero.  It avoids
+    mistaking a slowly moving finger for a jam.
+    """
+    snapshot = _hand_snapshot(side)
+    if snapshot is None:
+        return []
+    positions = snapshot.get("positions", {})
+    velocities = snapshot.get("velocities", {})
+    if not isinstance(positions, dict) or not isinstance(velocities, dict):
+        return []
+    try:
+        from sdk_hand import HAND_JOINT_NAMES
+        actual = [float(positions[name]) for name in HAND_JOINT_NAMES]
+        speed = [float(velocities[name]) for name in HAND_JOINT_NAMES]
+    except (ImportError, KeyError, TypeError, ValueError):
+        return []
+    if start is None or len(start) != len(actual):
+        start = list(actual)
+    stalled: List[str] = []
+    for name, requested, current, velocity, initial in zip(
+        HAND_JOINT_NAMES, target, actual, speed, start,
+    ):
+        if (
+            abs(float(requested) - current) >= DEX3_STALL_ERROR_RAD
+            and abs(velocity) <= DEX3_STALL_SPEED_RAD_S
+            and abs(float(requested) - float(initial)) >= DEX3_STALL_ERROR_RAD
+        ):
+            stalled.append(name)
+    return stalled
+
+
+def _release_stalled_fingers(side: str, joints: List[str], context: str) -> None:
+    """Send DEX3's release bit at the live pose after a confirmed jam.
+
+    This is the recovery primitive from academy/sdk_wrapper and lets the next
+    explicit open/close command re-engage normally instead of leaving a
+    collision-stalled motor latched in position control.
+    """
+    if _CONTROL_ROBOT is None or not hasattr(_CONTROL_ROBOT, "release_fingers"):
+        _log(f"[recognition_app] DEX3 stall during {context} ({side}, {joints}); release API unavailable.")
+        return
+    try:
+        # Prefer an explicit packet at the measured pose, matching the
+        # academy implementation.  Its timeout bit (``timeout=1``) switches
+        # DEX3 out of the normal position-control mode; zero gains make this
+        # a release, not an attempt to pull the finger back to its target.
+        snapshot = _hand_snapshot(side)
+        positions = None if snapshot is None else snapshot.get("positions")
+        controller = _CONTROL_ROBOT._get_hand(side)
+        if isinstance(positions, dict) and hasattr(controller, "write_targets_once"):
+            from sdk_hand import HAND_JOINT_NAMES
+            live_targets = [float(positions[name]) for name in HAND_JOINT_NAMES]
+            for _ in range(3):
+                controller.write_targets_once(
+                    live_targets, kp=0.0, kd=0.0, tau=0.0, timeout=1,
+                )
+                time.sleep(1.0 / 50.0)
+        else:
+            _CONTROL_ROBOT.release_fingers(
+                hand=side, hold_s=DEX3_STALL_CONFIRM_S,
+                rate_hz=50.0, persistent=False,
+            )
+        _log(
+            f"[recognition_app] DEX3 stall during {context}: released {side} fingers "
+            f"with timeout/release packet (stalled joints: {', '.join(joints)})."
+        )
+    except Exception as exc:
+        _log(f"[recognition_app] DEX3 stall release failed during {context} ({side}): {exc}")
+
+
 def _reset_hand_controller(side: str) -> None:
     if _CONTROL_ROBOT is None:
         return
@@ -2035,6 +2231,9 @@ def _send_hand_action(action: str, side: str, hold_s: Optional[float] = None) ->
     if should_recover:
         err = _hand_target_error(side, target)
         if err is not None and err > DEFAULT_HAND_TARGET_TOL_RAD:
+            stalled_joints = _hand_stalled_joints(side, target)
+            if stalled_joints:
+                _release_stalled_fingers(side, stalled_joints, f"hand_{action} recovery")
             _log(
                 f"[recognition_app] hand_{action}({side}) missed target "
                 f"(max_err={err:.3f}rad); retrying explicit pose."
@@ -2087,6 +2286,11 @@ def _run_hand_action(action: str) -> None:
     try:
         feedback_available = _send_hand_action(action, side)
         with STATE.lock:
+            if action == "open" and STATE.holding_arm == side:
+                STATE.holding_object = False
+                STATE.holding_arm = None
+                STATE.lift_confirmation_pending = False
+                STATE.lift_unverified = False
             suffix = "" if feedback_available else " (feedback unavailable)"
             STATE.status_msg = f"hand_{action}({side}) sent{suffix}."
     except Exception as exc:
@@ -2102,17 +2306,27 @@ def _is_invalid_tactile_value(value: float) -> bool:
     return abs(float(value) - TACTILE_INVALID_VALUE) < 0.5
 
 
+def _tactile_pressures(side: str) -> Optional[List[List[float]]]:
+    """Prefer the app's direct DDS feed, with the SDK reader as fallback."""
+    with STATE.lock:
+        values = STATE.tactile_pressures.get(side)
+        timestamp = STATE.tactile_timestamps.get(side, 0.0)
+    if values is not None and (time.time() - timestamp) <= 2.0:
+        return [list(sensor) for sensor in values]
+    if _CONTROL_ROBOT is None or not hasattr(_CONTROL_ROBOT, "get_tactile_pressures"):
+        return None
+    try:
+        return _CONTROL_ROBOT.get_tactile_pressures(side)
+    except Exception:
+        return None
+
+
 def _max_tactile_pressure(side: str) -> Optional[float]:
     """Highest current raw fingertip pressure reading for one hand, or None
     if tactile feedback isn't available (mock mode, RGBD-only control robot,
     or no rt/dex3/{side}/state messages yet).
     """
-    if _CONTROL_ROBOT is None or not hasattr(_CONTROL_ROBOT, "get_tactile_pressures"):
-        return None
-    try:
-        sensors = _CONTROL_ROBOT.get_tactile_pressures(side)
-    except Exception:
-        return None
+    sensors = _tactile_pressures(side)
     if not sensors:
         return None
     valid_values = [
@@ -2127,17 +2341,29 @@ def _max_tactile_pressure(side: str) -> Optional[float]:
 
 
 def _tactile_status_text() -> str:
-    if _CONTROL_ROBOT is None or not hasattr(_CONTROL_ROBOT, "get_tactile_pressures"):
-        return "tactile: unavailable (no Dex3 state feed)"
-    parts = []
+    with STATE.lock:
+        direct_status = STATE.tactile_direct_status
+    lines = [direct_status]
     for side in ("left", "right"):
-        pressure = _max_tactile_pressure(side)
-        if pressure is None:
-            parts.append(f"{side}=n/a")
-        else:
-            contact = "contact" if pressure >= TACTILE_VALID_THRESHOLD else "no contact"
-            parts.append(f"{side}={pressure:.0f} raw ({contact})")
-    return "tactile: " + "  ".join(parts)
+        sensors = _tactile_pressures(side)
+        if sensors is None:
+            lines.append(f"{side}: waiting for rt/dex3/{side}/state")
+            continue
+        sensor_parts = []
+        for index, values in enumerate(sensors):
+            valid = [float(value) for value in values if not _is_invalid_tactile_value(value)]
+            if not valid:
+                sensor_parts.append(f"S{index}=--")
+                continue
+            peak = max(valid)
+            state = "CONTACT" if peak >= TACTILE_VALID_THRESHOLD else "idle"
+            sensor_parts.append(f"S{index}={peak:.0f}({state})")
+        overall = _max_tactile_pressure(side)
+        lines.append(
+            f"{side}: peak={'--' if overall is None else f'{overall:.0f}'} raw | "
+            + "  ".join(sensor_parts or ["no pressure sensors"])
+        )
+    return "\n".join(lines)
 
 
 def _grip_target_pressure_raw(mass_kg: float) -> float:
@@ -2166,7 +2392,7 @@ def _tactile_guided_hand_close(arm: str, mass_kg: float) -> Dict[str, Any]:
         and len(open_t) == len(closed_t)
         and _CONTROL_ROBOT is not None
         and hasattr(_CONTROL_ROBOT, "hand_pose")
-        and hasattr(_CONTROL_ROBOT, "get_tactile_pressures")
+        and _tactile_pressures(side) is not None
     )
     if not tactile_ready:
         _log(f"[recognition_app] Tactile-guided close unavailable for {side}; falling back to fixed close.")
@@ -2178,6 +2404,15 @@ def _tactile_guided_hand_close(arm: str, mass_kg: float) -> Dict[str, Any]:
         f"[recognition_app] Tactile-guided close ({side}): object_mass={mass_kg:.2f}kg "
         f"target_pressure={target_pressure:.0f} raw."
     )
+    close_start_snapshot = _hand_snapshot(side)
+    close_start: Optional[List[float]] = None
+    if close_start_snapshot is not None:
+        positions = close_start_snapshot.get("positions", {})
+        try:
+            from sdk_hand import HAND_JOINT_NAMES
+            close_start = [float(positions[name]) for name in HAND_JOINT_NAMES]
+        except (ImportError, KeyError, TypeError, ValueError):
+            close_start = None
     steps = DEFAULT_TACTILE_CLOSE_STEPS
     last_pressure = 0.0
     last_fraction = 0.0
@@ -2215,6 +2450,27 @@ def _tactile_guided_hand_close(arm: str, mass_kg: float) -> Dict[str, Any]:
                 "success": True, "method": "tactile", "side": side,
                 "fraction": fraction, "pressure": pressure,
                 "target_pressure": target_pressure, "mass_kg": mass_kg,
+            }
+            with STATE.lock:
+                STATE.last_grip_result = dict(result)
+            return result
+        # If there is no tactile confirmation and a moving finger has become
+        # stationary well short of its command, do not keep integrating force
+        # into the obstruction.  The release packet is intentionally sent at
+        # the live pose; a later explicit command automatically re-engages it.
+        stalled_joints = _hand_stalled_joints(side, target_positions, close_start)
+        if stalled_joints:
+            _release_stalled_fingers(side, stalled_joints, "tactile-guided close")
+            result = {
+                "success": False,
+                "method": "dex3_stall_release",
+                "reason": "collision_or_stall",
+                "side": side,
+                "stalled_joints": stalled_joints,
+                "fraction": fraction,
+                "pressure": pressure,
+                "target_pressure": target_pressure,
+                "mass_kg": mass_kg,
             }
             with STATE.lock:
                 STATE.last_grip_result = dict(result)
@@ -2418,7 +2674,7 @@ def _hold_current_arm_pose(robot, arm: str) -> None:
 
 
 def _run_confirm_lift() -> None:
-    """After operator confirmation, interpolate from the held grasp to extend pose."""
+    """Lift vertically, then interpolate from the held grasp to the WBC stable pose."""
     with STATE.lock:
         pending = STATE.lift_confirmation_pending
         arm = STATE.lift_arm
@@ -2434,24 +2690,195 @@ def _run_confirm_lift() -> None:
     try:
         with STATE.lock:
             STATE.arm_motion_running = True
-            STATE.arm_motion_label = "lift to extend pose"
+            STATE.arm_motion_label = "lift to stable pose"
         with ACTIVE_NAV_LOCK:
             nav = ACTIVE_DIRECT_NAV
+        # Start publishing a measured-current hold *before* stopping the
+        # tracker. This avoids the arm_sdk authority gap that let the arm sag
+        # toward the desk between controllers.
+        _hold_current_arm_pose(_CONTROL_ROBOT, arm)
         if nav is not None:
             _shutdown_direct_nav(nav, "before confirmed lift")
-        _stop_active_hold()
         obstacles = _estimate_obstacles(cam)
-        result = _run_reset_to_extend_arm_reference(
-            _CONTROL_ROBOT, arm, max_step, max_speed, obstacles=obstacles,
+        hold_executor = ACTIVE_HOLD_EXECUTOR
+        if hold_executor is None:
+            raise RuntimeError("could not establish continuous current-pose hold")
+        lift_result = _lift_end_effector_z_with_continuous_executor(
+            _CONTROL_ROBOT, arm, hold_executor,
+            mass_kg=STATE.object_mass_kg, obstacles=obstacles,
         )
-        _log(f"[recognition_app] confirmed lift to extend pose result: {result}")
+        if not lift_result.get("success"):
+            raise RuntimeError(f"vertical clearance lift failed: {lift_result}")
+        if arm != "right":
+            raise RuntimeError("WBC stable forward pose is currently defined for the right arm only")
+        result = _move_to_wbc_right_arm_forward_continuous(
+            _CONTROL_ROBOT, hold_executor, max_speed, obstacles,
+        )
+        _log(f"[recognition_app] confirmed lift to WBC right arm forward result: {result}")
         with STATE.lock:
             if result.get("success"):
                 STATE.lift_confirmation_pending = False
                 STATE.lift_arm = None
-                STATE.status_msg = "Lift complete: object moved to configured extend pose."
+                STATE.lift_unverified = False
+                STATE.status_msg = "Lift complete: object moved to WBC right arm forward pose."
             else:
-                STATE.status_msg = f"Lift to extend pose blocked/failed: {result.get('reason')}"
+                STATE.status_msg = f"Lift to WBC forward pose blocked/failed: {result.get('reason')}"
+    except Exception as exc:
+        _log(f"[recognition_app] confirmed lift to WBC forward pose failed: {exc}")
+        with STATE.lock:
+            STATE.status_msg = f"Lift to WBC forward pose failed: {exc}"
+    finally:
+        with STATE.lock:
+            STATE.arm_motion_running = False
+            STATE.arm_motion_label = ""
+        ARM_CONTROL_LOCK.release()
+
+
+def _move_ee_to_position(
+    robot,
+    arm: str,
+    target_position: np.ndarray,
+    max_joint_step_rad: float,
+    max_joint_speed_rad_s: float,
+    obstacles: Optional[Obstacles],
+    label: str,
+) -> Dict[str, Any]:
+    """Position-first Cartesian move; lets wrist orientation stay reachable."""
+    q_current = _read_current_arm_q(robot, arm)
+    fk = ArmFK(arm=arm, backend="urdf")
+    T_target = fk.compute_arm(q_current)
+    T_target[:3, 3] = np.asarray(target_position, dtype=np.float64)
+    ik = ArmIK(arm=arm, solver="position_dls", tol_pos_m=0.012, tol_rot_rad=math.pi)
+    q_target, info = ik.solve(T_target, q_init=q_current)
+    if q_target is None:
+        return {"success": False, "reason": "ik_failed", "ik_info": info, "label": label}
+    executor = ArmExecutor(
+        robot, arm=arm, kp=30.0, kd=1.5,
+        max_reach_m=DEFAULT_DIRECT_MAX_REACH_M,
+        max_joint_step_rad=max_joint_step_rad,
+        max_joint_speed_rad_s=max_joint_speed_rad_s,
+    )
+    result = executor.execute(
+        q_target, duration_s=DEFAULT_POST_GRASP_LIFT_DURATION_S,
+        q_arm_start=q_current, T_base_desired=T_target,
+        stop_event=ARM_CANCEL_EVENT, obstacles=obstacles,
+    )
+    result.update({"label": label, "ik_info": info})
+    return result
+
+
+def _run_retract_stable_pose() -> None:
+    """Manual seamless return of the right arm to WBC's stable forward pose."""
+    if not ARM_CONTROL_LOCK.acquire(blocking=False):
+        _log("[recognition_app] Stable retract ignored: arm controller is busy.")
+        return
+    try:
+        with STATE.lock:
+            STATE.arm_motion_running = True
+            STATE.arm_motion_label = "retract to stable pose"
+            cam = dict(STATE.camera_extrinsic)
+            max_speed = STATE.max_joint_speed_rad_s
+        if _CONTROL_ROBOT is None:
+            raise RuntimeError(_CONTROL_STATUS)
+        with ACTIVE_NAV_LOCK:
+            nav = ACTIVE_DIRECT_NAV
+        _hold_current_arm_pose(_CONTROL_ROBOT, "right")
+        if nav is not None:
+            _shutdown_direct_nav(nav, "before manual stable retract")
+        obstacles = _estimate_obstacles(cam)
+        hold_executor = ACTIVE_HOLD_EXECUTOR
+        if hold_executor is None:
+            raise RuntimeError("could not establish continuous current-pose hold")
+        result = _move_to_wbc_right_arm_forward_continuous(
+            _CONTROL_ROBOT, hold_executor, max_speed, obstacles,
+        )
+        _log(f"[recognition_app] manual retract to WBC stable pose: {result}")
+        with STATE.lock:
+            STATE.status_msg = (
+                "Right arm at WBC stable forward pose."
+                if result.get("success") else
+                f"Stable retract blocked/failed: {result.get('reason')}"
+            )
+    except Exception as exc:
+        _log(f"[recognition_app] manual stable retract failed: {exc}")
+        with STATE.lock:
+            STATE.status_msg = f"Stable retract failed: {exc}"
+    finally:
+        with STATE.lock:
+            STATE.arm_motion_running = False
+            STATE.arm_motion_label = ""
+        ARM_CONTROL_LOCK.release()
+
+
+def _run_place_on_board() -> None:
+    """Place a held right-hand object at the centre of the visible GridBoard."""
+    with STATE.lock:
+        pending, arm = STATE.holding_object, STATE.holding_arm
+        T_camera_board = None if STATE.aruco_T_camera_board is None else STATE.aruco_T_camera_board.copy()
+        board_age = time.time() - STATE.aruco_last_seen_ts
+        cam = dict(STATE.camera_extrinsic)
+        max_step, max_speed = STATE.max_joint_step_rad, STATE.max_joint_speed_rad_s
+        mass_kg = STATE.object_mass_kg
+    if not pending or arm != "right":
+        _log("[recognition_app] Board placement requires a held right-hand object.")
+        return
+    if T_camera_board is None or board_age > STALE_AFTER_S:
+        _log("[recognition_app] Board placement blocked: ArUco board is not currently visible.")
+        return
+    if not ARM_CONTROL_LOCK.acquire(blocking=False):
+        _log("[recognition_app] Board placement ignored: arm controller is busy.")
+        return
+    try:
+        with STATE.lock:
+            STATE.arm_motion_running = True
+            STATE.arm_motion_label = "place on ArUco board"
+        with ACTIVE_NAV_LOCK:
+            nav = ACTIVE_DIRECT_NAV
+        if nav is not None:
+            _shutdown_direct_nav(nav, "before board placement")
+        _stop_active_hold()
+        obstacles = _estimate_obstacles(cam)
+        lift_result = _lift_end_effector_z_slowly(
+            _CONTROL_ROBOT, arm, max_step, max_speed, mass_kg=mass_kg, obstacles=obstacles,
+        )
+        if not lift_result.get("success"):
+            raise RuntimeError(f"clearance lift failed: {lift_result}")
+        T_base_camera = _make_transform(
+            xyz=(cam["x"], cam["y"], cam["z"]),
+            rpy=(cam["roll"], cam["pitch"], cam["yaw"]),
+        )
+        T_base_board = T_base_camera @ T_camera_board
+        board_width = ARUCO_BOARD_COLS * ARUCO_MARKER_LENGTH_M + (ARUCO_BOARD_COLS - 1) * ARUCO_MARKER_SEPARATION_M
+        board_height = ARUCO_BOARD_ROWS * ARUCO_MARKER_LENGTH_M + (ARUCO_BOARD_ROWS - 1) * ARUCO_MARKER_SEPARATION_M
+        centre_board = np.array([board_width / 2.0, board_height / 2.0, 0.0, 1.0])
+        centre_base = (T_base_board @ centre_board)[:3]
+        normal_base = T_base_board[:3, 2].copy()
+        if float(np.dot(normal_base, np.array([0.0, 0.0, 1.0]))) < 0.0:
+            normal_base *= -1.0
+        approach = centre_base + normal_base * DEFAULT_BOARD_PLACE_APPROACH_M
+        release = centre_base + normal_base * DEFAULT_BOARD_PLACE_RELEASE_M
+        for label, point in (("board approach", approach), ("board release", release)):
+            result = _move_ee_to_position(
+                _CONTROL_ROBOT, arm, point, max_step, max_speed, obstacles, label,
+            )
+            _log(f"[recognition_app] {label} result: {result}")
+            if not result.get("success"):
+                raise RuntimeError(f"{label} failed: {result}")
+        _send_hand_action("open", arm)
+        _log("[recognition_app] Opened right hand to release object on ArUco board.")
+        stable_result = _move_to_wbc_right_arm_forward(_CONTROL_ROBOT, max_step, max_speed, obstacles)
+        _log(f"[recognition_app] board placement return to WBC pose: {stable_result}")
+        with STATE.lock:
+            STATE.lift_confirmation_pending = False
+            STATE.lift_arm = None
+            STATE.lift_unverified = False
+            STATE.holding_object = False
+            STATE.holding_arm = None
+            STATE.status_msg = "Object placed on ArUco board; right arm moved to stable WBC pose."
+    except Exception as exc:
+        _log(f"[recognition_app] Board placement failed: {exc}")
+        with STATE.lock:
+            STATE.status_msg = f"Board placement failed: {exc}"
     finally:
         with STATE.lock:
             STATE.arm_motion_running = False
@@ -2624,6 +3051,50 @@ def _run_extend_arm_ee_ik(
         max_joint_speed_rad_s=max_joint_speed_rad_s,
     )
     results = []
+
+    def stage_obstacles() -> Obstacles:
+        with STATE.lock:
+            T_opposite = STATE.hand_fk_T_base.get(opposite_arm)
+        return Obstacles(
+            table=static_obstacles.table,
+            table_margin_m=TABLE_COLLISION_MARGIN_M,
+            table_xy_margin_m=TABLE_COLLISION_XY_MARGIN_M,
+            opposite_shoulder_base=SHOULDER_IN_BASE[opposite_arm] if T_opposite is not None else None,
+            opposite_wrist_base=T_opposite[:3, 3].copy() if T_opposite is not None else None,
+        )
+
+    # The fixed forward recipe begins well above the table, but a robot-side
+    # rest pose can be low.  Lift the *current* EE first so the joint-space
+    # interpolation into the recipe cannot sweep down through the desk.
+    if static_obstacles.table is not None:
+        T_current = fk.compute_arm(q_cur)
+        clearance_z = float(static_obstacles.table.z_base_m + TABLE_COLLISION_MARGIN_M + 0.10)
+        if float(T_current[2, 3]) < clearance_z:
+            T_preclear = T_current.copy()
+            T_preclear[2, 3] = clearance_z
+            preclear_ik = ArmIK(
+                arm=arm, solver="position_dls", tol_pos_m=0.012, tol_rot_rad=math.pi,
+            )
+            q_preclear, info = preclear_ik.solve(T_preclear, q_init=q_cur)
+            if q_preclear is None:
+                return {
+                    "success": False, "reason": "preclear_ik_failed", "ik_info": info,
+                    "stage_results": results,
+                }
+            result = executor.execute(
+                q_preclear, duration_s=DEFAULT_EXTEND_STAGE_DURATION_S,
+                q_arm_start=q_cur, T_base_desired=T_preclear,
+                stop_event=ARM_CANCEL_EVENT, obstacles=stage_obstacles(),
+            )
+            results.append({"stage": "vertical_table_preclear", "ik": info, "execute": result})
+            _log(f"[recognition_app] extend vertical_table_preclear: {result}")
+            if not result.get("success"):
+                return {
+                    "success": False, "reason": result.get("reason"),
+                    "stage_results": results,
+                }
+            q_cur = np.asarray(result.get("final_q", q_preclear), dtype=np.float64)
+
     for stage_name, q_stage_nominal in _extend_arm_forward_joint_waypoints(arm):
         if ARM_CANCEL_EVENT.is_set():
             return {
@@ -2636,22 +3107,13 @@ def _run_extend_arm_ee_ik(
         if stage_name == "final_forward_up_and_in":
             T_desired = T_desired.copy()
             T_desired[1, 3] += DEFAULT_EXTEND_FINAL_Y_DECREASE_M
-        with STATE.lock:
-            T_opposite = STATE.hand_fk_T_base.get(opposite_arm)
-        stage_obstacles = Obstacles(
-            table=static_obstacles.table,
-            table_margin_m=TABLE_COLLISION_MARGIN_M,
-            table_xy_margin_m=TABLE_COLLISION_XY_MARGIN_M,
-            opposite_shoulder_base=SHOULDER_IN_BASE[opposite_arm] if T_opposite is not None else None,
-            opposite_wrist_base=T_opposite[:3, 3].copy() if T_opposite is not None else None,
-        )
         result = executor.execute(
             q_stage_nominal,
             duration_s=DEFAULT_EXTEND_STAGE_DURATION_S,
             q_arm_start=q_cur,
             T_base_desired=T_desired,
             stop_event=ARM_CANCEL_EVENT,
-            obstacles=stage_obstacles,
+            obstacles=stage_obstacles(),
         )
         results.append({"stage": stage_name, "execute": result})
         _log(
@@ -2735,6 +3197,79 @@ def _run_reset_to_extend_arm_reference(
     result["arm"] = arm
     result["controller"] = "saved_extend_arm_reference"
     return result
+
+
+def _wbc_right_arm_forward_q() -> np.ndarray:
+    """Load the reviewed stable right-arm pose maintained by the WBC tool."""
+    try:
+        with open(WBC_SAVED_POSES_PATH, "r", encoding="utf-8") as handle:
+            poses = json.load(handle).get("poses", [])
+    except Exception as exc:
+        raise RuntimeError(f"cannot read WBC pose file {WBC_SAVED_POSES_PATH}: {exc}") from exc
+    for pose in poses:
+        if str(pose.get("name", "")).strip().lower() != WBC_RIGHT_ARM_FORWARD_POSE_NAME:
+            continue
+        joints = pose.get("arm_joints", {})
+        try:
+            return np.asarray([float(joints[str(index)]) for index in RIGHT_ARM_JOINTS], dtype=np.float64)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(f"WBC pose {WBC_RIGHT_ARM_FORWARD_POSE_NAME!r} lacks right arm joints: {exc}") from exc
+    raise RuntimeError(f"WBC pose {WBC_RIGHT_ARM_FORWARD_POSE_NAME!r} was not found")
+
+
+def _move_to_wbc_right_arm_forward(
+    robot,
+    max_joint_step_rad: float,
+    max_joint_speed_rad_s: float,
+    obstacles: Optional[Obstacles],
+) -> Dict[str, Any]:
+    q_target = _wbc_right_arm_forward_q()
+    q_current = _read_current_arm_q(robot, "right")
+    T_target = ArmFK(arm="right", backend="urdf").compute_arm(q_target)
+    executor = ArmExecutor(
+        robot, arm="right", kp=30.0, kd=1.5,
+        max_reach_m=DEFAULT_DIRECT_MAX_REACH_M,
+        max_joint_step_rad=max_joint_step_rad,
+        max_joint_speed_rad_s=max_joint_speed_rad_s,
+    )
+    result = executor.execute(
+        q_target,
+        duration_s=DEFAULT_POST_GRASP_LIFT_DURATION_S,
+        q_arm_start=q_current,
+        T_base_desired=T_target,
+        stop_event=ARM_CANCEL_EVENT,
+        obstacles=obstacles,
+    )
+    result["controller"] = "WBC right arm forward"
+    return result
+
+
+def _move_to_wbc_right_arm_forward_continuous(
+    robot,
+    executor: ArmExecutor,
+    max_joint_speed_rad_s: float,
+    obstacles: Optional[Obstacles],
+) -> Dict[str, Any]:
+    """Retarget an already-publishing hold executor without a control gap."""
+    q_target = _wbc_right_arm_forward_q()
+    q_current = _read_current_arm_q(robot, "right")
+    T_target = ArmFK(arm="right", backend="urdf").compute_arm(q_target)
+    validation = executor.validate(
+        q_target, T_base_desired=T_target, q_arm_start=q_current, obstacles=obstacles,
+    )
+    if not validation.get("safe"):
+        return {"success": False, "reason": validation.get("reason"), "violations": validation.get("violations")}
+    executor.submit_target(q_target)
+    duration_s = max(
+        DEFAULT_POST_GRASP_LIFT_DURATION_S,
+        float(np.max(np.abs(q_target - q_current))) / max(0.05, float(max_joint_speed_rad_s)) + 0.5,
+    )
+    deadline = time.time() + duration_s
+    while time.time() < deadline:
+        if ARM_CANCEL_EVENT.is_set():
+            return {"success": False, "reason": "cancelled"}
+        time.sleep(0.05)
+    return {"success": True, "controller": "continuous WBC right arm forward", "duration_s": duration_s}
 
 
 def _run_extend_arm() -> None:
@@ -2939,6 +3474,7 @@ def _lift_end_effector_z_slowly(
     max_joint_speed_rad_s: float,
     lift_m: float = DEFAULT_POST_GRASP_LIFT_M,
     mass_kg: float = 0.0,
+    obstacles: Optional[Obstacles] = None,
 ) -> Dict[str, Any]:
     if lift_m <= 0.0:
         return {"success": True, "reason": "lift_disabled"}
@@ -2972,6 +3508,7 @@ def _lift_end_effector_z_slowly(
         q_arm_start=q_cur,
         T_base_desired=T_lift,
         stop_event=ARM_CANCEL_EVENT,
+        obstacles=obstacles,
     )
     result["ik_info"] = info
     result["lift_m"] = float(lift_m)
@@ -2985,6 +3522,7 @@ def _lift_end_effector_z_with_continuous_executor(
     executor: ArmExecutor,
     lift_m: float = DEFAULT_POST_GRASP_LIFT_M,
     mass_kg: float = 0.0,
+    obstacles: Optional[Obstacles] = None,
 ) -> Dict[str, Any]:
     if lift_m <= 0.0:
         return {"success": True, "reason": "lift_disabled"}
@@ -3013,6 +3551,7 @@ def _lift_end_effector_z_with_continuous_executor(
         q_solution,
         T_base_desired=T_lift,
         q_arm_start=q_cur,
+        obstacles=obstacles,
     )
     if not validation.get("safe"):
         return {
@@ -3072,6 +3611,9 @@ def _run_direct_grab_inline(
             STATE.arm_motion_label = "direct grab"
             STATE.lift_confirmation_pending = False
             STATE.lift_arm = arm
+            STATE.lift_unverified = False
+            STATE.holding_object = False
+            STATE.holding_arm = None
             # The extend pose is a safe starting posture, not a grasp
             # orientation constraint.  Allow IK to use wrist pitch/roll to
             # reach the target from that posture.
@@ -3285,13 +3827,17 @@ def _run_direct_grab_inline(
         _log("[recognition_app] Direct grab reached an accepted close pose.")
         try:
             closed_hand = False
+            close_unverified = False
             if hasattr(_CONTROL_ROBOT, "hand_close"):
                 _log("[recognition_app] Holding EE pose while closing hand (tactile-guided).")
                 grip_result = _tactile_guided_hand_close(arm, mass_kg)
                 closed_hand = bool(grip_result.get("success"))
+                close_unverified = (
+                    grip_result.get("method") == "tactile_full_close_no_contact"
+                )
                 _log(f"[recognition_app] Closed {arm} hand: {grip_result}")
-            if not closed_hand:
-                _log("[recognition_app] No tactile grasp confirmation; not offering lift.")
+            if not closed_hand and not close_unverified:
+                _log("[recognition_app] Hand close was unavailable; not offering lift.")
                 if nav_holding:
                     _shutdown_direct_nav(nav, "direct grab")
                 return
@@ -3310,8 +3856,18 @@ def _run_direct_grab_inline(
         with STATE.lock:
             STATE.lift_confirmation_pending = True
             STATE.lift_arm = arm
-            STATE.status_msg = "Object grasped. Confirm lift to interpolate back to the extend pose."
-        _log("[recognition_app] Object grasped; waiting for dashboard lift confirmation.")
+            STATE.lift_unverified = close_unverified
+            STATE.holding_object = True
+            STATE.holding_arm = arm
+            STATE.status_msg = (
+                "Hand closed without tactile feedback. Inspect object, then confirm lift."
+                if close_unverified else
+                "Object grasped. Confirm lift to interpolate back to the extend pose."
+            )
+        _log(
+            "[recognition_app] Hand closed; waiting for manual lift confirmation "
+            f"(tactile_verified={not close_unverified})."
+        )
     finally:
         with STATE.lock:
             STATE.arm_motion_running = False
@@ -3523,6 +4079,10 @@ threading.Thread(
 if not _ARGS.mock and _DDS_STATUS.startswith("Unitree DDS initialized"):
     threading.Thread(
         target=_hand_fk_loop, args=(_ARGS.iface, _ARGS.domain_id),
+        daemon=True,
+    ).start()
+    threading.Thread(
+        target=_tactile_loop, args=(_ARGS.iface, _ARGS.domain_id),
         daemon=True,
     ).start()
 
