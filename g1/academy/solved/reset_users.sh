@@ -10,8 +10,8 @@ set -euo pipefail
 # numpy, opencv, and password SSH login.
 #
 # - Participant accounts get NO sudo rights.
-# - Every participant account gets the same fixed SSH/login password
-#   (academy2026 by default; override with TEILNEHMER_PASSWORD).
+# - Every participant account gets the same SSH/login password supplied via
+#   TEILNEHMER_PASSWORD. It is never hard-coded in this script.
 # - Existing teilnehmerN accounts (and their home directories) are deleted
 #   first, then recreated from scratch. This is destructive: review before
 #   running on a live classroom machine.
@@ -43,12 +43,16 @@ if [[ "$(id -u)" -ne 0 ]]; then
   echo "This script must be run as root (e.g. sudo $0)." >&2
   exit 1
 fi
+if [[ "$ASSUME_YES" -ne 1 && "${RESET_USERS_CONFIRM:-}" != "YES" ]]; then
+  echo "Refusing destructive account reset without --yes or RESET_USERS_CONFIRM=YES." >&2
+  exit 1
+fi
 
 NUM_USERS="${NUM_USERS:-13}"
 USER_PREFIX="${USER_PREFIX:-teilnehmer}"
 REF_USER="${REF_USER:-unitree}"
 SHELL_BIN="${SHELL_BIN:-/bin/bash}"
-TEILNEHMER_PASSWORD="${TEILNEHMER_PASSWORD:-academy2026}"
+TEILNEHMER_PASSWORD="${TEILNEHMER_PASSWORD:-}"
 # Shared, world-readable cache so all 13 accounts see the same Piper voice
 # models without each needing its own copy under ~/.local/share/piper.
 SHARED_VOICE_DIR="${SHARED_VOICE_DIR:-/opt/piper-voices}"
@@ -71,18 +75,19 @@ if [[ ! -x "$SHELL_BIN" ]]; then
   echo "SHELL_BIN is not executable: $SHELL_BIN" >&2
   exit 1
 fi
+if [[ -z "$TEILNEHMER_PASSWORD" && -t 0 ]]; then
+  read -r -s -p "Password for all participant accounts: " TEILNEHMER_PASSWORD
+  printf '\n'
+fi
 if [[ -z "$TEILNEHMER_PASSWORD" ]]; then
-  echo "TEILNEHMER_PASSWORD must not be empty." >&2
+  echo "Set TEILNEHMER_PASSWORD or run this script from a terminal to enter it." >&2
   exit 1
 fi
-if [[ "$TEILNEHMER_PASSWORD" == *:* || "$TEILNEHMER_PASSWORD" == *$'\n'* ]]; then
+if [[ "$TEILNEHMER_PASSWORD" == *:* || "$TEILNEHMER_PASSWORD" == *$'\n'* || "$TEILNEHMER_PASSWORD" == *$'\r'* ]]; then
   echo "TEILNEHMER_PASSWORD must not contain a colon or newline." >&2
   exit 1
 fi
-if [[ "$ASSUME_YES" -ne 1 && "${RESET_USERS_CONFIRM:-}" != "YES" ]]; then
-  echo "Refusing destructive account reset without --yes or RESET_USERS_CONFIRM=YES." >&2
-  exit 1
-fi
+trap 'unset TEILNEHMER_PASSWORD' EXIT
 
 for command_name in getent useradd userdel chpasswd rsync find sed grep; do
   command -v "$command_name" >/dev/null 2>&1 || {
@@ -281,7 +286,7 @@ for u in "${USERS[@]}"; do
   for g in sudo wheel admin; do
     gpasswd -d "$u" "$g" >/dev/null 2>&1 || true
   done
-  echo "$u:$TEILNEHMER_PASSWORD" | chpasswd
+  printf '%s:%s\n' "$u" "$TEILNEHMER_PASSWORD" | chpasswd
 
   u_home="$(getent passwd "$u" | cut -d: -f6 || true)"
   dest_ws="$u_home/$REF_WS_REL"

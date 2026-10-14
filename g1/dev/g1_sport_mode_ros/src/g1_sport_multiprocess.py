@@ -1,111 +1,140 @@
 #!/usr/bin/env python3
+"""ROS2 bridge for the G1 sport-mode SDK using a separate SDK process.
+
+The ROS graph and the native Unitree SDK use separate DDS domains. Commands
+are bounded and stale commands are discarded so a busy ROS publisher cannot
+build up a queue of old motion requests.
+"""
+
+import math
 import multiprocessing as mp
 import signal
 import time
 from multiprocessing import Process, Queue
-from queue import Empty
+from queue import Empty, Full
 
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 
 
-def sdk_process(interface, command_queue, status_queue):
-    """Separate process for SDK operations"""
+def sdk_process(interface, sdk_domain_id, command_queue, status_queue):
+    """Run Unitree SDK calls outside the ROS process."""
     from unitree_sdk2py.core.channel import ChannelFactoryInitialize
     from unitree_sdk2py.g1.loco.g1_loco_client import LocoClient
-    
+
     client = None
     running = True
-    
+    initialized = False
+
     def signal_handler(signum, frame):
+        del signum, frame
         nonlocal running
         running = False
-    
+
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
-    
+
     try:
-        # Initialize SDK in this separate process
-        ChannelFactoryInitialize(0, interface)
+        ChannelFactoryInitialize(sdk_domain_id, interface)
         client = LocoClient()
         client.SetTimeout(10.0)
         client.Init()
+        initialized = True
         status_queue.put(('initialized', True))
-        print("SDK process: G1 SDK initialized successfully")
-        
-        # Process commands
+
         while running:
             try:
-                # Check for commands with timeout
-                cmd = command_queue.get(timeout=0.1)
-                
-                if cmd[0] == 'move':
-                    _, vx, vy, omega = cmd
-                    client.Move(vx, vy, omega)
-                elif cmd[0] == 'stop':
-                    client.StopMove()
-                elif cmd[0] == 'shutdown':
-                    break
-                    
+                command = command_queue.get(timeout=0.1)
             except Empty:
                 continue
-            except Exception as e:
-                status_queue.put(('error', str(e)))
-                
-    except Exception as e:
-        status_queue.put(('init_error', str(e)))
-        print(f"SDK process: Failed to initialize - {e}")
+
+            kind = command[0]
+            if kind == 'move':
+                _, vx, vy, omega = command
+                client.Move(vx, vy, omega)
+            elif kind == 'stop':
+                client.StopMove()
+            elif kind == 'shutdown':
+                break
+    except Exception as exc:
+        status_queue.put(('error' if initialized else 'init_error', str(exc)))
     finally:
-        if client:
+        if client is not None:
             try:
                 client.StopMove()
-            except:
+            except Exception:
                 pass
-        print("SDK process: Shutting down")
+
 
 class G1SportRosNode(Node):
+    """Translate safe, bounded ROS velocity commands into SDK commands."""
+
     def __init__(self):
         super().__init__('g1_sport_ros_node')
-        
-        # ROS parameters
+
         self.declare_parameter('interface', 'eth0')
-        self.interface = self.get_parameter('interface').value
-        self.get_logger().info(f'Using network interface: {self.interface}')
-        
-        # Multiprocessing setup
-        self.command_queue = Queue()
+        self.declare_parameter('sdk_domain_id', 0)
+        self.declare_parameter('command_timeout_sec', 0.5)
+        self.declare_parameter('max_linear_speed', 0.5)
+        self.declare_parameter('max_angular_speed', 1.0)
+        self.declare_parameter('deadband', 0.02)
+
+        self.interface = str(self.get_parameter('interface').value)
+        self.sdk_domain_id = int(self.get_parameter('sdk_domain_id').value)
+        self.command_timeout_sec = float(self.get_parameter('command_timeout_sec').value)
+        self.max_linear_speed = float(self.get_parameter('max_linear_speed').value)
+        self.max_angular_speed = float(self.get_parameter('max_angular_speed').value)
+        self.deadband = float(self.get_parameter('deadband').value)
+        self._validate_parameters()
+
+        self.command_queue = Queue(maxsize=2)
         self.status_queue = Queue()
         self.sdk_process = None
         self.sdk_ready = False
         self.sdk_exit_logged = False
-        
-        # Start SDK in separate process
+        self.motion_active = False
+        self.last_command_time = time.monotonic()
+
         self.start_sdk_process()
-        
-        # Set up ROS subscription
         self.cmd_vel_sub = self.create_subscription(
-            Twist,
-            'cmd_vel', 
-            self.cmd_vel_callback,
-            10
+            Twist, '/cmd_vel', self.cmd_vel_callback, 10
         )
-        self.get_logger().info('Subscribed to cmd_vel topic')
-        
-        # Timer to check SDK status
         self.status_timer = self.create_timer(0.1, self.check_sdk_status)
-        
+        self.watchdog_timer = self.create_timer(0.1, self.check_command_watchdog)
+
+        self.get_logger().info(
+            f'Using interface {self.interface}; SDK domain {self.sdk_domain_id}; '
+            f'command timeout {self.command_timeout_sec:.2f}s'
+        )
+
+    def _validate_parameters(self):
+        if not 0 <= self.sdk_domain_id <= 232:
+            raise ValueError('sdk_domain_id must be between 0 and 232')
+        numeric_values = (
+            ('command_timeout_sec', self.command_timeout_sec),
+            ('max_linear_speed', self.max_linear_speed),
+            ('max_angular_speed', self.max_angular_speed),
+        )
+        for name, value in numeric_values:
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f'{name} must be a finite positive number')
+        if not math.isfinite(self.deadband) or self.deadband < 0:
+            raise ValueError('deadband must be a finite non-negative number')
+
     def start_sdk_process(self):
-        """Start the SDK in a separate process"""
         self.sdk_process = Process(
-            target=sdk_process, 
-            args=(self.interface, self.command_queue, self.status_queue)
+            target=sdk_process,
+            args=(
+                self.interface,
+                self.sdk_domain_id,
+                self.command_queue,
+                self.status_queue,
+            ),
         )
         self.sdk_process.start()
-        self.get_logger().info('Started SDK process')
-        
+
     def check_sdk_status(self):
-        """Check for status updates from SDK process"""
         while True:
             try:
                 status_type, data = self.status_queue.get_nowait()
@@ -123,78 +152,93 @@ class G1SportRosNode(Node):
         if (
             self.sdk_process is not None
             and not self.sdk_process.is_alive()
-            and not self.sdk_ready
             and not self.sdk_exit_logged
         ):
             self.sdk_exit_logged = True
-            self.get_logger().error('SDK process exited before becoming ready.')
-    
+            if self.sdk_ready:
+                self.sdk_ready = False
+                self.motion_active = False
+                self.get_logger().error('SDK process exited; motion commands are disabled')
+            else:
+                self.get_logger().error('SDK process exited before becoming ready')
+
+    def _sanitize(self, value, limit):
+        if not math.isfinite(value) or abs(value) < self.deadband:
+            return 0.0
+        return max(-limit, min(limit, value))
+
+    def _enqueue_latest(self, command):
+        try:
+            self.command_queue.put_nowait(command)
+            return True
+        except Full:
+            try:
+                self.command_queue.get_nowait()
+                self.command_queue.put_nowait(command)
+                return True
+            except (Empty, Full):
+                self.get_logger().warning('Dropping command because SDK queue is full')
+                return False
+
     def cmd_vel_callback(self, msg):
-        """Handle velocity commands"""
         if not self.sdk_ready:
-            self.get_logger().warn('SDK not ready yet, ignoring cmd_vel')
             return
-            
-        try:
-            # Extract velocities
-            vx = msg.linear.x  # Forward/backward
-            vy = msg.linear.y  # Left/right
-            omega = msg.angular.z  # Rotation
-            
-            # Apply minimum threshold to avoid small movements
-            threshold = 0.2
-            vx_adjusted = vx if abs(vx) >= threshold else 0.0
-            vy_adjusted = vy if abs(vy) >= threshold else 0.0
-            
-            # Log the command
-            self.get_logger().debug(f'Cmd_vel: vx={vx_adjusted:.2f}, vy={vy_adjusted:.2f}, omega={omega:.2f}')
-            
-            # Send movement command to SDK process
-            self.command_queue.put(('move', vx_adjusted, vy_adjusted, omega))
-            
-        except Exception as e:
-            self.get_logger().error(f'Error in cmd_vel_callback: {e}')
-    
+
+        vx = self._sanitize(float(msg.linear.x), self.max_linear_speed)
+        vy = self._sanitize(float(msg.linear.y), self.max_linear_speed)
+        omega = self._sanitize(float(msg.angular.z), self.max_angular_speed)
+        if self._enqueue_latest(('move', vx, vy, omega)):
+            self.last_command_time = time.monotonic()
+            self.motion_active = any((vx, vy, omega))
+        else:
+            self.motion_active = False
+            self._enqueue_latest(('stop',))
+
+    def check_command_watchdog(self):
+        if (
+            self.sdk_ready
+            and self.motion_active
+            and time.monotonic() - self.last_command_time > self.command_timeout_sec
+        ):
+            if self._enqueue_latest(('stop',)):
+                self.motion_active = False
+                self.get_logger().warning('cmd_vel timed out; stopping the robot')
+
     def shutdown(self):
-        """Clean shutdown"""
         try:
-            # Stop robot movement
-            if self.sdk_ready and self.sdk_process and self.sdk_process.is_alive():
-                self.command_queue.put(('stop',))
+            if self.sdk_process is not None and self.sdk_process.is_alive():
+                self._enqueue_latest(('stop',))
                 time.sleep(0.1)
-            
-            # Shutdown SDK process
-            if self.sdk_process and self.sdk_process.is_alive():
-                self.command_queue.put(('shutdown',))
-            
-            if self.sdk_process and self.sdk_process.is_alive():
-                self.sdk_process.join(timeout=2)
+                self._enqueue_latest(('shutdown',))
+                self.sdk_process.join(timeout=2.0)
                 if self.sdk_process.is_alive():
                     self.sdk_process.terminate()
-                    
+                    self.sdk_process.join(timeout=1.0)
+            self.sdk_ready = False
             self.get_logger().info('Shutdown complete')
-        except Exception as e:
-            self.get_logger().error(f'Error during shutdown: {e}')
+        except Exception as exc:
+            self.get_logger().error(f'Error during shutdown: {exc}')
+
 
 def main(args=None):
+    node = None
     try:
         rclpy.init(args=args)
         node = G1SportRosNode()
-        
         node.get_logger().info('G1 Sport ROS node started (multiprocess mode)')
         rclpy.spin(node)
-        
     except KeyboardInterrupt:
-        print('\nKeyboard interrupt detected')
-    except Exception as e:
-        print(f'Error in main: {e}')
+        pass
+    except Exception as exc:
+        print(f'Error in main: {exc}')
     finally:
-        if 'node' in locals():
+        if node is not None:
             node.shutdown()
+            node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
 
+
 if __name__ == '__main__':
-    # Required for multiprocessing
     mp.set_start_method('spawn', force=True)
     main()

@@ -82,7 +82,7 @@ c.Spawner.environment = {'JUPYTER_PREFER_ENV_PATH': '0'}
 # JupyterLab's HTML viewer renders local HTML in a sandboxed frame with an
 # opaque origin. Allow that viewer to load the academy deck's embedded/media
 # assets; authentication and the Hub user allowlist still protect the server.
-c.Spawner.args = ['--ServerApp.default_kernel_name=python3', '--ServerApp.allow_origin=*']
+c.Spawner.args = ['--ServerApp.default_kernel_name=python3']
 c.Spawner.default_url = '/lab'
 c.JupyterHub.proxy_cmd = ['${proxy_bin}']
 c.JupyterHub.shutdown_on_logout = False

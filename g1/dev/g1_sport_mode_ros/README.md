@@ -1,121 +1,84 @@
-G1 Sport Mode ROS Driver
-A ROS2 package that enables control of the Unitree G1 humanoid robot through standard ROS cmd_vel commands, replacing the need for a remote controller.
+# G1 Sport Mode ROS Driver
 
-Overview
-This package provides a bridge between ROS2 navigation commands and the Unitree G1's sport mode API. It subscribes to geometry_msgs/Twist messages on the /cmd_vel topic and translates them into Unitree API requests for robot locomotion control.
+This ROS 2 package bridges `geometry_msgs/msg/Twist` commands from `/cmd_vel`
+to Unitree G1 sport-mode locomotion. It includes a native Unitree SDK Python
+bridge and a separate C++ API-request publisher.
 
-Features
-Standard ROS Interface: Uses the widely-adopted cmd_vel topic for robot control
-Sport Mode Integration: Directly interfaces with Unitree G1's sport mode API
-Real-time Control: Low-latency translation of movement commands
-Full Mobility: Supports forward/backward, strafing, and rotation movements
-Navigation Compatible: Works with ROS2 navigation stacks and teleop tools
-Node Details
-g1_sport_mode_driver
-Subscribed Topics: - /cmd_vel (geometry_msgs/Twist) - Velocity commands for robot movement
+## Python SDK bridge
 
-Published Topics: - /sport_mode/request (unitree_api/Request) - Unitree API requests for sport mode control
+`g1_sport_ros.py` calls the Unitree SDK directly. The multiprocess variant,
+`g1_sport_multiprocess.py`, keeps SDK calls in a child process so a native SDK
+failure does not take down the ROS executor.
 
-Command Mapping: - linear.x → vx (forward/backward velocity) - linear.y → vy (left/right strafe velocity)
-- angular.z → vyaw (yaw rotation velocity)
+Both Python bridges:
 
-g1_sport_ros.py
-A Python ROS2 node that directly subscribes to cmd_vel and controls the G1 robot in sport mode.
+- clamp linear and angular speeds;
+- ignore non-finite values and apply a small configurable deadband;
+- stop the robot when `/cmd_vel` has not been refreshed before the watchdog
+  timeout; and
+- stop the robot during shutdown.
 
-⚠️ IMPORTANT: This node must run in a separate ROS domain (e.g., domain 1) to avoid DDS conflicts with the Unitree SDK.
+Useful parameters:
 
-Subscribed Topics: - /cmd_vel (geometry_msgs/Twist) - Maps to linear and angular velocities for the robot
+| Parameter | Default | Purpose |
+| --- | ---: | --- |
+| `interface` | `eth0` | Network interface used by the Unitree SDK |
+| `sdk_domain_id` | `0` | Native SDK DDS domain |
+| `command_timeout_sec` | `0.5` | Maximum age of a motion command |
+| `max_linear_speed` | `0.5` | Absolute limit for `linear.x` and `linear.y` |
+| `max_angular_speed` | `1.0` | Absolute limit for `angular.z` |
+| `deadband` | `0.02` | Values below this magnitude become zero |
 
-Features: - Interface Parameter: Accepts interface as a parameter for the network interface (default eth0) - Throttled Logging: Logs every 100 messages for optimal performance - Safety: Ensures robot stops on exit or in case of errors - Domain Separation: Uses separate ROS domain to prevent DDS conflicts
+## Build and run
 
-Usage:
+From the ROS 2 workspace root:
 
-# IMPORTANT: Unset CYCLONEDDS_HOME (set by G1 manufacturer) before running
-unset CYCLONEDDS_HOME
-
-# Run the node in ROS domain 1 (REQUIRED)
-ROS_DOMAIN_ID=1 ros2 run g1_sport_mode_ros g1_sport_ros.py --ros-args -p interface:=eth0
-Sending commands (from same domain):
-
-# In another terminal, use the same domain
-ROS_DOMAIN_ID=1 ros2 run teleop_twist_keyboard teleop_twist_keyboard
-This node is designed to provide real-time control of the G1 robot, translating geometry_msgs/Twist commands into movement using the Unitree SDK.
-
-Dependencies
-rclcpp - ROS2 C++ client library
-rclpy - ROS2 Python client library
-geometry_msgs - Standard ROS geometry messages
-unitree_api - Unitree robot API messages
-unitree_sdk2_python - Unitree SDK2 Python bindings
-Building
-# From your ROS2 workspace root
+```bash
 colcon build --packages-select g1_sport_mode_ros
-
-# Source the workspace
 source install/setup.bash
-Usage
-1. Start the driver node
-ros2 run g1_sport_mode_ros g1_sport_mode_driver
-2. Control the robot
-Option A: Keyboard teleop
+```
 
-ros2 run teleop_twist_keyboard teleop_twist_keyboard
-Option B: Custom velocity commands
+The ROS graph and the native SDK use separate DDS domains. Run ROS tools in
+the same non-zero domain, and leave the SDK domain at zero unless the robot
+setup requires another value:
 
-ros2 topic pub /cmd_vel geometry_msgs/Twist "{linear: {x: 0.5, y: 0.0, z: 0.0}, angular: {x: 0.0, y: 0.0, z: 0.0}}"
-Option C: Navigation stack Use with any ROS2 navigation stack that publishes to /cmd_vel
-
-API Details
-The node uses Unitree API ID 1004 for sport mode control with JSON-formatted parameters:
-
-{
-    "vx": 0.5,    // Forward velocity (m/s)
-    "vy": 0.0,    // Strafe velocity (m/s)
-    "vyaw": 0.0   // Yaw velocity (rad/s)
-}
-Domain Configuration
-Critical Requirement: The g1_sport_ros.py node must run in a separate ROS domain to avoid DDS conflicts.
-
-Unitree SDK: Uses DDS domain 0 to communicate with the G1 robot
-ROS2 Node: Must use domain 1 (or any domain != 0) to avoid conflicts
-All ROS2 tools: Must use the same domain as the node to communicate
-Example workflow:
-
-# Terminal 1: Start the G1 control node (unset CYCLONEDDS_HOME first!)
+```bash
 unset CYCLONEDDS_HOME
-ROS_DOMAIN_ID=1 ros2 run g1_sport_mode_ros g1_sport_ros.py --ros-args -p interface:=eth0
+ROS_DOMAIN_ID=1 ros2 run g1_sport_mode_ros g1_sport_ros.py \
+  --ros-args \
+  -p interface:=eth0 \
+  -p command_timeout_sec:=0.5
+```
 
-# Terminal 2: Control with keyboard
+Then publish commands from the same ROS domain:
+
+```bash
 ROS_DOMAIN_ID=1 ros2 run teleop_twist_keyboard teleop_twist_keyboard
+```
 
-# Terminal 3: Check topics
-ROS_DOMAIN_ID=1 ros2 topic list
-Safety Notes
-Ensure the robot is in a safe environment before testing
-Start with small velocity values for initial testing
-The robot should be in sport mode for this driver to work effectively
-Always have a way to emergency stop the robot
-Troubleshooting
-DDS_RETCODE_BAD_PARAMETER during CyclonDDS topic initialization: - Cause: Conflicting CyclonDDS installations due to CYCLONEDDS_HOME environment variable set by G1 manufacturer - Solution: Unset the CYCLONEDDS_HOME variable before running the node - Command: unset CYCLONEDDS_HOME && ROS_DOMAIN_ID=1 ros2 run g1_sport_mode_ros g1_sport_ros.py --ros-args -p interface:=eth0
+For the multiprocess bridge, run `g1_sport_multiprocess.py` instead. Do not
+run both Python bridges at the same time because each one can command the
+robot independently.
 
-ChannelFactory create domain error: - Solution: Run the node with ROS_DOMAIN_ID=1 (or any domain != 0) - Cause: DDS domain conflict between ROS2 and Unitree SDK - Command: ROS_DOMAIN_ID=1 ros2 run g1_sport_mode_ros g1_sport_ros.py
+## C++ API bridge
 
-No response from robot: - Verify the robot is in sport mode - Check that unitree_api messages are being published correctly - Ensure network interface parameter is correct (default: eth0)
+The `g1_sport_mode_driver` executable publishes Unitree API request messages:
 
-Build errors: - Ensure all dependencies are installed - Verify unitree_api package is built and sourced - Run rosdep install --from-paths src --ignore-src -r -y
+- subscribes to `/cmd_vel` (`geometry_msgs/msg/Twist`);
+- publishes `/api/sport/request` (`unitree_api/msg/Request`); and
+- maps `linear.x` → `vx`, `linear.y` → `vy`, and `angular.z` → `vyaw`.
 
-Connection issues: - Check network connectivity to the robot - Verify Unitree API is accessible
+Use only one bridge for a robot at a time. The C++ bridge is intended for
+systems where another component owns the final safety and command-timeout
+policy; the Python bridges include that policy themselves.
 
-Integration Examples
-This driver enables the G1 to work seamlessly with:
+## Safety
 
-ROS2 Navigation Stack: For autonomous navigation
-MoveIt2: For coordinated motion planning
-Behavior Trees: For complex behavior orchestration
-SLAM: For simultaneous localization and mapping while moving
-Custom Controllers: Any application that publishes Twist messages
-License
-TODO: Add appropriate license information
+Test with the robot lifted or in a clear area, start with conservative limits,
+and keep an independent emergency stop available. A stale `/cmd_vel` command
+is stopped automatically by the Python bridges, but this is not a replacement
+for the robot's hardware safety controls.
 
-Contributing
-Contributions are welcome! Please submit pull requests or issues through the appropriate channels.
+If the SDK cannot initialize, verify the interface, DDS domain separation,
+`CYCLONEDDS_HOME`, robot sport mode, and network connectivity. Never expose
+the command topic to an untrusted ROS domain.

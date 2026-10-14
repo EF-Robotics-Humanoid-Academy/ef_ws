@@ -1,145 +1,149 @@
 #!/usr/bin/env python3
-import sys, rclpy, math, json, time
-from rclpy.node import Node
+"""ROS 2 ``cmd_vel`` bridge for the Unitree G1 locomotion client.
+
+The ROS graph and the native Unitree SDK intentionally use different DDS
+domains. Set ROS_DOMAIN_ID for ROS (normally 1); ``sdk_domain_id`` remains 0
+unless the robot setup explicitly requires another native SDK domain.
+"""
+
+from __future__ import annotations
+
+import math
+import time
+
+import rclpy
 from geometry_msgs.msg import Twist
+from rclpy.node import Node
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize
 from unitree_sdk2py.g1.loco.g1_loco_client import LocoClient
 
 
 class G1SportRosNode(Node):
-    def __init__(self):
-        super().__init__('g1_sport_ros_node')
-        
-        # Declare and get interface parameter
-        self.declare_parameter('interface', 'eth0')
-        self.interface = self.get_parameter('interface').get_parameter_value().string_value
-        
-        # Initialize message counter for throttled logging
+    def __init__(self) -> None:
+        super().__init__("g1_sport_ros_node")
+
+        self.declare_parameter("interface", "eth0")
+        self.declare_parameter("sdk_domain_id", 0)
+        self.declare_parameter("command_timeout_sec", 0.5)
+        self.declare_parameter("max_linear_speed", 0.5)
+        self.declare_parameter("max_angular_speed", 1.0)
+        self.declare_parameter("deadband", 0.02)
+
+        self.interface = str(self.get_parameter("interface").value)
+        self.sdk_domain_id = int(self.get_parameter("sdk_domain_id").value)
+        self.command_timeout_sec = float(self.get_parameter("command_timeout_sec").value)
+        self.max_linear_speed = float(self.get_parameter("max_linear_speed").value)
+        self.max_angular_speed = float(self.get_parameter("max_angular_speed").value)
+        self.deadband = float(self.get_parameter("deadband").value)
+        self._validate_parameters()
+
         self.message_count = 0
-        self.log_every_n_messages = 100  # Log every 100 messages for performance
-        
-        self.get_logger().info(f'Using network interface: {self.interface}')
-        
-        try:
-            # Initialize channel factory with network interface
-            ChannelFactoryInitialize(0, self.interface)
-            
-            # Create and initialize LocoClient
-            self.client = LocoClient()
-            self.client.SetTimeout(10.0)
-            self.client.Init()
-            
-            self.get_logger().info('G1 SDK initialized successfully')
-            
-            # Subscribe to cmd_vel topic
-            self.cmd_vel_subscription = self.create_subscription(
-                Twist,
-                'cmd_vel',
-                self.cmd_vel_callback,
-                10
-            )
-            
-            self.get_logger().info('Subscribed to cmd_vel topic')
-            
-        except Exception as e:
-            self.get_logger().error(f'Failed to initialize G1 client: {str(e)}')
-            raise
-    
-    def cmd_vel_callback(self, msg):
-        """
-        Callback function for cmd_vel messages.
-        Maps Twist message to G1 movement commands.
-        Applies minimum velocity threshold for G1's movement constraints.
-        """
-        # Extract velocity components
-        vx = msg.linear.x   # Forward/backward velocity (m/s)
-        vy = msg.linear.y   # Left/right velocity (m/s) 
-        omega = msg.angular.z  # Rotational velocity (rad/s)
-        
-        # Apply minimum velocity threshold while preserving direction
-        def apply_min_threshold(vel, min_threshold=0.2):
-            if abs(vel) > 0.0 and abs(vel) < min_threshold:
-                # Scale to minimum while preserving sign/direction
-                return math.copysign(min_threshold, vel)
-            return vel
-        
-        # Apply threshold to each axis independently
-        vx_adjusted = apply_min_threshold(vx)
-        vy_adjusted = apply_min_threshold(vy)
-        # Omega doesn't need adjustment - rotation works at low speeds
-        
-        # Increment message counter
+        self.log_every_n_messages = 100
+        self.last_command_monotonic = time.monotonic()
+        self.motion_active = False
+        self.client: LocoClient | None = None
+
+        self.get_logger().info(
+            f"Using network interface={self.interface}, SDK DDS domain={self.sdk_domain_id}"
+        )
+        ChannelFactoryInitialize(self.sdk_domain_id, self.interface)
+        self.client = LocoClient()
+        self.client.SetTimeout(10.0)
+        self.client.Init()
+        self.get_logger().info("G1 SDK initialized successfully")
+
+        self.cmd_vel_subscription = self.create_subscription(
+            Twist, "/cmd_vel", self.cmd_vel_callback, 10
+        )
+        self.watchdog_timer = self.create_timer(
+            min(0.1, self.command_timeout_sec / 2.0), self.watchdog_callback
+        )
+        self.get_logger().info(
+            f"Subscribed to /cmd_vel; command watchdog={self.command_timeout_sec:.2f}s"
+        )
+
+    def _validate_parameters(self) -> None:
+        if not 0 <= self.sdk_domain_id <= 232:
+            raise ValueError("sdk_domain_id must be between 0 and 232")
+        if not math.isfinite(self.command_timeout_sec) or self.command_timeout_sec <= 0:
+            raise ValueError("command_timeout_sec must be finite and greater than zero")
+        if not math.isfinite(self.max_linear_speed) or self.max_linear_speed <= 0:
+            raise ValueError("max_linear_speed must be finite and greater than zero")
+        if not math.isfinite(self.max_angular_speed) or self.max_angular_speed <= 0:
+            raise ValueError("max_angular_speed must be finite and greater than zero")
+        if not math.isfinite(self.deadband) or self.deadband < 0:
+            raise ValueError("deadband must be finite and non-negative")
+
+    def _sanitize(self, value: float, limit: float) -> float:
+        value = float(value)
+        if not math.isfinite(value) or abs(value) <= self.deadband:
+            return 0.0
+        return max(-limit, min(limit, value))
+
+    def cmd_vel_callback(self, msg: Twist) -> None:
+        """Send a bounded command and refresh the command watchdog."""
+        if self.client is None:
+            return
+
+        vx = self._sanitize(msg.linear.x, self.max_linear_speed)
+        vy = self._sanitize(msg.linear.y, self.max_linear_speed)
+        omega = self._sanitize(msg.angular.z, self.max_angular_speed)
+        self.last_command_monotonic = time.monotonic()
         self.message_count += 1
-        
-        # Log when adjustments are made (but still throttled)
-        velocity_adjusted = (vx != vx_adjusted or vy != vy_adjusted)
-        if velocity_adjusted and self.message_count % 50 == 0:  # Log adjustments more frequently
-            self.get_logger().info(
-                f"Velocity adjusted: vx {vx:.3f}->{vx_adjusted:.3f}, vy {vy:.3f}->{vy_adjusted:.3f}, omega: {omega:.3f}"
-            )
-        
+
         try:
-            # Send movement command to G1
-            self.client.Move(vx_adjusted, vy_adjusted, omega)
-            
-            # Throttled logging for performance - only log every N messages
+            self.client.Move(vx, vy, omega)
+            self.motion_active = any((vx, vy, omega))
             if self.message_count % self.log_every_n_messages == 0:
                 self.get_logger().info(
-                    f'Processed {self.message_count} commands. Latest: vx: {vx_adjusted:.3f}, vy: {vy_adjusted:.3f}, omega: {omega:.3f}'
+                    f"Processed {self.message_count} commands; latest "
+                    f"vx={vx:.3f}, vy={vy:.3f}, omega={omega:.3f}"
                 )
-            
-        except Exception as e:
-            self.get_logger().error(f'Failed to send movement command: {str(e)}')
-    
-    def shutdown(self):
-        """Graceful shutdown of the node."""
+        except Exception as exc:
+            self.get_logger().error(f"Failed to send movement command: {exc}")
+
+    def watchdog_callback(self) -> None:
+        if self.client is None or not self.motion_active:
+            return
+        if time.monotonic() - self.last_command_monotonic <= self.command_timeout_sec:
+            return
         try:
-            self.get_logger().info('Stopping G1 movement...')
             self.client.StopMove()
-            self.get_logger().info('G1 movement stopped')
-        except Exception as e:
-            self.get_logger().error(f'Error during shutdown: {str(e)}')
+            self.motion_active = False
+            self.get_logger().warning("/cmd_vel timed out; robot movement stopped")
+        except Exception as exc:
+            self.get_logger().error(f"Failed to stop after /cmd_vel timeout: {exc}")
+
+    def shutdown(self) -> None:
+        """Stop locomotion exactly once during node shutdown."""
+        if self.client is None:
+            return
+        try:
+            self.client.StopMove()
+            self.motion_active = False
+            self.get_logger().info("G1 movement stopped")
+        except Exception as exc:
+            self.get_logger().error(f"Error during shutdown: {exc}")
 
 
-def main(args=None):
+def main(args=None) -> None:
     rclpy.init(args=args)
-    node = None
-    
+    node: G1SportRosNode | None = None
     try:
         node = G1SportRosNode()
-        node.get_logger().info('G1 Sport ROS node started')
-        
-        # Spin the node
+        node.get_logger().info("G1 Sport ROS node started")
         rclpy.spin(node)
-        
     except KeyboardInterrupt:
-        print('\nReceived keyboard interrupt, shutting down...')
-        
-    except Exception as e:
-        print(f'Error in main: {str(e)}')
-        
+        print("\nReceived keyboard interrupt, shutting down...")
+    except Exception as exc:
+        print(f"Error in G1 Sport ROS node: {exc}")
     finally:
-        # Graceful shutdown - ensure StopMove() is called to prevent continued motion
         if node is not None:
-            try:
-                node.get_logger().info('Ensuring robot stops moving...')
-                node.client.StopMove()
-                node.get_logger().info('Robot movement stopped')
-            except Exception as e:
-                print(f'Error stopping robot movement: {str(e)}')
-            
-            try:
-                node.shutdown()
-            except Exception as e:
-                print(f'Error during node shutdown: {str(e)}')
-        
-        try:
+            node.shutdown()
+            node.destroy_node()
+        if rclpy.ok():
             rclpy.shutdown()
-        except Exception as e:
-            print(f'Error during ROS shutdown: {str(e)}')
-            
-        print('G1 Sport ROS node shut down')
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

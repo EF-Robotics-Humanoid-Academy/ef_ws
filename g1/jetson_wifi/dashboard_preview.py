@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Small Wi-Fi provisioning portal for the robot's wlan0 interface."""
 import html
+import argparse
+import base64
+import binascii
 import os
+import secrets
 import subprocess
 import tempfile
 import threading
@@ -22,6 +26,7 @@ main{width:min(760px,calc(100% - 32px));margin:48px auto}.eyebrow{color:var(--bl
 CONFIG_FILE = "/etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
 WPA_SERVICE = "wpa_supplicant@wlan0.service"
 apply_lock = threading.Lock()
+MAX_FORM_BYTES = 16 * 1024
 
 
 def write_wifi_config(ssid, password, hidden, country):
@@ -71,15 +76,45 @@ def reconnect(ssid, password, hidden, country):
 
 
 class Handler(BaseHTTPRequestHandler):
+    auth_token = None
+
+    def authorized(self):
+        if not self.auth_token:
+            return True
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Basic "):
+            return False
+        try:
+            decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
+            _, supplied_token = decoded.split(":", 1)
+        except (ValueError, UnicodeDecodeError, binascii.Error):
+            return False
+        return secrets.compare_digest(supplied_token, self.auth_token)
+
+    def require_auth(self):
+        if self.authorized():
+            return True
+        self.send_response(HTTPStatus.UNAUTHORIZED)
+        self.send_header("WWW-Authenticate", 'Basic realm="G1 Wi-Fi setup"')
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+        return False
+
     def do_GET(self):
+        if not self.require_auth():
+            return
         self.respond(PAGE.replace("{{NOTICE}}", ""))
 
     def do_POST(self):
+        if not self.require_auth():
+            return
         if self.path != "/save":
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
+            if length < 0 or length > MAX_FORM_BYTES:
+                raise ValueError("request body is too large")
             fields = parse_qs(self.rfile.read(length).decode("utf-8"))
         except (UnicodeDecodeError, ValueError):
             self.respond(PAGE.replace("{{NOTICE}}", '<p class="note">Invalid form data.</p>'), HTTPStatus.BAD_REQUEST)
@@ -87,7 +122,15 @@ class Handler(BaseHTTPRequestHandler):
         ssid = fields.get("ssid", [""])[0]
         password = fields.get("password", [""])[0]
         country = fields.get("country", ["DE"])[0].upper()
-        if not ssid or len(ssid.encode("utf-8")) > 32 or len(password.encode("utf-8")) not in range(8, 64) or not country.isalpha() or len(country) != 2:
+        if (
+            not ssid
+            or len(ssid.encode("utf-8")) > 32
+            or len(password.encode("utf-8")) not in range(8, 64)
+            or any(char in ssid + password for char in "\r\n")
+            or not country.isascii()
+            or not country.isalpha()
+            or len(country) != 2
+        ):
             self.respond(PAGE.replace("{{NOTICE}}", '<p class="note">Enter an SSID up to 32 bytes, an 8–63 byte password, and a two-letter country code.</p>'), HTTPStatus.BAD_REQUEST)
             return
         threading.Thread(target=reconnect, args=(ssid, password, "hidden" in fields, country), daemon=True).start()
@@ -109,6 +152,29 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("0.0.0.0", 8095), Handler)
-    print("Wi-Fi dashboard: http://0.0.0.0:8095/", flush=True)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("G1_WIFI_DASHBOARD_HOST", "127.0.0.1"),
+        help="bind address (default: 127.0.0.1; use SSH port forwarding for remote access)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("G1_WIFI_DASHBOARD_PORT", "8095")),
+    )
+    parser.add_argument(
+        "--token",
+        default=os.environ.get("G1_WIFI_DASHBOARD_TOKEN", ""),
+        help="Basic-auth token required when binding to a non-loopback address",
+    )
+    args = parser.parse_args()
+    if not 1 <= args.port <= 65535:
+        parser.error("--port must be between 1 and 65535")
+    loopback_hosts = {"127.0.0.1", "::1", "localhost"}
+    if args.host not in loopback_hosts and len(args.token) < 16:
+        parser.error("a non-loopback --host requires --token with at least 16 characters")
+    Handler.auth_token = args.token or None
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
+    print(f"Wi-Fi dashboard: http://{args.host}:{args.port}/", flush=True)
     server.serve_forever()

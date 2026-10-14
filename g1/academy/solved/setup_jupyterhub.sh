@@ -8,7 +8,8 @@ set -euo pipefail
 #
 # Architecture:
 #   - Auth:    PAMAuthenticator against the existing teilnehmerN accounts
-#              (the ones reset_users.sh creates), password academy2026.
+#              (the ones reset_users.sh creates), using their configured
+#              Linux passwords.
 #   - Serving: one shared JupyterLab install (TLJH's /opt/tljh/user env)
 #              handles the web UI for everyone — that part does NOT
 #              multiply per student.
@@ -139,8 +140,9 @@ fi
 
 # --- 2. Authentication: PAM against existing Linux accounts -------------
 # Select PAM explicitly rather than relying on a TLJH version default. It
-# checks the existing Linux accounts directly, so teilnehmerN / academy2026
-# (from provision_participants.sh) work with no separate Hub user database.
+# checks the existing Linux accounts directly, so participant accounts created
+# by reset_users.sh/provision_participants.sh work with no separate Hub user
+# database.
 # Only accounts explicitly allow-listed here may log in.
 tljh-config set auth.type jupyterhub.auth.PAMAuthenticator
 tljh-config add-item users.admin "$ADMIN_USER"

@@ -37,6 +37,12 @@ trap cleanup EXIT
 [[ -d "/sys/class/net/$INTERFACE" ]] || die "network interface does not exist: $INTERFACE"
 command -v wpa_passphrase >/dev/null 2>&1 || die "wpa_passphrase is not installed"
 command -v systemctl >/dev/null 2>&1 || die "systemctl is not available"
+command -v ip >/dev/null 2>&1 || die "ip is not installed"
+
+# Verify the service before replacing a known-good configuration. This keeps
+# a typo or incomplete image from leaving wlan0 with a config that nothing
+# will consume.
+systemctl cat "$SERVICE" >/dev/null 2>&1 || die "$SERVICE is not installed on this Jetson"
 
 read -r -p 'Wi-Fi SSID: ' SSID
 [[ -n "$SSID" ]] || die "SSID cannot be empty"
@@ -66,10 +72,6 @@ fi
 mv -- "$TEMP_FILE" "$CONFIG_FILE"
 TEMP_FILE=''
 chmod 600 "$CONFIG_FILE"
-
-if ! systemctl cat "$SERVICE" >/dev/null 2>&1; then
-    die "$SERVICE is not installed on this Jetson"
-fi
 
 if command -v rfkill >/dev/null 2>&1; then
     rfkill unblock wifi || warn "could not unblock Wi-Fi with rfkill"
