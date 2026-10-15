@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 # Provision the academy accounts without duplicating the 1.8 GB, tested
 # Unitree Python runtime.  Each participant owns their SDK checkout, shell
@@ -10,7 +11,7 @@ set -euo pipefail
 
 NUM_USERS="${NUM_USERS:-13}"
 USER_PREFIX="${USER_PREFIX:-teilnehmer}"
-PASSWORD="${TEILNEHMER_PASSWORD:-academy2026}"
+PASSWORD="${TEILNEHMER_PASSWORD:-}"
 REF_PY="${REF_PY:-/home/unitree/.guv/envs/unitree}"
 REF_SDK="${REF_SDK:-/home/unitree/unitree_sdk2_python}"
 CYCLONEDDS_HOME="${CYCLONEDDS_HOME:-/home/unitree/unitree_ros2/cyclonedds_ws/install/cyclonedds}"
@@ -25,6 +26,19 @@ if [[ "$(id -u)" -ne 0 ]]; then
   echo "Run as root: sudo $0" >&2
   exit 1
 fi
+if [[ -z "$PASSWORD" ]]; then
+  [[ -t 0 ]] || {
+    echo "Set TEILNEHMER_PASSWORD in the environment when running non-interactively." >&2
+    exit 2
+  }
+  read -r -s -p 'Password for participant accounts: ' PASSWORD
+  printf '\n'
+fi
+[[ -n "$PASSWORD" && "$PASSWORD" != *:* && "$PASSWORD" != *$'\n'* && "$PASSWORD" != *$'\r'* ]] || {
+  echo "TEILNEHMER_PASSWORD must be non-empty and must not contain a colon or newline." >&2
+  exit 2
+}
+trap 'unset PASSWORD' EXIT
 [[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
 [[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] || { echo "Unsafe USER_PREFIX" >&2; exit 2; }
 [[ -x "$REF_PY/bin/python" && -d "$REF_SDK/unitree_sdk2py" && -f "$CYCLONEDDS_HOME/lib/libddsc.so" && -r "$ROS_SETUP" && -r "$UNITREE_ROS2_SETUP" && -x "$CODEX_BIN" ]] || {
@@ -47,7 +61,7 @@ for ((i = 1; i <= NUM_USERS; i++)); do
   for group in sudo wheel admin; do
     gpasswd --delete "$user" "$group" >/dev/null 2>&1 || true
   done
-  echo "$user:$PASSWORD" | chpasswd
+  printf '%s:%s\n' "$user" "$PASSWORD" | chpasswd
 
   home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   sdk_dir="$home_dir/unitree_sdk2_python"

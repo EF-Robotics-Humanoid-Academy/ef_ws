@@ -13,10 +13,17 @@ CYCLONEDDS_HOME="${CYCLONEDDS_HOME:-/home/unitree/unitree_ros2/cyclonedds_ws/ins
 OPENAIAPI_DIR="${OPENAIAPI_DIR:-/home/unitree/EF/ef_ws/g1/modules/scripts/openaiapi}"
 PIPER_BIN="${PIPER_BIN:-$REF_PY/bin/piper}"
 PIPER_VOICE_DIR="${PIPER_VOICE_DIR:-/opt/academy-tools/piper-voices}"
+SDK_INTERFACE="${SDK_INTERFACE:-eth0}"
+SDK_DOMAIN_ID="${SDK_DOMAIN_ID:-0}"
+VERIFY_SDK_CHANNEL="${VERIFY_SDK_CHANNEL:-0}"
 
 [[ "$(id -u)" -eq 0 ]] || { echo "Run as root: sudo bash $0" >&2; exit 1; }
 [[ "$NUM_USERS" =~ ^[1-9][0-9]*$ ]] && (( NUM_USERS <= 100 )) || { echo "NUM_USERS must be 1..100" >&2; exit 2; }
 [[ "$USER_PREFIX" =~ ^[a-z_][a-z0-9_-]*$ ]] && (( ${#USER_PREFIX} <= 24 )) || { echo "USER_PREFIX must be a safe, non-empty Linux username prefix (max 24 characters)" >&2; exit 2; }
+[[ "$SDK_INTERFACE" =~ ^[a-zA-Z0-9_.-]+$ ]] || { echo "SDK_INTERFACE is invalid: $SDK_INTERFACE" >&2; exit 2; }
+[[ "$SDK_DOMAIN_ID" =~ ^[0-9]+$ ]] && (( 10#$SDK_DOMAIN_ID <= 232 )) || { echo "SDK_DOMAIN_ID must be between 0 and 232" >&2; exit 2; }
+SDK_DOMAIN_ID=$((10#$SDK_DOMAIN_ID))
+[[ "$VERIFY_SDK_CHANNEL" == 0 || "$VERIFY_SDK_CHANNEL" == 1 ]] || { echo "VERIFY_SDK_CHANNEL must be 0 or 1" >&2; exit 2; }
 [[ -x "$REF_PY/bin/python" && -f "$CYCLONEDDS_HOME/lib/libddsc.so" ]] || {
   echo "The Unitree Python runtime or CycloneDDS installation is missing." >&2; exit 1;
 }
@@ -105,9 +112,18 @@ EOF
   chown "$user:$user" "$bin_dir" "$wrapper"
   chown -R "$user:$user" "$home_dir/.local/share/jupyter"
 
-  runuser -u "$user" -- env HOME="$home_dir" \
-    LD_LIBRARY_PATH="$CYCLONEDDS_HOME/lib" PYTHONPATH="$sdk_dir:$OPENAIAPI_DIR" \
-    "$REF_PY/bin/python" -c 'import numpy, cyclonedds, unitree_sdk2py; from unitree_sdk2py.core.channel import ChannelFactoryInitialize; ChannelFactoryInitialize(0, "eth0")'
+  if [[ "$VERIFY_SDK_CHANNEL" -eq 1 ]]; then
+    runuser -u "$user" -- env HOME="$home_dir" \
+      LD_LIBRARY_PATH="$CYCLONEDDS_HOME/lib" PYTHONPATH="$sdk_dir:$OPENAIAPI_DIR" \
+      "$REF_PY/bin/python" -c "from unitree_sdk2py.core.channel import ChannelFactoryInitialize; ChannelFactoryInitialize($SDK_DOMAIN_ID, '$SDK_INTERFACE')"
+  else
+    # Import-only verification avoids opening a live DDS channel or touching
+    # the robot during account provisioning. Set VERIFY_SDK_CHANNEL=1 for an
+    # explicit on-robot connectivity check.
+    runuser -u "$user" -- env HOME="$home_dir" \
+      LD_LIBRARY_PATH="$CYCLONEDDS_HOME/lib" PYTHONPATH="$sdk_dir:$OPENAIAPI_DIR" \
+      "$REF_PY/bin/python" -c 'import numpy, cyclonedds, unitree_sdk2py'
+  fi
 done
 
 hub_config="/etc/jupyterhub/jupyterhub_config.py"
@@ -119,8 +135,7 @@ if [[ -f "$hub_config" ]]; then
     printf '\n%s\n' "$hub_mark_begin"
     printf '%s\n' "# Prefer each user's Python 3 Unitree SDK2 kernel over the Hub venv kernel."
     printf '%s\n' "c.Spawner.environment = {'JUPYTER_PREFER_ENV_PATH': '0'}"
-    printf '%s\n' "# Permit JupyterLab's sandboxed local-HTML viewer to load academy slide assets."
-    printf '%s\n' "c.Spawner.args = ['--ServerApp.default_kernel_name=python3', '--ServerApp.allow_origin=*']"
+    printf '%s\n' "c.Spawner.args = ['--ServerApp.default_kernel_name=python3']"
     printf '%s\n' "$hub_mark_end"
   } >>"$hub_config"
   systemctl restart jupyterhub.service
