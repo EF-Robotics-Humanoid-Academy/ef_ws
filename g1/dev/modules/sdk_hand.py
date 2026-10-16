@@ -131,8 +131,9 @@ HAND_OPEN_LIMITS = {
 
 FINGER_TO_IDXS: Dict[str, list[int]] = {
     "thumb": [0, 1, 2],
-    "middle": [3, 4],
-    "index": [5, 6],
+    # Dex3 HandCmd/HandState order is thumb, index, middle.
+    "index": [3, 4],
+    "middle": [5, 6],
 }
 
 

@@ -57,7 +57,7 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Optional, Tuple
 
 import cv2
@@ -283,8 +283,12 @@ KNOWN_INTRINSICS = {
 # stale rather than silently keeping possibly-gone objects selectable.
 STALE_AFTER_S = 4.0
 DEFAULT_GRASP_STANDOFF_M = 0.08
-DEFAULT_VISION_GRASP_LIFT_M = 0.08
-DEFAULT_VISION_TABLE_CLEARANCE_M = 0.20
+# The grasp frame is the palm-mount, not the fingertips.  The previous
+# vision-only lift/table clamp left the fingers several centimetres above the
+# object's centre, so a close regularly missed it.  Keep a modest margin for
+# depth/FK registration while placing the fingers within the grasp envelope.
+DEFAULT_VISION_GRASP_LIFT_M = 0.04
+DEFAULT_VISION_TABLE_CLEARANCE_M = 0.14
 TABLE_COLLISION_MARGIN_M = 0.10
 TABLE_COLLISION_XY_MARGIN_M = 0.12
 DEFAULT_MAX_BASE_STEP_M = 0.30
@@ -297,14 +301,9 @@ DEFAULT_SLOW_GRAB_TIMEOUT_S = 180.0
 # grasp; keep this tighter than a fingertip/palm width.
 DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.030
 # If progress has genuinely stopped inside this narrow band, attempt a close
-# and let tactile feedback decide whether anything was actually grasped. This
-# prevents a visually correct approach from repeatedly resetting solely
-# because RGB-D/FK registration is a few centimetres off.
+# and let tactile feedback decide whether anything was actually grasped.
 # Tracking measures the palm-mount FK frame while the operator view draws
-# the palm centre (offset by ~4.5 cm).  Combined with RGB-D registration,
-# a visually aligned cup commonly plateaus near 6.5 cm.  Keep this below a
-# hand width but above that measured frame offset; tactile/manual review is
-# still required before lifting.
+# the palm centre, so a visually aligned grasp can retain a modest residual.
 DEFAULT_VISION_STALL_CLOSE_POS_M = 0.075
 DEFAULT_HAND_COMMAND_HOLD_S = 1.0
 DEFAULT_HAND_RECOVERY_HOLD_S = 1.6
@@ -338,6 +337,16 @@ WBC_RIGHT_ARM_FORWARD_POSE_NAME = "right arm forward"
 # contact reading. Read via sdk_client.Robot.get_tactile_pressures(), which
 # subscribes to the same topic this app already uses for hand joint state,
 # rather than opening a second independent DDS subscription to it.
+#
+# The Dex3 units are temporarily crossed: the physical left unit is mounted
+# on the anatomical right wrist (the physical right unit is defective).  Keep
+# the UI/API side anatomical and resolve its DDS state topic here, otherwise a
+# right-hand close watches the defective unit's pressure and never reaches its
+# tactile threshold.
+DEX3_STATE_TOPICS = {
+    "left": "rt/dex3/right/state",
+    "right": "rt/dex3/left/state",
+}
 TACTILE_INVALID_VALUE = 30000.0
 TACTILE_VALID_THRESHOLD = 100000.0
 DEFAULT_TACTILE_BASE_TARGET_RAW = 120000.0
@@ -802,8 +811,10 @@ def _tactile_loop(iface: str, domain_id: int) -> None:
         from unitree_sdk2py.idl.unitree_hg.msg.dds_ import HandState_
 
         ensure_channel_factory_initialized(int(domain_id), iface)
-        topics = {"left": "rt/dex3/left/state", "right": "rt/dex3/right/state"}
-        subscribers = {side: LatestSubscriber(topic, HandState_) for side, topic in topics.items()}
+        subscribers = {
+            side: LatestSubscriber(topic, HandState_)
+            for side, topic in DEX3_STATE_TOPICS.items()
+        }
         for subscriber in subscribers.values():
             subscriber.start(queue_len=20)
     except Exception as exc:
@@ -2347,7 +2358,7 @@ def _tactile_status_text() -> str:
     for side in ("left", "right"):
         sensors = _tactile_pressures(side)
         if sensors is None:
-            lines.append(f"{side}: waiting for rt/dex3/{side}/state")
+            lines.append(f"{side}: waiting for {DEX3_STATE_TOPICS[side]}")
             continue
         sensor_parts = []
         for index, values in enumerate(sensors):
@@ -3547,11 +3558,33 @@ def _lift_end_effector_z_with_continuous_executor(
     q_solution, info = ik.solve(T_lift, q_init=q_cur)
     if q_solution is None:
         return {"success": False, "reason": "ik_failed", "ik_info": info}
+
+    # A confirmed grasp can legitimately begin just inside the conservative
+    # table *margin*: the palm-mount frame is above the actual tabletop, but
+    # its configured 10 cm buffer is larger than the remaining clearance.
+    # The old swept-path check samples alpha=0 (the already-held pose) and
+    # rejected the lift before sending an upward command.  For this dedicated
+    # vertical-clearance move only, retain at least 1.5 cm below the measured
+    # start height and still check every subsequent joint-space sample.
+    lift_obstacles = obstacles
+    if obstacles is not None and obstacles.table is not None:
+        start_clearance_m = float(T_start[2, 3] - obstacles.table.z_base_m)
+        lift_table_margin_m = min(
+            float(obstacles.table_margin_m),
+            max(0.03, start_clearance_m - 0.015),
+        )
+        if lift_table_margin_m < float(obstacles.table_margin_m):
+            lift_obstacles = replace(obstacles, table_margin_m=lift_table_margin_m)
+            _log(
+                "[recognition_app] vertical lift starts inside the conservative "
+                f"table buffer; using {lift_table_margin_m:.3f}m lift-path margin "
+                f"from {start_clearance_m:.3f}m measured clearance."
+            )
     validation = executor.validate(
         q_solution,
         T_base_desired=T_lift,
         q_arm_start=q_cur,
-        obstacles=obstacles,
+        obstacles=lift_obstacles,
     )
     if not validation.get("safe"):
         return {

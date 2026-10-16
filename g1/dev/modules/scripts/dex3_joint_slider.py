@@ -37,10 +37,10 @@ JOINT_NAMES = [
     "thumb_0",
     "thumb_1",
     "thumb_2",
-    "middle_0",
-    "middle_1",
     "index_0",
     "index_1",
+    "middle_0",
+    "middle_1",
 ]
 
 SLIDER_SCALE = 1000

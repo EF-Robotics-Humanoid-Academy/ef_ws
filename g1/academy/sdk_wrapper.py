@@ -574,13 +574,22 @@ def _led_control_was_accepted(code):
 class _Dex3:
     def __init__(self, side):
         self.side = side
-        self.pub = ChannelPublisher(HAND_CMD_TOPICS[side], HandCmd_)
-        self.pub.Init()
+        # Sensor-only users (for example /control's tactile display) must not
+        # create a command publisher. Some robots have no hand on one side, and
+        # initializing a publisher for that absent device is unnecessary.
+        self.pub = None
+        self._pub_lock = threading.Lock()
         self.state = _Latest(HAND_STATE_TOPICS[side], HandState_, 20)
         self._last_targets = None
         self._release_stop = None
         self._release_thread = None
     def _write(self, targets, kp=0.8, kd=0.05, tau=0.02, release=False):
+        if self.pub is None:
+            with self._pub_lock:
+                if self.pub is None:
+                    publisher = ChannelPublisher(HAND_CMD_TOPICS[self.side], HandCmd_)
+                    publisher.Init()
+                    self.pub = publisher
         msg = unitree_hg_msg_dds__HandCmd_()
         for i, q in enumerate(_clamp_hand(self.side, targets)):
             cmd = msg.motor_cmd[i]
@@ -608,6 +617,21 @@ class _Dex3:
             return _clamp_hand(self.side, [float(m.q) for m in list(msg.motor_state)[:7]])
         except Exception:
             return None
+    def wait_for_current_positions(self, timeout_s=1.0, poll_s=0.02):
+        """Wait briefly for the first fresh Dex3 state sample.
+
+        Hand wrappers are constructed lazily.  Without this wait, a caller
+        that both creates a wrapper and asks for its state in the same turn
+        always sees ``None``, even when the hand state topic is healthy.
+        """
+        deadline = time.monotonic() + max(0.0, float(timeout_s))
+        while True:
+            positions = self._current_positions()
+            if positions is not None:
+                return positions
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(max(0.001, float(poll_s)))
     def _current_velocities(self, max_age=1.0):
         msg, ts = self.state.get()
         if msg is None or (time.time() - ts) > max_age:
@@ -763,22 +787,24 @@ class _ArmSdk:
         self.pub = ChannelPublisher("rt/arm_sdk", LowCmd_)
         self.pub.Init()
         self.msg = unitree_hg_msg_dds__LowCmd_()
+        self._write_lock = threading.Lock()
         self.msg.mode_pr = 0
         self.msg.mode_machine = 0
         self.msg.motor_cmd[29].q = 1.0
     def write(self, targets, weight=None, kp=30.0, kd=1.5, waist_kp=None, waist_kd=None, dq=0.0, tau=0.0):
-        for i, q in targets.items():
-            cmd = self.msg.motor_cmd[int(i)]
-            cmd.mode = 1
-            cmd.q = float(q)
-            cmd.dq = float(dq)
-            cmd.tau = float(tau)
-            cmd.kp = float(waist_kp[int(i)] if waist_kp and int(i) in waist_kp else kp)
-            cmd.kd = min(float(waist_kd[int(i)] if waist_kd and int(i) in waist_kd else kd), MAX_KD)
-        if weight is not None:
-            self.msg.motor_cmd[29].q = max(0.0, min(1.0, float(weight)))
-        self.msg.crc = self.crc.Crc(self.msg)
-        self.pub.Write(self.msg)
+        with self._write_lock:
+            for i, q in targets.items():
+                cmd = self.msg.motor_cmd[int(i)]
+                cmd.mode = 1
+                cmd.q = float(q)
+                cmd.dq = float(dq)
+                cmd.tau = float(tau)
+                cmd.kp = float(waist_kp[int(i)] if waist_kp and int(i) in waist_kp else kp)
+                cmd.kd = min(float(waist_kd[int(i)] if waist_kd and int(i) in waist_kd else kd), MAX_KD)
+            if weight is not None:
+                self.msg.motor_cmd[29].q = max(0.0, min(1.0, float(weight)))
+            self.msg.crc = self.crc.Crc(self.msg)
+            self.pub.Write(self.msg)
 
 
 def _smoothstep(t):
@@ -1301,6 +1327,8 @@ class G1:
         return int(code)
 
     def zero_torque_mode(self):
+        if hasattr(self._client, "ZeroTorque"):
+            return self._client.ZeroTorque()
         return self._client.SetFsmId(FSM_IDS["zero_torque"])
 
     def damp_mode(self):
@@ -2157,7 +2185,8 @@ class G1:
     def left_kiss(self):
         return self._exec_arm_action("left kiss")
 
-    def ik_move_ee(self, hand="right", delta_q=None, pose_increment=None, max_speed=0.35, max_dq=0.2, rate_hz=50.0, position_only=False):
+    def ik_move_ee(self, hand="right", delta_q=None, pose_increment=None, max_speed=0.35, max_dq=0.2,
+                   rate_hz=50.0, position_only=False, kp=30.0, kd=1.5, stop_event=None):
         side = _normalize_side(hand)
         inc = pose_increment if pose_increment is not None else delta_q
         if inc is None:
@@ -2239,12 +2268,20 @@ class G1:
         steps = max(1, int(math.ceil(remaining / step_limit)))
         arm_sdk = self._arm_sdk_client()
         for step in range(1, steps + 1):
+            if stop_event is not None and stop_event.is_set():
+                return {
+                    "hand": side,
+                    "success": False,
+                    "cancelled": True,
+                    "pose_increment": inc,
+                    "steps_completed": step - 1,
+                }
             ratio = float(step) / float(steps)
             ramp = ratio * ratio * (3.0 - 2.0 * ratio)
             frame = dict(current)
             for joint_id in joints:
                 frame[joint_id] = current[joint_id] + (target[joint_id] - current[joint_id]) * ramp
-            arm_sdk.write(frame, kp=30.0, kd=1.5, waist_kp={12: 200.0, 13: 200.0, 14: 480.0}, waist_kd={j: 12.0 for j in WAIST_JOINTS})
+            arm_sdk.write(frame, kp=float(kp), kd=float(kd), waist_kp={12: 200.0, 13: 200.0, 14: 480.0}, waist_kd={j: 12.0 for j in WAIST_JOINTS})
             time.sleep(1.0 / max(1.0, float(rate_hz)))
         final_T = _fallback_arm_fk(side, q_apply) if using_fallback else fk.compute_arm(q_apply)
         return {
@@ -2254,6 +2291,7 @@ class G1:
             "position_only": bool(position_only),
             "ik": info,
             "joint_targets": {joint_id: target[joint_id] for joint_id in joints},
+            "command_targets": {joint_id: target[joint_id] for joint_id in UPPER_BODY_JOINTS},
             "ee_pose": {
                 "x": float(final_T[0, 3]),
                 "y": float(final_T[1, 3]),
@@ -2482,13 +2520,16 @@ class G1:
         speed = max(1e-6, float(speed))
         ts = [float(t) / speed for t in seq["ts"]]
         qs = seq["qs"]
-        # Replay Dex3 fingers only for hands that were recorded AND are reachable now.
+        # Replay Dex3 fingers only for hands that were recorded AND are
+        # reachable now.  _Dex3 is lazy, so wait for its first DDS callback:
+        # otherwise the initial repeat() after G1 construction falsely treats
+        # a healthy hand as absent.
         hands = {}
         for side, frames in (seq.get("hands", {}) or {}).items():
             if not frames:
                 continue
             try:
-                accessible = self._dex3_hand(side)._current_positions() is not None
+                accessible = self._dex3_hand(side).wait_for_current_positions() is not None
             except Exception:
                 accessible = False
             if accessible:
@@ -2511,7 +2552,11 @@ class G1:
             hand_filtered[side] = filtered
             if (_row_changed(hand_last_sent[side], filtered, hand_deadband_rad)
                     or now - hand_last_write[side] >= DEX3_REPEAT_KEEPALIVE_S):
-                self._dex3_hand(side)._write(filtered, kp=1.5, kd=0.1, tau=0.03)
+                # Replay targets can finish at a Dex3 mechanical limit.  Use
+                # a deliberately soft hold here so a hand already against a
+                # stop/object does not chatter while the trajectory's
+                # keepalive packets arrive.
+                self._dex3_hand(side)._write(filtered, kp=0.55, kd=0.1, tau=0.03)
                 hand_last_sent[side] = list(filtered)
                 hand_last_write[side] = now
 

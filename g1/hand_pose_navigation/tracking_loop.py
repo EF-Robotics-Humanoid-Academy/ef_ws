@@ -345,10 +345,17 @@ class TrackingLoop:
                 and err_history[-1] >= err_history[0] - self._STALL_PROGRESS_TOL_M
             ):
                 self._status.stalled = True
+                delta_xyz = T_base_desired[:3, 3] - T_base_hand[:3, 3]
                 self._status.record(
                     "[Step 10] Stalled: target not getting closer over last "
                     f"{err_history.maxlen} EE-pose increments "
-                    f"({err_history[0]:.4f}m -> {err_history[-1]:.4f}m) — aborting."
+                    f"({err_history[0]:.4f}m -> {err_history[-1]:.4f}m); "
+                    f"desired_xyz=({T_base_desired[0, 3]:+.3f},"
+                    f"{T_base_desired[1, 3]:+.3f},{T_base_desired[2, 3]:+.3f}) "
+                    f"current_xyz=({T_base_hand[0, 3]:+.3f},"
+                    f"{T_base_hand[1, 3]:+.3f},{T_base_hand[2, 3]:+.3f}) "
+                    f"delta_xyz=({delta_xyz[0]:+.3f},{delta_xyz[1]:+.3f},"
+                    f"{delta_xyz[2]:+.3f}) — aborting."
                 )
                 break
 

@@ -1,0 +1,20 @@
+{
+  "locomotion_speed": 0.2,
+  "locomotion_duration": 1.0,
+  "rotation_speed": 0.25999999999999995,
+  "rotation_duration": 1.0,
+  "voice_reply": false,
+  "robot_volume": 50,
+  "voice_language": "en",
+  "ai_language": "en",
+  "theme": "amber",
+  "waist_locked": false,
+  "ramping": true,
+  "ll_max_joint_speed": 0.45,
+  "ll_kp": 30.0,
+  "ll_kd": 1.5,
+  "ik_step_m": 0.03,
+  "ik_rotation_rad": 0.08,
+  "tactile_threshold": 100000.0,
+  "climb_fsm_id": 812
+}
