@@ -34,6 +34,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
+# --off-robot must be known before g1_cli is imported: it replaces the robot,
+# DDS and agent modules with g1_dashboard_sim stand-ins so nothing hardware
+# related (unitree_sdk2py, CycloneDDS, OpenAI) is imported at all.
+OFF_ROBOT = "--off-robot" in sys.argv[1:]
+if OFF_ROBOT:
+    import g1_dashboard_sim
+    g1_dashboard_sim.install_stubs()
+
 # Importing g1_cli performs the same sys.path and CycloneDDS environment setup
 # as the console before sdk_wrapper / unitree_sdk2py are loaded.
 import g1_cli  # noqa: E402
@@ -186,6 +194,26 @@ def _empty_cloud_packet(floor: float = 0.0, cell: float = 0.1) -> bytes:
     return struct.pack("<IIIff", 0, 0, 0, cell, floor)
 
 
+def decode_xyz_py(msg: Any, max_points: int = 20000) -> list[tuple[float, float, float]]:
+    """Pure-Python decode_xyz for machines without numpy (strided subsample)."""
+    try:
+        fields = {str(f.name).lower(): f for f in list(msg.fields)}
+        step, data = int(msg.point_step), bytes(msg.data)
+        offsets = [int(fields[k].offset) for k in ("x", "y", "z")]
+    except Exception:
+        return []
+    count = len(data) // step if step > 0 else 0
+    stride = max(1, count // max_points) if max_points else 1
+    out = []
+    unpack = struct.unpack_from
+    for i in range(0, count, stride):
+        base = i * step
+        x, y, z = (unpack("<f", data, base + o)[0] for o in offsets)
+        if math.isfinite(x) and math.isfinite(y) and math.isfinite(z):
+            out.append((x, y, z))
+    return out
+
+
 class Dashboard(G1Console):
     """G1Console adapted to HTTP: same agent/settings/topic logic, JSON views."""
 
@@ -208,6 +236,7 @@ class Dashboard(G1Console):
         self.service_message = "Service list not loaded."
         self._topics_cache: tuple[float, Any] = (0.0, None)
         self._cpu_prev: dict[str, tuple[int, int]] = {}
+        self.off_robot = bool(getattr(args, "off_robot", False))
         self.control = ControlSession(self)
         self.slam = SlamView(robot) if robot is not None else None
         self.vision = VisionView(args.rgbd)
@@ -333,7 +362,7 @@ class Dashboard(G1Console):
         with self._ui_lock:
             pending = None if self.pending is None else {k: self.pending[k] for k in ("id", "skill", "reason")}
             rev = self.revision
-        return {"offline": self.offline, "battery": battery, "dev_mode": self.dev_mode, "busy": self.busy(),
+        return {"offline": self.offline, "off_robot": self.off_robot, "battery": battery, "dev_mode": self.dev_mode, "busy": self.busy(),
                 "pending": pending, "rev": rev, "control": self.control.active, "theme": self.theme,
                 "arms_released": self.arms_released}
 
@@ -347,7 +376,7 @@ class Dashboard(G1Console):
         return {"commands": COMMANDS, "settings_fields": fields, "settings": self.settings, "themes": THEMES,
                 "theme": self.theme, "offline": self.offline, "topics": WRAPPER_TOPICS, "modes": MODE_NAMES,
                 "mode_hints": MODE_HINTS, "wifi_actions": [{"id": a, "label": l, "sudo": s} for a, l, _c, s in WIFI_ACTIONS],
-                "hostname": socket.gethostname(), "rgbd_endpoint": self.vision.endpoint}
+                "hostname": socket.gethostname(), "rgbd_endpoint": self.vision.endpoint, "off_robot": self.off_robot}
 
     def _require_live(self) -> None:
         if self.offline or self.robot is None:
@@ -412,9 +441,11 @@ class Dashboard(G1Console):
         out: dict[str, Any] = {"topic": name, "reader": True, "lines": lines,
                                "type": type(message).__name__ if message is not None else None,
                                "age": None if not stamp else max(0.0, time.time() - stamp)}
-        if message is not None and np is not None and ("points" in name or name.endswith("global_map")):
-            pts = decode_xyz(message, max_points=2500)
-            out["points"] = np.round(pts[:, :3], 3).tolist()
+        if message is not None and ("points" in name or name.endswith("global_map")):
+            if np is not None:
+                out["points"] = np.round(decode_xyz(message, max_points=2500), 3).tolist()
+            else:
+                out["points"] = [[round(v, 3) for v in p] for p in decode_xyz_py(message, max_points=2500)]
         if message is not None and name == "rt/lowstate":
             low = self.robot.get_lowstate() or {}
             out["joints"] = low.get("joint_positions") or []
@@ -537,11 +568,16 @@ class Dashboard(G1Console):
             _id, label, command, needs_sudo = entry
             command = _sudo(command) if needs_sudo else command
             timeout = 60
-        try:
-            result = subprocess.run(command, input=stdin, capture_output=True, text=True, timeout=timeout)
-            code, output = result.returncode, (result.stdout + result.stderr).strip()
-        except Exception as exc:
-            code, output = -1, str(exc)
+        if self.off_robot and command[:2] != ["ip", "-4"] and action != "status":
+            # Never touch the host's network configuration while testing the UI.
+            shown = [part if part != ssid.strip() or not ssid else "<ssid>" for part in command]
+            code, output = 0, "[off-robot dry run] would run: " + " ".join(shown) + (" (password via stdin)" if stdin else "")
+        else:
+            try:
+                result = subprocess.run(command, input=stdin, capture_output=True, text=True, timeout=timeout)
+                code, output = result.returncode, (result.stdout + result.stderr).strip()
+            except Exception as exc:
+                code, output = -1, str(exc)
         if action == "status" and code == 3:  # systemctl status reports inactive as exit 3
             code = 0
         if "a password is required" in output:
@@ -1142,6 +1178,8 @@ class SlamView:
     # -- cloud processing --------------------------------------------------
     def _reset_map(self) -> None:
         with self.lock:
+            self._py_map: dict[tuple[int, int, int], tuple[float, float, float, float]] = {}
+            self._py_live: list[tuple[float, float, float]] = []
             if np is not None:
                 self.map_keys = np.empty(0, dtype=np.int64)
                 self.map_pts = np.empty((0, 3), dtype=np.float32)
@@ -1197,16 +1235,19 @@ class SlamView:
     def _worker(self) -> None:
         while True:
             time.sleep(0.2)
-            if np is None:
-                continue
             watching = time.monotonic() - self.last_viewer < 30.0
             if not watching and not self.mapping:
                 continue
             started = time.perf_counter()
             try:
-                self._process()
-                if watching and self._packet_dirty:
-                    self._build_packet()
+                if np is None:
+                    self._process_py()
+                    if watching and self._packet_dirty:
+                        self._build_packet_py()
+                else:
+                    self._process()
+                    if watching and self._packet_dirty:
+                        self._build_packet()
             except Exception as exc:
                 self.stats["error"] = f"{type(exc).__name__}: {exc}"
             self.stats["proc_ms"] = round((time.perf_counter() - started) * 1000.0, 1)
@@ -1273,6 +1314,95 @@ class SlamView:
         self._packet_dirty = False
         self.stats.update({"map_voxels": int(self.map_pts.shape[0]), "sent_map": int(map_pts.shape[0]),
                            "live": int(live_pts.shape[0]), "cells": int(cells.shape[0]), "floor_z": floor})
+
+    # Pure-Python equivalents of _process/_build_packet (no numpy installed).
+    def _floor_py(self, pts: list[tuple[float, float, float]], which: str) -> float:
+        if not self.params["auto_floor"]:
+            return float(self.params["floor_z"])
+        zs = sorted(p[2] for p in pts)
+        estimate = zs[int(0.03 * (len(zs) - 1))]
+        previous = self._floor.get(which)
+        value = estimate if previous is None else 0.85 * previous + 0.15 * estimate
+        self._floor[which] = value
+        return value
+
+    def _obstacles_py(self, pts: list[tuple[float, float, float]], floor: float) -> list[tuple[float, float, float]]:
+        low, high = floor + float(self.params["clearance"]), floor + float(self.params["max_height"])
+        return [p for p in pts if low < p[2] < high]
+
+    def _voxel_py(self, pts: list[tuple[float, float, float]]) -> dict[tuple[int, int, int], tuple[float, float, float]]:
+        voxel = float(self.params["voxel"])
+        return {(math.floor(x / voxel), math.floor(y / voxel), math.floor(z / voxel)): (x, y, z) for x, y, z in pts}
+
+    def _process_py(self) -> None:
+        for topic, reader in self.map_topics:
+            msg, stamp = reader.get()
+            if msg is None or self._seen.get(topic) == stamp:
+                continue
+            self._seen[topic] = stamp
+            pts = decode_xyz_py(msg)
+            if len(pts) < 10:
+                continue
+            self._merge_py(self._obstacles_py(pts, self._floor_py(pts, "map")), stamp)
+            self._packet_dirty = True
+        topic = self.params["live_topic"]
+        reader = self.live_readers.get(topic)
+        if reader is None:
+            return
+        msg, stamp = reader.get()
+        if msg is None or self._seen.get(topic) == stamp:
+            return
+        self._seen[topic] = stamp
+        pts = decode_xyz_py(msg, max_points=12000)
+        if len(pts) < 10:
+            return
+        floor_live = self._floor_py(pts, "live")
+        pts = self._obstacles_py(pts, floor_live)
+        shift = self._floor.get("map", floor_live) - floor_live
+        pose = self.pose()
+        if self.params["live_frame"] == "body" and pose is not None:
+            x0, y0, yaw = pose
+            c, s = math.cos(yaw), math.sin(yaw)
+            pts = [(c * x - s * y + x0, s * x + c * y + y0, z + shift) for x, y, z in pts]
+        else:
+            pts = [(x, y, z + shift) for x, y, z in pts]
+        live = list(self._voxel_py(pts).values())
+        with self.lock:
+            self._py_live = live
+        if self.params["accumulate_live"]:
+            self._merge_py(live, stamp)
+        self._packet_dirty = True
+
+    def _merge_py(self, pts: list[tuple[float, float, float]], stamp: float) -> None:
+        with self.lock:
+            for key, (x, y, z) in self._voxel_py(pts).items():
+                self._py_map[key] = (x, y, z, stamp)
+            cap = int(self.params["map_cap"])
+            if len(self._py_map) > cap:
+                newest = sorted(self._py_map.items(), key=lambda item: item[1][3])[-cap:]
+                self._py_map = dict(newest)
+
+    def _build_packet_py(self) -> None:
+        with self.lock:
+            map_pts = [v[:3] for v in self._py_map.values()]
+            live_pts = list(self._py_live)
+        max_points = int(self.params["max_points"])
+        if len(map_pts) > max_points:
+            stride = len(map_pts) / max_points
+            map_pts = [map_pts[int(i * stride)] for i in range(max_points)]
+        cell = float(self.params["cell"])
+        cells = sorted({(math.floor(x / cell), math.floor(y / cell)) for x, y, _z in map_pts + live_pts})
+
+        def clip(v: float) -> int:
+            return max(-32767, min(32767, int(round(v))))
+
+        floor = self._floor.get("map", self._floor.get("live", float(self.params["floor_z"])))
+        flat = [clip(v * 100.0) for p in map_pts + live_pts for v in p] + [clip(v) for c in cells for v in c]
+        header = struct.pack("<IIIff", len(map_pts), len(live_pts), len(cells), cell, floor)
+        self.packet = header + struct.pack(f"<{len(flat)}h", *flat)
+        self._packet_dirty = False
+        self.stats.update({"map_voxels": len(self._py_map), "sent_map": len(map_pts), "live": len(live_pts),
+                           "cells": len(cells), "floor_z": floor, "backend": "pure-python"})
 
     def cloud(self) -> bytes:
         self.last_viewer = time.monotonic()
@@ -1523,7 +1653,8 @@ class VisionView:
                                        "max_height": 2.0, "edge_m": 0.08, "min_area": 0.003, "depth_max": 4.0,
                                        "floor_tint": True, "max_hz": 10.0}
         self.cond = threading.Condition()
-        self.frames: dict[str, tuple[int, bytes | None]] = {"rgb": (0, None), "depth": (0, None)}
+        self.frames: dict[str, tuple[int, bytes | None, str]] = {"rgb": (0, None, "image/jpeg"), "depth": (0, None, "image/jpeg")}
+        self.sim: Any = None  # g1_dashboard_sim.SimCamera in --off-robot mode
         self.info: dict[str, Any] = {"ok": False, "message": "Camera idle"}
         self.obstacles: list[dict[str, Any]] = []
         self.depth_m: Any = None
@@ -1541,7 +1672,7 @@ class VisionView:
 
     def touch(self) -> None:
         self.last_viewer = time.monotonic()
-        if self.missing:
+        if self.missing and self.sim is None:
             self.info = {"ok": False, "message": "Camera view needs: " + ", ".join(self.missing)}
             return
         with self._lock:
@@ -1566,6 +1697,8 @@ class VisionView:
         return {"ok": True, "params": self.params}
 
     def depth_at(self, u: float, v: float) -> dict[str, Any]:
+        if self.sim is not None:
+            return self.sim.depth_at(u, v)
         depth = self.depth_m
         if depth is None:
             return {"m": None}
@@ -1589,17 +1722,44 @@ class VisionView:
                 self.touch()
                 with self.cond:
                     self.cond.wait_for(lambda: self.frames[kind][0] != last, timeout=1.0)
-                    seq, jpeg = self.frames[kind]
-                if jpeg is None or seq == last:
+                    seq, image, mime = self.frames[kind]
+                if image is None or seq == last:
                     continue
                 last = seq
-                handler.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
-                                    + str(len(jpeg)).encode() + b"\r\n\r\n" + jpeg + b"\r\n")
+                handler.wfile.write(b"--frame\r\nContent-Type: " + mime.encode() + b"\r\nContent-Length: "
+                                    + str(len(image)).encode() + b"\r\n\r\n" + image + b"\r\n")
                 handler.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):
             return
 
+    def snapshot(self, kind: str) -> tuple[bytes | None, str]:
+        self.touch()
+        _seq, image, mime = self.frames[kind]
+        return image, mime
+
+    def _run_sim(self) -> None:
+        while time.monotonic() - self.last_viewer <= 5.0:
+            started = time.monotonic()
+            try:
+                frame = self.sim.render(dict(self.params))
+                self.obstacles = frame["obstacles"]
+                self.info = {"ok": True, "message": f"{len(frame['obstacles'])} obstacle(s) · simulated camera",
+                             "floor": frame["floor"], "size": frame["size"]}
+                for kind in ("rgb", "depth"):
+                    with self.cond:
+                        if self.frames[kind][1] is not frame[kind]:
+                            self.frames[kind] = (self.frames[kind][0] + 1, frame[kind], frame["mime"])
+                            self.cond.notify_all()
+                elapsed = time.monotonic() - started
+                self._fps = 1.0 / max(elapsed, 1.0 / float(self.params["max_hz"]))
+            except Exception as exc:
+                self.info = {"ok": False, "message": f"Simulated camera failed: {type(exc).__name__}: {exc}"}
+            time.sleep(max(0.05, 1.0 / float(self.params["max_hz"]) - (time.monotonic() - started)))
+        self.info = {"ok": False, "message": "Paused (no viewers)"}
+
     def _run(self) -> None:
+        if self.sim is not None:
+            return self._run_sim()
         if self.missing:
             self.info = {"ok": False, "message": "Camera view needs: " + ", ".join(self.missing)}
             return
@@ -1644,7 +1804,7 @@ class VisionView:
         ok, jpeg = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 78])
         if ok:
             with self.cond:
-                self.frames[kind] = (self.frames[kind][0] + 1, jpeg.tobytes())
+                self.frames[kind] = (self.frames[kind][0] + 1, jpeg.tobytes(), "image/jpeg")
                 self.cond.notify_all()
 
     def _process(self, parts: list[bytes]) -> None:
@@ -1921,6 +2081,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
             if method == "GET" and url.path in ("/stream/rgb", "/stream/depth"):
                 return self.dash.vision.stream(self, url.path.rsplit("/", 1)[-1])
+            if method == "GET" and url.path in ("/frame/rgb", "/frame/depth"):
+                image, mime = self.dash.vision.snapshot(url.path.rsplit("/", 1)[-1])
+                if image is None:
+                    self.send_response(204)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return None
+                return self._send(200, image, mime)
             if method == "GET" and url.path == "/api/slam/cloud":
                 data = self.dash.slam.cloud() if self.dash.slam is not None else _empty_cloud_packet()
                 return self._send(200, data, "application/octet-stream")
@@ -1944,6 +2112,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--domain-id", type=int, default=int(os.environ.get("ROS_DOMAIN_ID", "0")))
     parser.add_argument("--model", default=os.environ.get("OPENAI_CHAT_MODEL", OpenAIPlanner.DEFAULT_MODEL))
     parser.add_argument("--offline", action="store_true", help="start without robot or OpenAI; live chat is disabled")
+    parser.add_argument("--off-robot", action="store_true",
+                        help="UI test mode: simulated robot, SLAM, camera and agent; no robot, DDS, OpenAI or hardware modules are imported")
     parser.add_argument("--host", default=os.environ.get("G1_DASHBOARD_HOST", "127.0.0.1"),
                         help="bind address; use 0.0.0.0 to allow other machines (anyone on the network can then drive the robot)")
     parser.add_argument("--port", type=int, default=int(os.environ.get("G1_DASHBOARD_PORT", "8765")))
@@ -1954,6 +2124,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    if args.off_robot:
+        return _main_off_robot(args)
     try:
         agent = _make_agent(args)
         robot = None
@@ -1965,6 +2137,28 @@ def main() -> int:
         print(f"Could not start g1_dashboard: {exc}", file=sys.stderr)
         return 2
     dash = Dashboard(robot, agent, offline=args.offline, args=args)
+    return _serve(dash, args, robot)
+
+
+def _main_off_robot(args: argparse.Namespace) -> int:
+    import tempfile
+
+    # Keep test sessions away from the real robot settings and saved points.
+    sim_settings = Path(tempfile.gettempdir()) / "g1_dashboard_off_robot_settings.json"
+    if not sim_settings.exists() and g1_cli.SETTINGS_PATH.exists():
+        shutil.copyfile(g1_cli.SETTINGS_PATH, sim_settings)
+    g1_cli.SETTINGS_PATH = sim_settings
+    robot = g1_dashboard_sim.SimRobot()
+    agent = g1_dashboard_sim.SimAgent(robot)
+    dash = Dashboard(robot, agent, offline=False, args=args)
+    dash.vision.sim = g1_dashboard_sim.SimCamera(robot)
+    dash.slam.points_path = Path(tempfile.gettempdir()) / "g1_dashboard_off_robot_points.json"
+    dash.say("system", "Off-robot simulator: robot, SLAM, camera and agent are simulated. "
+                       f"Settings → {sim_settings}; Wi-Fi actions are dry runs.")
+    return _serve(dash, args, robot)
+
+
+def _serve(dash: Dashboard, args: argparse.Namespace, robot: Any) -> int:
     Handler.dash = dash
     try:
         httpd = ThreadingHTTPServer((args.host, args.port), Handler)
@@ -1974,7 +2168,8 @@ def main() -> int:
     httpd.daemon_threads = True
     dash.httpd = httpd
     shown = socket.gethostname() if args.host in ("0.0.0.0", "::") else args.host
-    print(f"G1 dashboard on http://{shown}:{args.port}  ({'offline' if args.offline else 'live robot'} · Ctrl-C to quit)")
+    kind = "off-robot simulator" if args.off_robot else "offline" if args.offline else "live robot"
+    print(f"G1 dashboard on http://{shown}:{args.port}  ({kind} · Ctrl-C to quit)")
     try:
         httpd.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:
@@ -2146,7 +2341,7 @@ canvas{display:block;width:100%}
 .goalbar{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);padding:8px 10px;display:flex;gap:8px;align-items:center}
 .cams{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .cam{position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;border:1px solid var(--border)}
-.cam img{width:100%;height:100%;object-fit:contain;display:block}
+.cam img{width:100%;height:100%;object-fit:contain;display:block;image-rendering:auto}
 .cam-hud{position:absolute;left:8px;top:8px;display:flex;gap:6px;flex-wrap:wrap;font-size:12px}
 .cam .ph{position:absolute;inset:0;display:grid;place-items:center;color:#bbb;text-align:center;padding:20px;font-size:13px}
 .obs-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -2476,7 +2671,7 @@ window.addEventListener('hashchange',()=>showTab(location.hash.slice(1)));
 /* ---------- summary ---------- */
 let linkOk=false;
 every('*',1500,async()=>{try{SUMMARY=await api('/api/summary');linkOk=true;}catch(e){linkOk=false;}
-  $('#pill-link').innerHTML=`<span class="dot ${linkOk?'ok':'err'}"></span>${linkOk?(SUMMARY.offline?'offline mode':'live robot'):'disconnected'}`;
+  $('#pill-link').innerHTML=`<span class="dot ${linkOk?'ok':'err'}"></span>${linkOk?(SUMMARY.off_robot?'simulator':SUMMARY.offline?'offline mode':'live robot'):'disconnected'}`;
   const b=SUMMARY.battery;$('#pill-batt').textContent=b==null?'battery —':`battery ${b}%`;
   $('#pill-mode').textContent=SUMMARY.offline?'robot n/a':SUMMARY.dev_mode?'dev mode':'ai_sport';
   $('#pill-agent').innerHTML=SUMMARY.busy?'<span class="dot warn"></span>agent thinking':'agent idle';
@@ -2774,9 +2969,15 @@ every('control',350,pollCloud);
 
 /* ---------- control: camera ---------- */
 const rgbImg=$('#cam-rgb'),depthImg=$('#cam-depth');
-function startStreams(){rgbImg.src='/stream/rgb?'+Date.now();depthImg.src='/stream/depth?'+Date.now();}
-function stopStreams(){rgbImg.removeAttribute('src');depthImg.removeAttribute('src');}
-rgbImg.onload=()=>$('#cam-rgb-ph').classList.add('hidden');depthImg.onload=()=>$('#cam-depth-ph').classList.add('hidden');
+// MJPEG-style multipart stream first; if no frame shows within 4 s (e.g. a
+// browser that will not play PNG parts), poll single frames instead.
+const CAMS=[[rgbImg,'rgb','#cam-rgb-ph'],[depthImg,'depth','#cam-depth-ph']];let camTimers=[];
+function snap(img,kind){if(ACTIVE!=='control'||img.dataset.mode!=='snap')return;img.src=`/frame/${kind}?${Date.now()}`;}
+function startStreams(){stopStreams();for(const[img,kind]of CAMS){img.dataset.mode='stream';img.src=`/stream/${kind}?${Date.now()}`;
+  camTimers.push(setTimeout(()=>{if(ACTIVE==='control'&&!img.naturalWidth){img.dataset.mode='snap';snap(img,kind);}},4000));}}
+function stopStreams(){camTimers.forEach(clearTimeout);camTimers=[];for(const[img]of CAMS){img.dataset.mode='off';img.removeAttribute('src');}}
+for(const[img,kind,ph]of CAMS){img.onload=()=>{$(ph).classList.add('hidden');if(img.dataset.mode==='snap')setTimeout(()=>snap(img,kind),120);};
+  img.onerror=()=>{if(img.dataset.mode==='snap')setTimeout(()=>snap(img,kind),1000);};}
 function renderCamera(j){if(j.error){$('#cam-msg').textContent=j.error;return;}
   $('#cam-msg').textContent=j.message||'';$('#cam-fps').textContent=j.ok?`${j.fps} fps`:'';
   if(!j.ok){$('#cam-rgb-ph').textContent=$('#cam-depth-ph').textContent=j.message;$('#cam-rgb-ph').classList.remove('hidden');$('#cam-depth-ph').classList.remove('hidden');}
@@ -2814,7 +3015,7 @@ window.addEventListener('pagehide',()=>{if(ACTIVE==='control')navigator.sendBeac
 
 /* ---------- boot ---------- */
 (async function boot(){for(let i=0;;i++){try{META=await api('/api/meta');break;}catch(e){$('#sub').textContent='waiting for server…';await new Promise(r=>setTimeout(r,1000));}}
-  applyTheme(META.theme);$('#sub').textContent=`${META.hostname} · ${META.offline?'offline':'live robot'}`;buildTabs();renderWifiActions();showTab(location.hash.slice(1)||'chat');})();
+  applyTheme(META.theme);$('#sub').textContent=`${META.hostname} · ${META.off_robot?'off-robot simulator':META.offline?'offline':'live robot'}`;buildTabs();renderWifiActions();showTab(location.hash.slice(1)||'chat');})();
 </script>
 </body>
 </html>
