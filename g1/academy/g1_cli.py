@@ -816,34 +816,80 @@ class G1Console:
                 screen.refresh()
 
     def open_wifi_menu(self) -> None:
+        supplicant = "wpa_supplicant@wlan0.service"
+        dhcp = "dhclient@wlan0.service"
+
+        def run_sequence(steps: list[tuple[str, list[str]]], timeout: float = 90.0) -> tuple[int, str]:
+            output = []
+            for label, command in steps:
+                code, text = self._run_external(command, timeout=timeout)
+                output.append(f"{label}:\n{text or f'command exited with code {code}'}")
+                if code != 0:
+                    return code, "\n\n".join(output)
+            return 0, "\n\n".join(output)
+
         def run_action(index: int) -> None:
-            commands = [
-                ["systemctl", "status", "wpa_supplicant@wlan0.service", "--no-pager"],
-                ["sudo", "systemctl", "restart", "wpa_supplicant@wlan0.service"],
-                ["sudo", "systemctl", "start", "wpa_supplicant@wlan0.service"],
-                ["sudo", "systemctl", "stop", "wpa_supplicant@wlan0.service"],
-                ["sudo", "systemctl", "enable", "wpa_supplicant@wlan0.service"],
-                ["sudo", "systemctl", "disable", "wpa_supplicant@wlan0.service"],
-                ["sudo", "dhclient", "-v", "wlan0"],
-                ["sudo", "dhclient", "-r", "wlan0"],
-                ["ip", "-4", "addr", "show", "dev", "wlan0"],
-            ]
-            if index == len(commands):
+            if index == 0:
+                code, output = self._run_external(
+                    ["systemctl", "status", "--no-pager", "--full", supplicant, dhcp], timeout=20)
+                # systemctl status returns 3 when a listed unit is inactive;
+                # its output is still the requested status report.
+                if code == 3:
+                    code = 0
+            elif index == 1:
+                code, output = run_sequence([
+                    (f"Restart {supplicant}", ["sudo", "systemctl", "restart", supplicant]),
+                    (f"Restart {dhcp} (waits for Wi-Fi association)", ["sudo", "systemctl", "restart", dhcp]),
+                ], timeout=120)
+            elif index == 2:
+                code, output = run_sequence([
+                    (f"Start {supplicant}", ["sudo", "systemctl", "start", supplicant]),
+                    (f"Restart {dhcp} to obtain a lease after association", ["sudo", "systemctl", "restart", dhcp]),
+                ], timeout=120)
+            elif index == 3:
+                code, output = run_sequence([
+                    (f"Stop {dhcp}", ["sudo", "systemctl", "stop", dhcp]),
+                    (f"Stop {supplicant}", ["sudo", "systemctl", "stop", supplicant]),
+                ])
+            elif index == 4:
+                code, output = run_sequence([
+                    (f"Enable {supplicant}", ["sudo", "systemctl", "enable", "--now", supplicant]),
+                    (f"Enable {dhcp}", ["sudo", "systemctl", "enable", "--now", dhcp]),
+                ], timeout=120)
+            elif index == 5:
+                code, output = run_sequence([
+                    (f"Disable {dhcp} at boot", ["sudo", "systemctl", "disable", dhcp]),
+                    (f"Disable {supplicant} at boot", ["sudo", "systemctl", "disable", supplicant]),
+                ])
+            elif index == 6:
+                code, output = self._run_external(["sudo", "systemctl", "restart", supplicant], timeout=60)
+            elif index == 7:
+                code, output = self._run_external(["sudo", "systemctl", "restart", dhcp], timeout=90)
+            elif index == 8:
+                code, output = self._run_external(["sudo", "systemctl", "start", dhcp], timeout=90)
+            elif index == 9:
+                code, output = self._run_external(["sudo", "systemctl", "stop", dhcp], timeout=30)
+            elif index == 10:
+                code, output = self._run_external(["sudo", "wpa_cli", "-i", "wlan0", "status"], timeout=10)
+            elif index == 11:
+                code, output = self._run_external(["ip", "-4", "addr", "show", "dev", "wlan0"], timeout=10)
+            elif index in (12, 13):
+                unit = supplicant if index == 12 else dhcp
+                code, output = self._run_external(["sudo", "journalctl", "-u", unit, "-n", "40", "--no-pager"], timeout=20)
+            else:
                 ssid = self._prompt("Wi-Fi SSID")
                 if not ssid:
                     return
                 code, output = self._run_external(["sudo", "bash", str(HERE / "setup_wpa_supplicant_wlan0.sh"), ssid], timeout=120)
-            else:
-                code, output = self._run_external(commands[index], timeout=60)
-                if index == 0 and code == 3:  # systemctl status reports inactive as exit 3
-                    code = 0
             self.say("system" if code == 0 else "error", output or f"Command exited with code {code}.")
         self.open_menu("Wi-Fi · wlan0", [
-            "Show supplicant service status", "Restart wpa_supplicant@wlan0", "Start supplicant",
-            "Stop supplicant", "Enable supplicant at boot", "Disable supplicant at boot",
-            "Request / renew DHCP lease", "Release DHCP lease", "Show wlan0 IPv4 address",
-            "Configure SSID (secure password prompt)",
-        ], run_action, "↑/↓ select · Enter run · Esc back (sudo may prompt in terminal)", stay_open=True)
+            "Show supplicant + DHCP service status", "Restart Wi-Fi + renew DHCP (ordered)",
+            "Start both services (supplicant, then obtain DHCP lease)", "Stop both services (DHCP, then supplicant)",
+            "Enable both services at boot", "Disable both services at boot",
+            "Restart supplicant only", "Restart DHCP client service", "Start DHCP client service",
+            "Stop DHCP client service", "Show Wi-Fi association state", "Show wlan0 IPv4 address",
+            "Show supplicant journal", "Show DHCP client journal", "Configure SSID (secure password prompt)",
+        ], run_action, "↑/↓ select · Enter run · Esc back (DHCP waits for supplicant association)", stay_open=True)
 
     def _prompt(self, label: str) -> str:
         screen = self.screen

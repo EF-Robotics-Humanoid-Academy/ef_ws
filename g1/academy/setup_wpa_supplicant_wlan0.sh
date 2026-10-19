@@ -16,6 +16,7 @@ die() {
 command -v wpa_passphrase >/dev/null 2>&1 || die "wpa_passphrase is not installed"
 command -v systemctl >/dev/null 2>&1 || die "systemctl is not available"
 systemctl cat wpa_supplicant@wlan0.service >/dev/null 2>&1 || die "wpa_supplicant@wlan0.service is not installed"
+systemctl cat dhclient@wlan0.service >/dev/null 2>&1 || die "dhclient@wlan0.service is not installed"
 
 SSID="$1"
 COUNTRY="${WPA_COUNTRY:-DE}"
@@ -65,3 +66,6 @@ chmod 600 "$CONF"
 systemctl enable --now wpa_supplicant@wlan0.service
 systemctl is-active --quiet wpa_supplicant@wlan0.service || die "wpa_supplicant failed to start"
 printf 'Installed and started %s\n' "$CONF"
+systemctl enable --now dhclient@wlan0.service
+systemctl is-active --quiet dhclient@wlan0.service || die "dhclient@wlan0.service did not start; inspect its journal"
+printf 'Enabled and started dhclient@wlan0.service (it waits for Wi-Fi association)\n'
