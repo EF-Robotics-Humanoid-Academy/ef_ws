@@ -56,6 +56,19 @@ from unitree_sdk2py.idl.unitree_go.msg.dds_ import SportModeState_
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import HandCmd_, HandState_, LowCmd_, LowState_
 from unitree_sdk2py.rpc.client import Client
 from unitree_sdk2py.utils.crc import CRC
+# Use the SDK Python CRC when the native architecture library is missing.
+if not getattr(CRC, "_wbc_python_crc_fallback", False):
+    _crc_sdk_init = CRC.__init__
+    def _crc_init_python_fallback(self):
+        try:
+            _crc_sdk_init(self)
+        except OSError as exc:
+            if "crc_" not in str(exc) or "No such file" not in str(exc):
+                raise
+            self.platform = "Python"
+    CRC.__init__ = _crc_init_python_fallback
+    CRC._wbc_python_crc_fallback = True
+
 
 from util import HAND_CLOSED, HAND_OPEN, play_piper_text
 

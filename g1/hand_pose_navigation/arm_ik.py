@@ -15,7 +15,10 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy.optimize import minimize  # type: ignore
+try:
+    from scipy.optimize import minimize  # type: ignore
+except ImportError:  # DLS solvers do not require SciPy
+    minimize = None  # type: ignore[assignment]
 
 from .arm_fk import ArmFK, JOINT_LIMITS, LEFT_ARM_JOINTS, RIGHT_ARM_JOINTS, _fk_dh, _DH_RIGHT
 
@@ -237,6 +240,8 @@ class ArmIK:
     def _solve_scipy(
         self, T_des: np.ndarray, q: np.ndarray
     ) -> Tuple[Optional[np.ndarray], Dict]:
+        if minimize is None:
+            raise RuntimeError("SciPy is required for the scipy IK solver")
         lo = [lim[0] for lim in self._limits]
         hi = [lim[1] for lim in self._limits]
 

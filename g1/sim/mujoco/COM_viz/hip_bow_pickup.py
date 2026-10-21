@@ -9,6 +9,19 @@ from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublish
 from unitree_sdk2py.idl.default import unitree_hg_msg_dds__LowCmd_
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_, LowState_
 from unitree_sdk2py.utils.crc import CRC
+# Use the SDK Python CRC when the native architecture library is missing.
+if not getattr(CRC, "_wbc_python_crc_fallback", False):
+    _crc_sdk_init = CRC.__init__
+    def _crc_init_python_fallback(self):
+        try:
+            _crc_sdk_init(self)
+        except OSError as exc:
+            if "crc_" not in str(exc) or "No such file" not in str(exc):
+                raise
+            self.platform = "Python"
+    CRC.__init__ = _crc_init_python_fallback
+    CRC._wbc_python_crc_fallback = True
+
 from unitree_sdk2py.utils.thread import RecurrentThread
 
 channel_module.ChannelConfigHasInterface = """<?xml version=\"1.0\" encoding=\"UTF-8\" ?>

@@ -126,9 +126,21 @@ try:
     from unitree_sdk2py.idl.default import unitree_hg_msg_dds__LowCmd_
     from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_
     from unitree_sdk2py.utils.crc import CRC
+    # Use the SDK Python CRC when the native architecture library is missing.
+    if not getattr(CRC, "_wbc_python_crc_fallback", False):
+        _crc_sdk_init = CRC.__init__
+        def _crc_init_python_fallback(self):
+            try:
+                _crc_sdk_init(self)
+            except OSError as exc:
+                if "crc_" not in str(exc) or "No such file" not in str(exc):
+                    raise
+                self.platform = "Python"
+        CRC.__init__ = _crc_init_python_fallback
+        CRC._wbc_python_crc_fallback = True
+
 except ImportError as exc:
     raise SystemExit("unitree_sdk2py not installed.") from exc
-
 
 # ── Joint indices ─────────────────────────────────────────────────────────────
 WAIST_JOINTS = [12, 13, 14]   # roll, pitch, yaw
@@ -182,9 +194,12 @@ DEFAULT_LOCK_FILE = "/tmp/ik_pose_cli_v3_rt_arm_sdk.lock"
 
 
 class RemoteStateStream:
-    """Reconnectable reader for the remote's Server-Sent Events JSON stream."""
+    """Poll the remote controller's current JSON snapshot."""
     def __init__(self, url: str) -> None:
-        self.url = url
+        # The SSE endpoint emits only on input changes, while the control loop
+        # needs a fresh timestamp for held inputs. The companion snapshot
+        # endpoint returns the current state on every request.
+        self.url = url.rsplit("/", 1)[0] + "/snapshot"
         self._lock = threading.Lock()
         self._state: Dict[str, Any] = {}
         self.last_received_s = 0.0
@@ -203,28 +218,24 @@ class RemoteStateStream:
     def _run(self) -> None:
         while self._running:
             try:
-                req = urllib.request.Request(self.url, headers={"Accept": "text/event-stream"})
-                with urllib.request.urlopen(req, timeout=3.0) as response:
-                    self.error = "connected"
-                    for raw in response:
-                        if not self._running:
-                            return
-                        line = raw.decode("utf-8", "replace").strip()
-                        if not line.startswith("data:"):
-                            continue
-                        try:
-                            payload = json.loads(line[5:].strip())
-                            data = payload.get("data", payload)
-                            controllers = data.get("controllers", [])
-                            state = controllers[0] if controllers else {}
-                            if isinstance(state, dict):
-                                with self._lock:
-                                    self._state = state
-                                    self.last_received_s = time.monotonic()
-                        except (ValueError, AttributeError, TypeError):
-                            continue
+                req = urllib.request.Request(self.url, headers={"Accept": "application/json"})
+                with urllib.request.urlopen(req, timeout=1.0) as response:
+                    payload = json.loads(response.read().decode("utf-8", "replace"))
+                data = payload.get("data", payload)
+                controllers = data.get("controllers", [])
+                state = controllers[0] if controllers else {}
+                if not isinstance(state, dict):
+                    state = {}
+                with self._lock:
+                    self._state = state
+                    self.last_received_s = time.monotonic()
+                self.error = "connected"
+                time.sleep(0.05)
             except Exception as exc:
                 self.error = str(exc)
+                with self._lock:
+                    self._state = {}
+                    self.last_received_s = 0.0
                 time.sleep(1.0)
 
 # ── Rotation helpers ──────────────────────────────────────────────────────────
