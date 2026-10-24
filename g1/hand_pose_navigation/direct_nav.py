@@ -165,6 +165,20 @@ class DirectHandPoseNav:
         )
         self._tracking_loop.start(blocking=False)
 
+    def update_fixed_target(self, T_camera_target: np.ndarray, confidence: float = 1.0) -> None:
+        """Replace the "fixed" target while the tracking loop is running.
+
+        The loop reads it on its next iteration and re-solves IK toward it
+        from the measured joints, so the approach bends toward the corrected
+        target instead of restarting.
+        """
+        self._detector.set_fixed_result(DetectionResult(
+            T_camera_object=np.asarray(T_camera_target, dtype=np.float64).copy(),
+            confidence=float(confidence),
+            method="fixed",
+        ))
+        self._tracking_loop.notify_target_updated()
+
     def shutdown(self) -> None:
         self._tracking_loop.stop()
 

@@ -3,6 +3,9 @@
 
 Run from academy/: ``python3 g1_cli.py``.  Live robot mode is the default;
 ``--offline`` starts the agent without DDS or robot actions.
+
+sdk_wrapper.G1 is the only robot interface; the agent's skills, state, SLAM
+and vision grab are bound to it by g1_agent.build_agent().
 """
 from __future__ import annotations
 
@@ -26,22 +29,18 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 G1_ROOT = HERE.parent
-MODULES = G1_ROOT / "modules"
-SCRIPTS = MODULES / "scripts"
+# Only the robot-independent intent agent (openaiapi/agent) and its LLM
+# transport (llm_client) come from modules/scripts.  modules/ itself -- the
+# legacy sdk_client stack -- is deliberately not on sys.path: sdk_wrapper is
+# the only robot interface, and g1_agent binds the agent's skills to it.
+SCRIPTS = G1_ROOT / "modules" / "scripts"
 AGENT_PACKAGE = SCRIPTS / "openaiapi"
-for path in (str(MODULES), str(SCRIPTS), str(AGENT_PACKAGE), str(HERE)):
+for path in (str(SCRIPTS), str(AGENT_PACKAGE), str(HERE)):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-# Match sdk_client's environment setup before importing unitree_sdk2py.
-from dds_env import ensure_cyclonedds_environment  # noqa: E402
-
-ensure_cyclonedds_environment()
-
-import sdk_wrapper  # noqa: E402
-from agent.cli.__main__ import build_agent  # noqa: E402
+import sdk_wrapper  # noqa: E402  (sets up the CycloneDDS environment itself)
 from agent.planner import OpenAIPlanner  # noqa: E402
-from agent.models import LifecycleState  # noqa: E402
 
 
 COMMANDS = {
@@ -92,35 +91,11 @@ WRAPPER_TOPICS = sorted(set(
 ))
 
 
-def _make_agent(args: argparse.Namespace):
-    from argparse import Namespace
+def _make_agent(args: argparse.Namespace, robot: Any = None):
+    """The intent agent on sdk_wrapper.G1 (live) or offline; see g1_agent."""
+    import g1_agent
 
-    agent_args = Namespace(
-        robot=not args.offline,
-        iface=args.iface,
-        domain_id=args.domain_id,
-        openai=not args.offline,
-        model=args.model,
-        knowledge_file=[],
-        auto_confirm=False,
-    )
-    agent = build_agent(agent_args)
-    if not args.offline and agent.robot is None:
-        raise RuntimeError("Could not initialize the live intent agent; check SDK/DDS setup.")
-    if not args.offline and not isinstance(agent.planner, OpenAIPlanner):
-        raise RuntimeError("OpenAI planner is unavailable; set OPENAI_API_KEY and install the openaiapi dependencies.")
-    if not args.offline:
-        # Keep each request to a small number of sequential model/tool rounds;
-        # every extra planner round adds another full API latency.
-        agent.settings.set("tools.max_calls_per_turn", 4, persist=False)
-        if hasattr(agent.planner, "_max_retries"):
-            agent.planner._max_retries = 0
-    # The full agent boot path asks the LLM for an announcement before the UI
-    # becomes usable. Keep lifecycle semantics but skip that extra model round.
-    if agent.lifecycle.state != LifecycleState.AWAKE:
-        agent.lifecycle.transition(LifecycleState.AWAKE)
-    agent._booted = True
-    return agent
+    return g1_agent.build_agent(args, robot)
 
 
 class G1Console:
@@ -1592,14 +1567,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
-        agent = _make_agent(args)
-        robot = None
-        if not args.offline:
-            # The intent agent's live SDK client initializes the process-wide
-            # Unitree DDS factory first. Tell sdk_wrapper.G1 to share that
-            # matching factory instead of initializing DDS a second time.
-            sdk_wrapper._factory = (int(args.domain_id), str(args.iface))
-            robot = sdk_wrapper.G1(iface=args.iface, domain_id=args.domain_id)
+        robot = None if args.offline else sdk_wrapper.G1(iface=args.iface, domain_id=args.domain_id)
+        agent = _make_agent(args, robot)
     except Exception as exc:
         print(f"Could not start g1_cli: {exc}", file=sys.stderr)
         return 2

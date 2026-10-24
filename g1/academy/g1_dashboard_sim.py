@@ -55,7 +55,7 @@ BOXES = [
 
 
 def install_stubs() -> None:
-    """Register stand-ins for dds_env, sdk_wrapper and the agent package."""
+    """Register stand-ins for sdk_wrapper and the agent package."""
     def module(name: str, **attrs: Any) -> types.ModuleType:
         mod = types.ModuleType(name)
         mod.__dict__.update(attrs)
@@ -80,7 +80,6 @@ def install_stubs() -> None:
             return int(result.get("code", 0))
         return int(result)
 
-    module("dds_env", ensure_cyclonedds_environment=lambda: None)
     module("sdk_wrapper", BMS_TOPICS=BMS_TOPICS, SLAM_POINT_TOPICS=SLAM_POINT_TOPICS, HAND_CMD_TOPICS=HAND_CMD_TOPICS,
            HAND_STATE_TOPICS=HAND_STATE_TOPICS, LEFT_ARM_JOINTS=LEFT_ARM_JOINTS, RIGHT_ARM_JOINTS=RIGHT_ARM_JOINTS,
            WAIST_JOINTS=WAIST_JOINTS, ROBOT_API_ID_LOCO_GET_FSM_ID=API_FSM_ID, ROBOT_API_ID_LOCO_GET_FSM_MODE=API_FSM_MODE,
@@ -90,17 +89,8 @@ def install_stubs() -> None:
     class OpenAIPlanner:
         DEFAULT_MODEL = "off-robot"
 
-    class LifecycleState:
-        AWAKE = "awake"
-
-    def build_agent(_args: Any) -> Any:
-        raise RuntimeError("build_agent is not available in --off-robot mode")
-
     module("agent")
-    module("agent.cli")
-    module("agent.cli.__main__", build_agent=build_agent)
     module("agent.planner", OpenAIPlanner=OpenAIPlanner)
-    module("agent.models", LifecycleState=LifecycleState)
 
 
 # -- agent ----------------------------------------------------------------------
@@ -484,7 +474,7 @@ class SimRobot:
         return self._set_fsm(802)
 
     # -- locomotion, arms and hands ----------------------------------------------
-    def loco_move(self, vx: float, vy: float, vyaw: float, duration_s: Any = None) -> int:
+    def loco_move(self, vx: float, vy: float, vyaw: float, duration_s: Any = None, continuous: bool = True) -> int:
         with self.lock:
             self.nav_target = None
             self.cmd = (float(vx), float(vy), float(vyaw))
@@ -501,6 +491,10 @@ class SimRobot:
     def _upper_body_pose(self, timeout: float = 3.0) -> dict[int, float]:
         with self.lock:
             return dict(self.arm_q)
+
+    def get_joint_positions(self, joints: Any = None, max_age_s: Any = None) -> tuple[dict[int, float], float]:
+        q = self.get_lowstate()["joint_positions"]
+        return {int(j): float(q[int(j)]) for j in (range(29) if joints is None else joints)}, time.time()
 
     def release_arms(self, duration_s: float = 3.0, rate_hz: float = 50.0) -> int:
         time.sleep(0.6)
@@ -549,6 +543,10 @@ class SimRobot:
 
     def close_dex3_hand(self, hand: str = "both", **_kwargs: Any) -> dict[str, Any]:
         return self._grip(hand, 1.0)
+
+    def write_dex3_grip(self, hand: str, percent: float, **_kwargs: Any) -> dict[str, Any]:
+        self.grip[hand] = max(0.0, min(1.0, float(percent) / 100.0))
+        return {"hand": hand, "ok": True, "percent": float(percent)}
 
     # -- SLAM ------------------------------------------------------------------
     @staticmethod

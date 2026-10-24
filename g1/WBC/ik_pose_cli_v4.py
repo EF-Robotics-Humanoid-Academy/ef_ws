@@ -488,6 +488,7 @@ class IKPoseCLI:
         self._remote_loco_was_active = False
         self._remote_last_loco_cmd: Optional[Tuple[float, float]] = None
         self._remote_loco_stopped = False
+        self._remote_stop_until_s = 0.0
         self._remote_dpad_last_s = 0.0
         self._remote_dpad_x_last_s = 0.0
         self._remote_grip_closed = self.hand_grip_percent >= 50.0
@@ -495,6 +496,7 @@ class IKPoseCLI:
         self.max_ee_y_speed = max(0.001, float(args.ee_y_speed_m_s))
         self.max_vx = max(0.0, float(args.max_vx))
         self.max_vyaw = max(0.0, float(args.max_vyaw))
+        self.loco_deadzone = min(0.9, max(0.0, float(args.loco_deadzone)))
 
         # EE step sizes (per key-press)
         self.pos_step = 0.01    # metres
@@ -1098,6 +1100,24 @@ class IKPoseCLI:
             return 0.0
         return math.copysign((abs(value) - deadzone) / (1.0 - deadzone), value)
 
+    @staticmethod
+    def _stick_value(axes: List[Any], ix: int, iy: int, deadzone: float) -> Tuple[float, float]:
+        """Radial deadzone: a stick resting slightly off-centre reads as zero."""
+        try:
+            x = max(-1.0, min(1.0, float(axes[ix])))
+            y = max(-1.0, min(1.0, float(axes[iy])))
+        except (IndexError, TypeError, ValueError):
+            return 0.0, 0.0
+        mag = math.hypot(x, y)
+        if mag <= deadzone:
+            return 0.0, 0.0
+        scale = min(1.0, (mag - deadzone) / (1.0 - deadzone)) / mag
+        return x * scale, y * scale
+
+    def _loco_cmd(self, axes: List[Any]) -> Tuple[float, float]:
+        lx, ly = self._stick_value(axes, 0, 1, self.loco_deadzone)
+        return -ly * self.max_vx, -lx * self.max_vyaw
+
     def _process_remote(self, now: float) -> None:
         state = self.remote.snapshot()
         remote_stale = not self.remote.last_received_s or now - self.remote.last_received_s > 0.5
@@ -1167,8 +1187,6 @@ class IKPoseCLI:
         # Stream order observed from this remote: 0/1 left stick, 2/3 right
         # stick, 4/5 triggers. Stick vertical is inverted for natural
         # forward/up movement.
-        lx = self._axis_value(axes, 0)
-        ly = self._axis_value(axes, 1)
         rx = self._axis_value(axes, 2)
         ry = self._axis_value(axes, 3)
         if self.seeded and self.armed and (rx or ry):
@@ -1184,30 +1202,43 @@ class IKPoseCLI:
             self._adjust_dof(-ry * self.max_ee_speed * dt)
 
         # Left stick drives locomotion (vx and yaw only as requested).
-        vx = -ly * self.max_vx
-        vyaw = -lx * self.max_vyaw
+        vx, vyaw = self._loco_cmd(axes)
         active = bool(vx or vyaw)
         loco_cmd = (round(vx, 3), round(vyaw, 3))
         changed = self._remote_last_loco_cmd is None or any(
             abs(a - b) >= 0.01 for a, b in zip(loco_cmd, self._remote_last_loco_cmd)
         )
-        # Keep only the latest command. Re-sending identical Move RPCs faster
-        # than the SDK/network can consume them is what makes old stick input
-        # appear to come back later.
-        should_send = (
-            not remote_stale
-            and (changed or (active and now - self._remote_last_loco_s >= 0.2)
-                 or (self._remote_loco_was_active and not active))
-        )
-        if should_send:
-            try:
-                self.robot.loco_move(vx, 0.0, vyaw)
-                self._remote_last_loco_s = now
-                self._remote_loco_was_active = active
-                self._remote_last_loco_cmd = loco_cmd
-                self._remote_loco_stopped = False
-            except Exception as exc:
-                self.status = f"Remote locomotion error: {exc}"
+        if remote_stale:
+            pass
+        elif active:
+            # Each Move carries a ~1 s lease (non-continuous) and is refreshed
+            # every 0.2 s, so a lost stop or a stalled loop cannot leave the
+            # robot walking on an old command.
+            if changed or now - self._remote_last_loco_s >= 0.2:
+                try:
+                    rc = self.robot.loco_move(vx, 0.0, vyaw, continuous=False)
+                    if rc != 0:
+                        self.status = f"Remote locomotion rc={rc}"
+                    self._remote_last_loco_s = now
+                    self._remote_loco_was_active = True
+                    self._remote_last_loco_cmd = loco_cmd
+                    self._remote_loco_stopped = False
+                except Exception as exc:
+                    self.status = f"Remote locomotion error: {exc}"
+        else:
+            if self._remote_loco_was_active:
+                # Stick released: repeat StopMove for a short window instead
+                # of trusting a single RPC.
+                self._remote_loco_was_active = False
+                self._remote_stop_until_s = now + 0.6
+                self._remote_last_loco_s = 0.0
+            if now <= self._remote_stop_until_s and now - self._remote_last_loco_s >= 0.15:
+                try:
+                    self.robot.stop_moving()
+                    self._remote_last_loco_s = now
+                    self._remote_last_loco_cmd = loco_cmd
+                except Exception as exc:
+                    self.status = f"Remote stop error: {exc}"
         self._remote_prev_buttons = buttons
 
     def _publish_hand_targets_once(self) -> None:
@@ -1304,8 +1335,7 @@ class IKPoseCLI:
             lx = ly = rx = ry = 0.0
         pressed = ",".join(str(i) for i, value in enumerate(buttons) if value) or "-"
         hat = hats[0] if hats else [0, 0]
-        vx = -self._axis_value(axes, 1) * self.max_vx
-        vyaw = -self._axis_value(axes, 0) * self.max_vyaw
+        vx, vyaw = self._loco_cmd(axes)
         input_line = (
             f"  Input L[{lx:+.2f},{ly:+.2f}] R[{rx:+.2f},{ry:+.2f}] "
             f"hat={hat} btn={pressed}  loco vx={vx:+.2f} yaw={vyaw:+.2f}"
@@ -1887,8 +1917,7 @@ class IKPoseCLI:
             lx = ly = rx = ry = 0.0
         pressed = [i for i, value in enumerate(buttons) if value]
         hat = hats[0] if hats else [0, 0]
-        vx = -self._axis_value(axes, 1) * self.max_vx
-        vyaw = -self._axis_value(axes, 0) * self.max_vyaw
+        vx, vyaw = self._loco_cmd(axes)
         print(
             "[remote] "
             f"status={self.remote.error} "
@@ -2004,6 +2033,8 @@ def _parse_args() -> argparse.Namespace:
                    help="Maximum forward/back locomotion speed (m/s)")
     p.add_argument("--max-vyaw", type=float, default=0.7,
                    help="Maximum yaw rate from left stick (rad/s)")
+    p.add_argument("--loco-deadzone", type=float, default=0.25,
+                   help="Radial deadzone for the left (locomotion) stick, 0..1")
     p.add_argument("--rate-hz", type=float, default=25.0, help="Publish rate Hz")
     p.add_argument("--speed-rad-s", type=float, default=0.2,
                    help="Joint ramp speed rad/s")

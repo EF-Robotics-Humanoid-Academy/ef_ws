@@ -2948,8 +2948,10 @@ class Robot:
             return 0
         return int(result)
 
-    def loco_move(self, vx: float, vy: float, vyaw: float) -> int:
-        result = self._client.Move(float(vx), float(vy), float(vyaw), continous_move=True)
+    def loco_move(self, vx: float, vy: float, vyaw: float, continuous: bool = True) -> int:
+        # continuous=False gives the command a ~1 s lease on the robot, so it
+        # stops on its own if the caller stops refreshing it.
+        result = self._client.Move(float(vx), float(vy), float(vyaw), continous_move=bool(continuous))
         return self._normalize_sdk_status(result)
 
     def move_for(

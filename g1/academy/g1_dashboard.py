@@ -10,8 +10,22 @@ operation tools (mapping, relocation, named points, click-to-navigate, task
 queues).  ``--offline`` mirrors g1_cli: no DDS or robot actions; the camera
 view still works if an RGB-D ZMQ stream is running.
 
+Two tabs have no g1_cli counterpart.  /wbc is WBC/ik_pose_cli_v4.py: 6D
+end-effector IK pose control driven by the remote controller stream or a
+gamepad on the browser machine (wbc_ik.py).  /sort is
+hand_pose_navigation/sorting_app.py: pick two kinds of objects and place each
+on its ArUco spot (sorting.py on grasp_pipeline.py).  Both run on
+sdk_wrapper.G1 like every other tab; nothing from modules/ is used for them.
+
 g1_cli.py is imported, never modified: the G1Console class provides the agent
 turn, settings persistence, topic readers and table builders reused here.
+
+sdk_wrapper.G1 is the only robot interface.  The chat agent is composed by
+g1_agent.build_agent(), which binds the agent's skills, state, SLAM and
+vision grab to G1; the dashboard additionally binds its arm-ownership rule
+and shared grab pipeline to the agent.
+Only one of /control, /wbc, /sort and the agent moves the robot at a time
+(Dashboard.arm_conflict).
 """
 from __future__ import annotations
 
@@ -45,7 +59,7 @@ if OFF_ROBOT:
 # Importing g1_cli performs the same sys.path and CycloneDDS environment setup
 # as the console before sdk_wrapper / unitree_sdk2py are loaded.
 import g1_cli  # noqa: E402
-from g1_cli import COMMANDS, DEFAULT_SETTINGS, WRAPPER_TOPICS, G1Console, _make_agent  # noqa: E402
+from g1_cli import COMMANDS, DEFAULT_SETTINGS, WRAPPER_TOPICS, G1Console  # noqa: E402
 from agent.planner import OpenAIPlanner  # noqa: E402
 import sdk_wrapper  # noqa: E402
 
@@ -104,6 +118,12 @@ WIFI_ACTIONS = [
 ]
 # RealSense intrinsics used by visualizations/recognition_app_v3.py.
 CAMERA_INTRINSICS = {(640, 480): (604.2, 605.1, 324.7, 242.9), (424, 240): (302.1, 302.5, 214.3, 121.4)}
+# Dashboard-only tabs, listed after g1_cli's commands.
+DASHBOARD_COMMANDS = {
+    "/wbc": "6D end-effector IK pose control with a gamepad (ik_pose_cli_v4)",
+    "/sort": "sort two kinds of objects onto ArUco drop-off spots",
+}
+ALL_COMMANDS = {**COMMANDS, **DASHBOARD_COMMANDS}
 
 
 class LiveRequired(RuntimeError):
@@ -238,6 +258,8 @@ class Dashboard(G1Console):
         self._cpu_prev: dict[str, tuple[int, int]] = {}
         self.off_robot = bool(getattr(args, "off_robot", False))
         self.control = ControlSession(self)
+        self.wbc = WbcSession(self, args)
+        self.sort = SortSession(self, args)
         self.slam = SlamView(robot) if robot is not None else None
         self.vision = VisionView(args.rgbd)
         threading.Thread(target=self._ticker, name="g1-dash-ticker", daemon=True).start()
@@ -337,7 +359,7 @@ class Dashboard(G1Console):
             cmd = aliases.get(cmd, cmd)
             if cmd == "/clear":
                 return self.clear()
-            if cmd in COMMANDS:
+            if cmd in ALL_COMMANDS:
                 return {"ok": True, "tab": cmd[1:]}
             self.say("you", text)
             self.say("error", f"Unknown command: {cmd}. Try /help.")
@@ -364,7 +386,7 @@ class Dashboard(G1Console):
             rev = self.revision
         return {"offline": self.offline, "off_robot": self.off_robot, "battery": battery, "dev_mode": self.dev_mode, "busy": self.busy(),
                 "pending": pending, "rev": rev, "control": self.control.active, "theme": self.theme,
-                "arms_released": self.arms_released}
+                "arms_released": self.arms_released, "wbc": self.wbc.active, "sorting": self.sort.busy()}
 
     def meta(self) -> dict[str, Any]:
         fields = []
@@ -373,7 +395,7 @@ class Dashboard(G1Console):
             kind = "bool" if isinstance(value, bool) else "choice" if options else "number"
             fields.append({"key": key, "label": label, "kind": kind, "options": options, "step": step,
                            "min": low, "max": high, "group": group, "integer": isinstance(value, int) and kind == "number"})
-        return {"commands": COMMANDS, "settings_fields": fields, "settings": self.settings, "themes": THEMES,
+        return {"commands": ALL_COMMANDS, "settings_fields": fields, "settings": self.settings, "themes": THEMES,
                 "theme": self.theme, "offline": self.offline, "topics": WRAPPER_TOPICS, "modes": MODE_NAMES,
                 "mode_hints": MODE_HINTS, "wifi_actions": [{"id": a, "label": l, "sudo": s} for a, l, _c, s in WIFI_ACTIONS],
                 "hostname": socket.gethostname(), "rgbd_endpoint": self.vision.endpoint, "off_robot": self.off_robot}
@@ -381,6 +403,18 @@ class Dashboard(G1Console):
     def _require_live(self) -> None:
         if self.offline or self.robot is None:
             raise LiveRequired("This view requires live robot mode (started with --offline).")
+
+    def arm_conflict(self, me: str) -> str | None:
+        """Only one of /control, /wbc, /sort and the chat agent may move the robot."""
+        if me != "wbc" and self.wbc.active:
+            return "The /wbc IK session owns the arms; stop it in the /wbc tab first."
+        if me != "control" and self.control.active:
+            return "/control teleop is active; leave the /control tab first."
+        if me != "sort" and self.sort.busy():
+            return "The grab pipeline (/sort or a chat grab) is moving the arm; wait for it or stop it in /sort."
+        if me != "agent" and self.busy():
+            return "The chat agent is running a request; wait for it to finish."
+        return None
 
     # -- /settings and /theme ---------------------------------------------
     def update_setting(self, key: str, value: Any) -> dict[str, Any]:
@@ -754,6 +788,8 @@ class Dashboard(G1Console):
     def shutdown(self) -> dict[str, Any]:
         self.running = False
         self.control.exit()
+        self.sort.close()
+        self.wbc.stop()
         if self.httpd is not None:
             threading.Thread(target=self.httpd.shutdown, daemon=True).start()
         return {"ok": True}
@@ -788,6 +824,10 @@ class ControlSession:
         with self._start_lock:
             self.last_seen = time.monotonic()
             if not self.active:
+                conflict = self.dash.arm_conflict("control")
+                if conflict:
+                    raise ValueError(conflict)
+                self.dash.sort.yield_arms()
                 self.keys = queue.Queue()
                 self.thread = threading.Thread(target=self._run, name="g1-dash-control", daemon=True)
                 self.thread.start()
@@ -1129,6 +1169,196 @@ class ControlSession:
             except Exception:
                 pass
             self.snapshot = {"status": "Control inactive", "desired": [0.0, 0.0, 0.0]}
+
+
+class WbcSession:
+    """Owns the /wbc IK pose controller (wbc_ik.IKPoseController).
+
+    Unlike /control the session outlives the browser tab, because the
+    gamepad -- not the page -- drives it, and stale gamepad input already
+    stops locomotion.  It ends with Stop, /exit or dashboard shutdown, which
+    fades arm authority out exactly like quitting ik_pose_cli_v4.py.
+    """
+
+    def __init__(self, dash: Dashboard, args: argparse.Namespace):
+        self.dash = dash
+        self.pose_file = Path(args.wbc_pose_file)
+        self.remote_url = str(args.remote_url)
+        self.controller: Any = None
+        self._lock = threading.Lock()
+
+    @property
+    def active(self) -> bool:
+        controller = self.controller
+        return controller is not None and not controller._closed
+
+    @staticmethod
+    def _module() -> Any:
+        try:
+            import wbc_ik
+        except ImportError as exc:
+            raise LiveRequired(f"/wbc needs numpy and hand_pose_navigation's arm_fk/arm_ik: {exc}") from exc
+        return wbc_ik
+
+    def start(self, body: dict[str, Any]) -> dict[str, Any]:
+        self.dash._require_live()
+        wbc_ik = self._module()
+        with self._lock:
+            if not self.active:
+                conflict = self.dash.arm_conflict("wbc")
+                if conflict:
+                    raise ValueError(conflict)
+                self.dash.sort.yield_arms()
+                try:
+                    self.controller = wbc_ik.IKPoseController(
+                        self.dash.robot, pose_path=self.pose_file,
+                        remote_url=str(body.get("url") or self.remote_url).strip(),
+                        source="browser" if body.get("source") == "browser" else "remote",
+                        arm_control=str(body.get("arm_control") or "right"),
+                        hand_control=str(body.get("hand_control") or "off"),
+                        hand_grip=float(body.get("hand_grip") or 0.0),
+                        params=body.get("params") if isinstance(body.get("params"), dict) else {},
+                    )
+                except wbc_ik.ControllerLockError as exc:
+                    raise ValueError(str(exc)) from exc
+                self.remote_url = self.controller.remote_url
+                self.dash.say("system", f"/wbc session started ({self.controller.status}).")
+        return self.status()
+
+    def stop(self) -> dict[str, Any]:
+        controller = self.controller
+        if controller is not None and not controller._closed:
+            # Stays registered (and owning the arms) until the fade-out is done.
+            controller.close()
+            self.dash.say("system", "/wbc session stopped: locomotion stopped, arm authority faded out.")
+        with self._lock:
+            if self.controller is controller:
+                self.controller = None
+        return self.status()
+
+    def status(self) -> dict[str, Any]:
+        controller = self.controller
+        if controller is not None and not controller._closed:
+            return controller.snapshot()
+        out: dict[str, Any] = {"active": False, "remote_url": self.remote_url, "pose_file": str(self.pose_file)}
+        try:
+            out["defaults"] = {key: default for key, (default, _lo, _hi) in self._module().PARAMS.items()}
+        except LiveRequired as exc:
+            out["error"] = str(exc)
+        return out
+
+    def _controller(self) -> Any:
+        controller = self.controller
+        if controller is None or controller._closed:
+            raise ValueError("Start the /wbc session first.")
+        return controller
+
+    def action(self, name: str, body: dict[str, Any]) -> dict[str, Any]:
+        return self._controller().action(name, body)
+
+    def gamepad(self, state: dict[str, Any]) -> dict[str, Any]:
+        controller = self.controller
+        if controller is None or controller._closed:
+            return {"ok": False, "message": "no /wbc session"}
+        return controller.gamepad(state)
+
+
+class SortSession:
+    """Lazily builds the grab pipeline and the /sort layer on first use.
+
+    The pipeline (grasp_pipeline.GraspPipeline) is the dashboard's only one:
+    /sort and the chat agent's grab/reach skills share its arm lock and pose
+    hold, so they cannot command the arm at the same time.
+    """
+
+    MOTION_ACTIONS = ("sort", "retract", "engage_arms", "hand_open")
+
+    def __init__(self, dash: Dashboard, args: argparse.Namespace):
+        self.dash = dash
+        self.args = args
+        self.sorter: Any = None
+        self._pipeline: Any = None
+        self._lock = threading.Lock()
+
+    def pipeline(self) -> Any:
+        self.dash._require_live()
+        if self.dash.off_robot:
+            raise LiveRequired("The grab pipeline needs the robot's RGB-D stream, detector and arm; "
+                               "it is not simulated in --off-robot mode.")
+        with self._lock:
+            if self._pipeline is None:
+                if np is None or cv2 is None:
+                    raise LiveRequired("The grab pipeline needs numpy and opencv-contrib-python.")
+                try:
+                    import grasp_pipeline
+                except ImportError as exc:
+                    raise LiveRequired(f"The grab pipeline could not load its modules: {exc}") from exc
+                self._pipeline = grasp_pipeline.GraspPipeline(self.dash.robot, self.args.rgbd,
+                                                              vision_model=self.args.vision_model)
+        return self._pipeline
+
+    def get(self) -> Any:
+        pipeline = self.pipeline()
+        with self._lock:
+            if self.sorter is None:
+                try:
+                    import sorting
+                except ImportError as exc:
+                    raise LiveRequired(f"/sort could not load its modules: {exc}") from exc
+                self.sorter = sorting.Sorter(pipeline)
+        return self.sorter
+
+    def busy(self) -> bool:
+        if self.sorter is not None and self.sorter.busy():
+            return True
+        return self._pipeline is not None and self._pipeline.busy()
+
+    def yield_arms(self) -> None:
+        if self._pipeline is not None and not self.busy():
+            self._pipeline.yield_arms()
+
+    def action(self, name: str) -> dict[str, Any]:
+        sorter = self.get()
+        if name in self.MOTION_ACTIONS:
+            conflict = self.dash.arm_conflict("sort")
+            if conflict:
+                raise ValueError(conflict)
+        result = sorter.action(name)
+        if name == "sort":
+            self.dash.say("system", "/sort started.")
+        return result
+
+    def config(self) -> dict[str, Any]:
+        sorter = self.get()
+        return {**sorter.config_view(), "options": sorter.options(), "meta": sorter.meta()}
+
+    def frame(self, view: str) -> bytes | None:
+        ok, jpeg = cv2.imencode(".jpg", self.get().render(view), [cv2.IMWRITE_JPEG_QUALITY, 80])
+        return jpeg.tobytes() if ok else None
+
+    def stream(self, handler: BaseHTTPRequestHandler, view: str, fps: float = 6.0) -> None:
+        self.get()
+        handler.close_connection = True
+        handler.send_response(200)
+        handler.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+        handler.send_header("Cache-Control", "no-store")
+        handler.send_header("Connection", "close")
+        handler.end_headers()
+        try:
+            while self.dash.running:
+                started = time.monotonic()
+                image = self.frame(view)
+                if image is not None:
+                    handler.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                                        + str(len(image)).encode() + b"\r\n\r\n" + image + b"\r\n")
+                    handler.wfile.flush()
+                time.sleep(max(0.02, 1.0 / fps - (time.monotonic() - started)))
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+    def close(self) -> None:
+        if self.sorter is not None:
+            self.sorter.close()
 
 
 class SlamView:
@@ -2036,6 +2266,16 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("GET", "/api/camera"): lambda d, q, b: d.vision.status(),
     ("POST", "/api/camera/params"): lambda d, q, b: d.vision.set_params(b),
     ("GET", "/api/camera/depth"): lambda d, q, b: d.vision.depth_at(float(q.get("u", 0)), float(q.get("v", 0))),
+    ("GET", "/api/wbc"): lambda d, q, b: d.wbc.status(),
+    ("POST", "/api/wbc/start"): lambda d, q, b: d.wbc.start(b),
+    ("POST", "/api/wbc/stop"): lambda d, q, b: d.wbc.stop(),
+    ("POST", "/api/wbc/action"): lambda d, q, b: d.wbc.action(str(b.get("action")), b),
+    ("POST", "/api/wbc/gamepad"): lambda d, q, b: d.wbc.gamepad(b),
+    ("GET", "/api/sort"): lambda d, q, b: d.sort.get().status(),
+    ("GET", "/api/sort/config"): lambda d, q, b: d.sort.config(),
+    ("POST", "/api/sort/config"): lambda d, q, b: d.sort.get().set_config(b),
+    ("POST", "/api/sort/options"): lambda d, q, b: d.sort.get().set_options(b),
+    ("POST", "/api/sort/action"): lambda d, q, b: d.sort.action(str(b.get("action"))),
 }
 
 
@@ -2089,6 +2329,13 @@ class Handler(BaseHTTPRequestHandler):
                     self.end_headers()
                     return None
                 return self._send(200, image, mime)
+            if method == "GET" and url.path == "/stream/sort":
+                return self.dash.sort.stream(self, query.get("view", "sort"))
+            if method == "GET" and url.path == "/frame/sort":
+                image = self.dash.sort.frame(query.get("view", "sort"))
+                if image is None:
+                    return self._json({"error": "could not encode frame"}, 500)
+                return self._send(200, image, "image/jpeg")
             if method == "GET" and url.path == "/api/slam/cloud":
                 data = self.dash.slam.cloud() if self.dash.slam is not None else _empty_cloud_packet()
                 return self._send(200, data, "application/octet-stream")
@@ -2119,6 +2366,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=int(os.environ.get("G1_DASHBOARD_PORT", "8765")))
     parser.add_argument("--rgbd", default=os.environ.get("G1_RGBD_ENDPOINT", "tcp://127.0.0.1:5555"),
                         help="ZMQ endpoint of realsense_rgbd_zmq_stream.py")
+    parser.add_argument("--remote-url", default=os.environ.get("G1_REMOTE_URL", "http://192.168.2.79:8765/events"),
+                        help="/wbc default: remote controller stream URL (controller_stream.py)")
+    parser.add_argument("--wbc-pose-file", default=str(HERE.parent / "WBC" / "saved_ik_pose_cli_v4_poses.json"),
+                        help="/wbc saved joint poses and replay sequence (shared with ik_pose_cli_v4.py)")
+    parser.add_argument("--vision-model", default=os.environ.get("G1_VISION_MODEL", "yolov8s-world.pt"),
+                        help="/sort open-vocabulary YOLO-World checkpoint")
     return parser.parse_args()
 
 
@@ -2126,17 +2379,18 @@ def main() -> int:
     args = parse_args()
     if args.off_robot:
         return _main_off_robot(args)
+    import g1_agent  # the agent's sdk_wrapper.G1 backend (not imported by --off-robot)
+
     try:
-        agent = _make_agent(args)
-        robot = None
-        if not args.offline:
-            # Share the agent's DDS factory instead of initializing a second one (see g1_cli.main).
-            sdk_wrapper._factory = (int(args.domain_id), str(args.iface))
-            robot = sdk_wrapper.G1(iface=args.iface, domain_id=args.domain_id)
+        robot = None if args.offline else sdk_wrapper.G1(iface=args.iface, domain_id=args.domain_id)
+        host = None if robot is None else g1_agent.AgentHost(robot, args.rgbd)
+        agent = g1_agent.build_agent(args, robot, host)
     except Exception as exc:
         print(f"Could not start g1_dashboard: {exc}", file=sys.stderr)
         return 2
     dash = Dashboard(robot, agent, offline=args.offline, args=args)
+    if host is not None:
+        host.bind(arm_conflict=lambda: dash.arm_conflict("agent"), grasp_pipeline=dash.sort.pipeline)
     return _serve(dash, args, robot)
 
 
@@ -2177,6 +2431,8 @@ def _serve(dash: Dashboard, args: argparse.Namespace, robot: Any) -> int:
     finally:
         dash.running = False
         dash.control.exit()
+        dash.sort.close()
+        dash.wbc.stop()
         httpd.server_close()
         dash.chat_executor.shutdown(wait=False)
         dash.action_executor.shutdown(wait=False)
@@ -2362,6 +2618,15 @@ kbd{font:11px ui-monospace,Menlo,monospace;padding:1px 6px;border-radius:6px;bor
 .param{display:grid;grid-template-columns:118px 1fr 52px;gap:8px;align-items:center;font-size:12.5px;margin:4px 0}
 .param output{text-align:right;font-variant-numeric:tabular-nums;color:var(--accent)}
 .kbd-state{font-size:12px}
+/* wbc & sort */
+table.t tr.sel td{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+table.t td.num{font-variant-numeric:tabular-nums;font-family:ui-monospace,Menlo,monospace;white-space:nowrap}
+.chip{display:inline-block;min-width:28px;text-align:center;padding:2px 7px;border-radius:8px;border:1px solid var(--border);font-size:12px;font-weight:700;background:var(--glass)}
+.chip.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#14110a;border-color:transparent}
+.cfg{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.cfg label{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted);min-width:0}
+.cfg .full{grid-column:1/-1}.cfg input,.cfg select{width:100%}
+.wbc-off{opacity:.45;pointer-events:none}
 /* modal & toast */
 .modal{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(0,0,0,.35);padding:16px}
 .modal-card{max-width:440px;width:100%;padding:20px}.modal-card p{color:var(--muted);white-space:pre-wrap}
@@ -2592,6 +2857,99 @@ table.t th{color:var(--muted);font-weight:600}
   </div>
 </section>
 
+<section class="tab" id="tab-wbc">
+  <div class="grid cols-3">
+    <div class="glass panel span-2">
+      <div class="panel-head"><h2>WBC · 6D end-effector IK</h2><span class="row" id="wbc-badges"></span></div>
+      <div class="row">
+        <div class="seg" id="wbc-source"><button data-v="remote" class="on">Remote stream</button><button data-v="browser">Browser gamepad</button></div>
+        <input id="wbc-url" class="grow mono" placeholder="http://LAPTOP_IP:8765/events">
+        <button class="btn sm" id="wbc-url-apply">Use</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" id="wbc-start">Start session</button>
+        <button class="btn danger" id="wbc-stop">Stop session</button>
+        <span class="grow"></span>
+        <span class="wbc-live row">
+          <button class="btn sm" data-wbc="release">Release arms <kbd>r</kbd></button>
+          <button class="btn sm" data-wbc="engage">Engage arms <kbd>e</kbd></button>
+          <button class="btn sm" data-wbc="resync">Resync EE <kbd>y</kbd></button>
+          <button class="btn sm ghost danger" id="wbc-zero">Zero gains <kbd>z</kbd></button>
+        </span>
+      </div>
+      <div class="row wbc-live" style="margin-top:8px">
+        <span class="muted small">Arms <kbd>m</kbd></span><div class="seg" id="wbc-arm"><button data-v="right">right</button><button data-v="left">left</button><button data-v="both">both</button></div>
+        <button class="btn sm" data-wbc="orient" id="wbc-orient">Orientation locked <kbd>f</kbd></button>
+        <button class="btn sm" data-wbc="waist" id="wbc-waist">Waist held <kbd>w</kbd></button>
+      </div>
+      <div id="wbc-status" class="small" style="margin-top:10px"></div>
+    </div>
+    <div class="glass panel">
+      <div class="panel-head"><h3>Controller input</h3><span id="wbc-input-badge"></span></div>
+      <canvas id="wbc-pad" style="height:150px"></canvas>
+      <div id="wbc-input-kv" class="kv small" style="margin-top:8px"></div>
+      <p class="muted small" id="wbc-gp-hint"></p>
+    </div>
+    <div class="glass panel span-2 wbc-live">
+      <div class="panel-head"><h3>End effector · <span id="wbc-disp-arm">right</span> arm</h3>
+        <div class="row small"><span class="muted">max Δq per IK step</span><button class="btn sm" data-wbc-dq="halve">[</button><span class="mono" id="wbc-maxdq">—</span><button class="btn sm" data-wbc-dq="double">]</button></div></div>
+      <table class="t" id="wbc-dofs"></table>
+      <div id="wbc-ik" class="small mono" style="margin-top:8px"></div>
+    </div>
+    <div class="glass panel wbc-live">
+      <h3>Dex3 hand</h3>
+      <div class="seg" id="wbc-hand"><button data-v="off">off</button><button data-v="right">right</button><button data-v="left">left</button><button data-v="both">both</button><button data-v="follow-arm">follow arm</button></div>
+      <div class="field"><label>Grip</label><output id="wbc-grip-out">0%</output><div class="ctl"><input type="range" id="wbc-grip" min="0" max="100" step="1" value="0"></div></div>
+      <div class="row"><button class="btn sm" data-grip="0">Open</button><button class="btn sm" data-grip-delta="-5">−5 <kbd>{</kbd></button><button class="btn sm" data-grip-delta="5">+5 <kbd>}</kbd></button><button class="btn sm" data-grip="100">Close</button></div>
+      <div id="wbc-hand-info" class="muted small" style="margin-top:8px"></div>
+    </div>
+    <div class="glass panel span-2"><h3>Arm joints (rad)</h3><div id="wbc-joints" class="muted small">Start a session to see joint targets and feedback.</div></div>
+    <div class="glass panel"><div class="panel-head"><h3>Parameters</h3><span class="muted small" id="wbc-params-note"></span></div><div id="wbc-params"></div></div>
+    <div class="glass panel wbc-live">
+      <div class="panel-head"><h3>Saved poses</h3></div>
+      <form class="row" id="wbc-save-form"><input id="wbc-pose-name" class="grow" placeholder="Pose name"><button class="btn sm primary">Save pose <kbd>p</kbd></button></form>
+      <div id="wbc-poses" class="list" style="margin-top:8px;max-height:320px"></div>
+      <div class="muted small mono" id="wbc-pose-file" style="margin-top:6px;overflow-wrap:anywhere"></div>
+    </div>
+    <div class="glass panel wbc-live">
+      <div class="panel-head"><h3>Replay sequence</h3><div class="row"><button class="btn sm primary" data-wbc="seq_run">Run <kbd>R</kbd></button><button class="btn sm" data-wbc="seq_stop">Stop <kbd>S</kbd></button></div></div>
+      <div class="row small"><button class="btn sm" data-wbc="seq_toggle_waist" id="wbc-seq-waist">New steps include waist</button><span class="muted">gap</span><input id="wbc-gap" type="number" min="0" max="60" step="0.5" style="width:80px"><span class="muted">s</span></div>
+      <div id="wbc-seq" class="list" style="margin-top:8px;max-height:320px"></div>
+    </div>
+    <div class="glass panel"><h3>Gamepad &amp; keys</h3><table class="t small" id="wbc-help"></table></div>
+  </div>
+</section>
+
+<section class="tab" id="tab-sort">
+  <div class="grid cols-2">
+    <div class="glass panel">
+      <div class="panel-head"><h2>Sorting · live view</h2>
+        <div class="seg" id="sort-view-sel"><button data-v="sort" class="on">Sorting</button><button data-v="rgb">RGB</button><button data-v="depth">Depth</button><button data-v="segmentation">Masks</button><button data-v="desk-obstacles">Desk</button></div></div>
+      <div class="cam"><img id="sort-img" alt=""><div class="ph" id="sort-ph">Starting camera…</div></div>
+      <div class="kv small" id="sort-kv" style="margin-top:10px"></div>
+    </div>
+    <div class="glass panel">
+      <div class="panel-head"><h2>Sort</h2><span id="sort-badges" class="row"></span></div>
+      <div class="row"><button class="btn primary" id="sort-start">Sort</button><button class="btn danger" data-sort="stop">Stop sorting</button></div>
+      <div id="sort-phase" class="small" style="margin-top:10px"></div>
+      <div id="sort-scene" class="list" style="margin-top:8px"></div>
+      <div class="section-title">Arm &amp; hand</div>
+      <div class="row"><button class="btn sm" data-sort="retract">Retract to stable pose</button><button class="btn sm" data-sort="hand_open">Open hand</button>
+        <button class="btn sm" data-sort="release_arms">Release arms</button><button class="btn sm" data-sort="engage_arms">Re-engage arms</button><button class="btn sm danger" data-sort="damp">Damp</button></div>
+      <div class="section-title">Dex3 tactile</div>
+      <pre id="sort-tactile" class="console" style="max-height:130px"></pre>
+    </div>
+    <div class="glass panel" id="sort-pat-0"></div>
+    <div class="glass panel" id="sort-pat-1"></div>
+    <div class="glass panel" id="sort-obj-0"></div>
+    <div class="glass panel" id="sort-obj-1"></div>
+    <div class="glass panel"><h3>Configuration</h3><div id="sort-config-status" class="small"></div></div>
+    <div class="glass panel"><h3>Motion options</h3><div id="sort-options"></div>
+      <p class="muted small">Sorting uses the right arm and never steps the base: keep all objects and both patterns within reach and in camera view.</p></div>
+    <div class="glass panel span-all"><div class="panel-head"><h3>Log</h3><span class="muted small" id="sort-log-note"></span></div><pre id="sort-log" class="console" style="max-height:420px"></pre></div>
+  </div>
+</section>
+
 <section class="tab" id="tab-mode">
   <div class="panel-head"><h2>Robot mode</h2><div class="row"><span id="mode-msg" class="muted small"></span><button class="btn sm" id="mode-refresh">↻</button></div></div>
   <div id="mode-warn" class="glass panel hidden" style="margin-bottom:14px;border-color:var(--warn)">Dev mode is active (ai_sport off). Only zero torque, which re-enables ai_sport first, is available.</div>
@@ -2609,6 +2967,8 @@ table.t th{color:var(--muted);font-weight:600}
     <div class="glass panel"><h3>Commands</h3><table class="t" id="help-cmds"></table></div>
     <div class="glass panel"><h3>/control keys</h3><table class="t" id="help-keys"></table>
       <p class="muted small">Locomotion stops after the configured nudge duration, when you release the key or button, or when the tab loses focus. Leaving /control stops motion and releases the arm pose hold.</p></div>
+    <div class="glass panel span-all"><h3>/wbc gamepad &amp; keys</h3><table class="t" id="help-wbc"></table>
+      <p class="muted small">The /wbc session keeps running when you leave the tab; input older than 0.5 s stops locomotion. Stop the session to fade arm authority out. Only one of /control, /wbc and /sort can command the arms at a time.</p></div>
   </div>
 </section>
 
@@ -2659,7 +3019,7 @@ const loops=[];
 function every(tab,ms,fn){loops.push({tab,ms,fn,busy:false,last:-1e9});}
 setInterval(()=>{const now=performance.now();for(const l of loops){if(l.tab!=='*'&&l.tab!==ACTIVE)continue;if(document.hidden&&l.tab!=='*')continue;
   if(l.busy||now-l.last<l.ms)continue;l.busy=true;l.last=now;Promise.resolve().then(l.fn).catch(()=>{}).finally(()=>{l.busy=false;});}},40);
-const TAB_ORDER=['chat','control','state','topics','services','mode','settings','jetson','wifi','theme','help','clear','exit'];
+const TAB_ORDER=['chat','control','wbc','sort','state','topics','services','mode','settings','jetson','wifi','theme','help','clear','exit'];
 function showTab(id){if(!META||!$('#tab-'+id))id='chat';if(ACTIVE===id)return;const prev=ACTIVE;ACTIVE=id;if(prev&&hooks[prev]&&hooks[prev].leave)hooks[prev].leave();
   $$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+id));$$('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
   if(location.hash!=='#'+id)history.replaceState(null,'','#'+id);if(hooks[id]&&hooks[id].enter)hooks[id].enter();loops.forEach(l=>{if(l.tab===id)l.last=-1e9;});}
@@ -2841,7 +3201,8 @@ hooks.theme={enter:renderThemes};
 const KEYS=[['↑ / ↓','walk forward / back'],['← / →','rotate left / right'],['Space / Esc','stop locomotion'],['w / s','end effector x + / −'],['d / a','end effector y + / −'],['q / e','end effector z + / −'],
   ['m','cycle right / left / both hands'],['f','lock / free EE orientation'],['o / c','open / close Dex3 hands'],['r','release / engage arms (cancels IK step)']];
 hooks.help={enter:()=>{const t=$('#help-cmds');t.innerHTML='';for(const[c,d]of Object.entries(META.commands))t.append(h('tr',{},h('td',{},h('a',{href:'#'+c.slice(1),class:'mono',style:'color:var(--accent)'},c)),h('td',{},d)));
-  const k=$('#help-keys');k.innerHTML='';for(const[a,b]of KEYS)k.append(h('tr',{},h('td',{},h('kbd',{},a)),h('td',{},b)));}};
+  const k=$('#help-keys');k.innerHTML='';for(const[a,b]of KEYS)k.append(h('tr',{},h('td',{},h('kbd',{},a)),h('td',{},b)));
+  const w=$('#help-wbc');w.innerHTML='';for(const[a,b]of WBC_HELP)w.append(h('tr',{},h('td',{},h('kbd',{},a)),h('td',{},b)));}};
 hooks.clear={enter:async()=>{try{const j=await api('/api/transcript?rev=-1');$('#clear-count').textContent=`${(j.messages||[]).length} messages in the transcript.`;}catch(e){}}};
 $('#clear-btn').onclick=async()=>{if(!await confirmDialog('Clear transcript?','All dashboard messages will be removed.','Clear'))return;await api('/api/clear',{});chatRev=-2;toast('Transcript cleared','ok');hooks.clear.enter();};
 $('#exit-btn').onclick=async()=>{if(!await confirmDialog('Shut down the dashboard?','The server stops. Locomotion is stopped if /control is active.','Shut down'))return;try{await api('/api/exit',{});}catch(e){}
@@ -3012,6 +3373,197 @@ function buildCamParams(p){camParamsBuilt=true;const root=$('#cam-params');root.
 hooks.control={enter:async()=>{startStreams();dirty=true;try{const j=await api('/api/control/enter',{});ctlActive=j.active;}catch(e){toast(e.message,'err');$('#kbd-state').innerHTML='<span class="dot err"></span>'+e.message;}},
   leave:()=>{stopStreams();Object.keys(holdTimers).forEach(k=>{clearInterval(holdTimers[k]);delete holdTimers[k];});if(ctlActive)api('/api/control/exit',{}).catch(()=>{});ctlActive=false;}};
 window.addEventListener('pagehide',()=>{if(ACTIVE==='control')navigator.sendBeacon&&navigator.sendBeacon('/api/control/exit',new Blob(['{}'],{type:'application/json'}));});
+
+/* ---------- wbc ---------- */
+const WBC_PARAMS=[['rate_hz','Publish rate (Hz)',1],['speed_rad_s','Joint ramp speed (rad/s)',0.01],['max_dq','Max joint Δ per IK step (rad)',0.005],
+  ['kp','Arm kp',1],['kd','Arm kd',0.1],['waist_pr_kp','Waist pitch/roll kp',5],['ee_speed_m_s','Right stick EE x speed (m/s)',0.01],
+  ['ee_y_speed_m_s','Right stick EE y speed (m/s)',0.01],['max_vx','Left stick max vx (m/s)',0.05],['max_vyaw','Left stick max yaw (rad/s)',0.05],
+  ['loco_deadzone','Left stick deadzone',0.05],['pos_step','EE position step (m)',0.001],['rot_step','EE rotation step (rad)',0.01],
+  ['hand_kp','Dex3 kp',0.1],['hand_kd','Dex3 kd',0.01],['hand_tau','Dex3 feed-forward τ',0.01],['hand_rate_hz','Dex3 refresh (Hz)',1]];
+const WBC_HELP=[['Left stick','walk forward/back and turn (leased Move; StopMove repeated for 0.6 s on release)'],['Right stick','EE x (push/pull) and EE y (left/right)'],
+  ['D-pad ↑ / ↓','EE z by the position step'],['D-pad ← / →','EE roll by the rotation step'],['A','toggle Dex3 grip open / closed'],['B','release / re-engage arms'],
+  ['X','arms right → left → both'],['Y','lock / free EE orientation'],['↑ ↓ or k j','select DOF'],['← → or − +','jog the selected DOF by its step'],
+  ['< / >','halve / double the selected step'],['[ / ]','halve / double max Δq'],['m','cycle arms'],['f','orientation lock'],['w','waist hold on / off'],
+  ['y','resync EE targets to the live pose'],['r / e','release / engage arms'],['z','send one zero-gain packet'],['H','cycle Dex3 hand mode'],
+  ['{ / }','grip −5 / +5 %'],['p','name and save the commanded pose'],['R / S','run / stop the replay sequence']];
+let WBC={active:false},wbcSource='remote',wbcArm='right',wbcHand='off',wbcParamsBuilt=false,wbcDofRows=null;
+const fmtq=(v,d=3)=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+Number(v).toFixed(d);
+async function wbcAct(action,extra){try{const j=await api('/api/wbc/action',{action,...(extra||{})});if(j.status)$('#wbc-status').textContent=j.status;pollWbc();return j;}catch(e){toast(e.message,'err');}}
+async function pollWbc(){let s;try{s=await api('/api/wbc');}catch(e){$('#wbc-status').textContent=e.message;return;}
+  if(s.busy){$('#wbc-status').textContent=s.status||'busy…';return;}WBC=s;renderWbc(s);}
+every('wbc',250,pollWbc);
+function gamepadState(){if(!navigator.getGamepads)return null;let pads=[];try{pads=[...navigator.getGamepads()].filter(Boolean);}catch(e){return null;}const g=pads[0];if(!g)return null;
+  const b=i=>!!(g.buttons[i]&&g.buttons[i].pressed);
+  return{name:g.id,axes:[...g.axes].slice(0,4).map(v=>+v.toFixed(4)),buttons:g.buttons.slice(0,17).map(x=>!!x.pressed),hats:[[(b(15)?1:0)-(b(14)?1:0),(b(12)?1:0)-(b(13)?1:0)]]};}
+let gpBusy=false;
+setInterval(()=>{if(ACTIVE!=='wbc'||!WBC.active||!WBC.input||WBC.input.source!=='browser'||document.hidden||gpBusy)return;
+  const st=gamepadState();if(!st)return;gpBusy=true;api('/api/wbc/gamepad',st).catch(()=>{}).finally(()=>{gpBusy=false;});},50);
+function buildWbcDofs(){const t=$('#wbc-dofs');t.innerHTML='';t.append(h('tr',{},h('th',{},'DOF'),h('th',{},'live FK'),h('th',{},'target'),h('th',{},'step'),h('th',{},'jog')));
+  wbcDofRows=[0,1,2,3,4,5].map(i=>{const c={name:h('b'),free:h('span',{class:'muted small'}),live:h('td',{class:'num'}),target:h('td',{class:'num'}),step:h('span',{class:'mono'})};
+    c.tr=h('tr',{style:'cursor:pointer',onclick:e=>{if(!e.target.closest('button'))wbcAct('select_dof',{dof:i});}},h('td',{},c.name,c.free),c.live,c.target,
+      h('td',{class:'num'},h('button',{class:'btn sm ghost',title:'halve step',onclick:()=>wbcAct('step',{dof:i,op:'halve'})},'½'),' ',c.step,' ',
+        h('button',{class:'btn sm ghost',title:'double step',onclick:()=>wbcAct('step',{dof:i,op:'double'})},'×2')),
+      h('td',{},h('button',{class:'btn sm',onclick:()=>wbcAct('jog',{dof:i,dir:-1})},'−'),' ',h('button',{class:'btn sm',onclick:()=>wbcAct('jog',{dof:i,dir:1})},'+')));
+    t.append(c.tr);return c;});}
+function renderWbcInput(inp){const[x,w,hh]=setupCanvas($('#wbc-pad'));const ax=(inp&&inp.axes)||[],bt=(inp&&inp.buttons)||[],hat=((inp&&inp.hats)||[[0,0]])[0]||[0,0];
+  const r=Math.min(hh*0.34,w*0.16),cy=hh*0.42;
+  const stick=(cx,sx,sy,label)=>{x.strokeStyle=css('--border');x.lineWidth=2;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();
+    x.fillStyle=css('--accent');x.beginPath();x.arc(cx+(+sx||0)*r,cy+(+sy||0)*r,6,0,7);x.fill();
+    x.fillStyle=css('--muted');x.font='11px system-ui';x.textAlign='center';x.fillText(label,cx,cy+r+15);x.textAlign='left';};
+  stick(w*0.2,ax[0],ax[1],'walk · turn');stick(w*0.8,ax[2],ax[3],'EE x · y');
+  const hx=w*0.5,hy=cy-r*0.4;[[0,-1,hat[1]>0],[0,1,hat[1]<0],[-1,0,hat[0]<0],[1,0,hat[0]>0]].forEach(([dx,dy,lit])=>{x.fillStyle=lit?css('--accent'):css('--glass2');x.fillRect(hx+dx*11-5,hy+dy*11-5,10,10);});
+  [['A',0],['B',1],['X',2],['Y',3]].forEach(([n,i],k)=>{const bx=w*0.5+(k-1.5)*22,by=cy+r*0.5;x.fillStyle=bt[i]?css('--accent'):css('--glass2');x.beginPath();x.arc(bx,by,9,0,7);x.fill();
+    x.fillStyle=bt[i]?'#111':css('--text');x.font='700 10px system-ui';x.textAlign='center';x.fillText(n,bx,by+3.5);x.textAlign='left';});
+  const kv=$('#wbc-input-kv');kv.innerHTML='';
+  if(!inp){$('#wbc-input-badge').innerHTML='';kv.append(h('div',{},'input'),h('div',{},'no session'));}
+  else{$('#wbc-input-badge').innerHTML=inp.stale?'<span class="badge err">stale · locomotion stopped</span>':'<span class="badge ok">live</span>';
+    [['source',inp.source==='browser'?'browser gamepad'+(inp.name?` · ${inp.name}`:''):inp.url],['link',inp.error||'—'],['age',inp.age==null?'—':inp.age.toFixed(2)+' s'],
+     ['locomotion',`vx ${fmt(inp.loco[0])} m/s · yaw ${fmt(inp.loco[1])} rad/s`]].forEach(([a,b])=>kv.append(h('div',{},a),h('div',{class:'mono'},b)));}
+  $('#wbc-gp-hint').textContent=wbcSource!=='browser'?'Input from controller_stream.py on the machine with the gamepad (modules/scripts/remote_controller_stream).'
+    :!window.isSecureContext||!navigator.getGamepads?'The browser only exposes gamepads to secure pages: open the dashboard as http://localhost:PORT (e.g. ssh -L PORT:localhost:PORT to the robot) or over HTTPS.'
+    :gamepadState()?'Gamepad state is sent from this browser while the /wbc tab is visible.':'No gamepad seen yet: connect one and press a button.';}
+function renderWbcParams(s){const vals=s.active?s.params:(s.defaults||{});const root=$('#wbc-params');
+  if(!wbcParamsBuilt&&Object.keys(vals).length){wbcParamsBuilt=true;root.innerHTML='';
+    for(const[k,label,step]of WBC_PARAMS)root.append(h('div',{class:'param',style:'grid-template-columns:1fr 96px'},h('span',{},label),
+      h('input',{type:'number',step,'data-k':k,style:'width:96px',oninput:e=>{if(!WBC.active)e.target.dataset.dirty='1';},onchange:e=>{if(WBC.active)wbcAct('params',{[k]:+e.target.value});}})));}
+  $('#wbc-params-note').textContent=s.active?'applied live':'used when the session starts';
+  $$('#wbc-params input').forEach(i=>{if(document.activeElement!==i&&!i.dataset.dirty&&vals[i.dataset.k]!=null)i.value=+Number(vals[i.dataset.k]).toFixed(4);});}
+function renderWbc(s){const on=!!s.active,inp=s.input||{};
+  $$('#tab-wbc .wbc-live').forEach(e=>e.classList.toggle('wbc-off',!on));$('#wbc-start').disabled=on;$('#wbc-stop').disabled=!on;
+  if(on){wbcSource=inp.source;wbcArm=s.arm_mode;wbcHand=s.hand.mode;}
+  $$('#wbc-source button').forEach(b=>b.classList.toggle('on',b.dataset.v===wbcSource));
+  const url=$('#wbc-url');if(document.activeElement!==url&&!url.dataset.dirty)url.value=on?inp.url:(s.remote_url||'');
+  url.disabled=$('#wbc-url-apply').disabled=wbcSource==='browser';
+  $('#wbc-badges').innerHTML=on?`<span class="badge ${s.seeded?'ok':'err'}">${s.seeded?'connected':'waiting for lowstate'}</span><span class="badge ${s.armed?'ok':'warn'}">${s.armed?'armed':'released'}</span>`
+    +(s.sequence.running?'<span class="badge warn">sequence running</span>':''):'<span class="badge">no session</span>';
+  $('#wbc-status').textContent=on?s.status:(s.error||'Start a session to stream rt/arm_sdk targets. Only one IK pose session (this tab or ik_pose_cli_v4.py) can run at a time.');
+  $$('#wbc-arm button').forEach(b=>b.classList.toggle('on',b.dataset.v===wbcArm));$$('#wbc-hand button').forEach(b=>b.classList.toggle('on',b.dataset.v===wbcHand));
+  renderWbcInput(on?inp:null);renderWbcParams(s);
+  if(!on)return;
+  $('#wbc-orient').firstChild.textContent=s.orient_stiff?'Orientation locked ':'Orientation free ';$('#wbc-orient').classList.toggle('on',s.orient_stiff);
+  $('#wbc-waist').firstChild.textContent=s.waist_enabled?'Waist held ':'Waist free ';$('#wbc-waist').classList.toggle('on',s.waist_enabled);
+  $('#wbc-disp-arm').textContent=s.display_arm;$('#wbc-maxdq').textContent=fmt(s.params.max_dq,3)+' rad';
+  if(!wbcDofRows)buildWbcDofs();
+  s.dofs.forEach((d,i)=>{const c=wbcDofRows[i];c.tr.classList.toggle('sel',i===s.dof_idx);c.name.textContent=d.name;c.free.textContent=d.free?' · orientation free':'';
+    c.live.textContent=`${fmtq(d.live,4)} ${d.unit}`;c.target.textContent=`${fmtq(d.target,4)} ${d.unit}`;c.step.textContent=Number(d.step).toFixed(4);});
+  const ik=$('#wbc-ik');ik.innerHTML='';for(const[arm,info]of Object.entries(s.ik||{})){const ok=info.success;
+    ik.append(h('div',{style:`color:${ok==null?'var(--muted)':ok?'var(--ok)':'var(--err)'}`},ok==null?`IK ${arm}: pending`:ok
+      ?`IK ${arm}: OK  pos=${fmt(info.error_pos_m,4)} m  rot=${fmt(info.error_rot_rad,4)} rad  ${info.iterations} it`+(info.mode==='pos_shoulder_elbow'?'  · shoulder+elbow':info.mode==='pos_axis_clamped'?`  · axis-clamped (${fmt(info.axis_error_m,4)} m)`:'')
+      :`IK ${arm}: FAIL — target rolled back (pos=${fmt(info.error_pos_m,4)} m  rot=${fmt(info.error_rot_rad,4)} rad)`));}
+  const grip=$('#wbc-grip');if(document.activeElement!==grip)grip.value=s.hand.grip;$('#wbc-grip-out').textContent=Math.round(s.hand.grip)+'%';
+  const info=Object.entries(s.hand.info||{});$('#wbc-hand-info').textContent=info.length?info.map(([k,v])=>`${k}: ${v}`).join(' · '):'Hand control off — A, the grip buttons or H turn it on.';
+  const jr=$('#wbc-joints');jr.className='';jr.innerHTML='';const tb=h('table',{class:'t small'});tb.append(h('tr',{},h('th',{},''),...s.joint_labels.map(l=>h('th',{},l))));
+  for(const arm of(s.arm_mode==='both'?['left','right']:[s.arm_mode])){const j=s.joints[arm];
+    tb.append(h('tr',{},h('td',{},h('b',{},arm),' target'),...j.target.map(v=>h('td',{class:'num'},fmtq(v)))),h('tr',{},h('td',{class:'muted'},'live'),...j.live.map(v=>h('td',{class:'num muted'},fmtq(v)))));}
+  jr.append(tb);$('#wbc-pose-file').textContent=s.pose_file;
+  const pl=$('#wbc-poses'),psig=JSON.stringify(s.poses);if(pl.dataset.sig!==psig){pl.dataset.sig=psig;pl.innerHTML='';if(!s.poses.length)pl.append(h('div',{class:'muted small'},'No saved poses yet.'));
+    s.poses.forEach((p,i)=>pl.append(h('div',{class:'li'},h('span',{class:'grow'},h('b',{},p.name),' ',h('span',{class:'muted small mono'},p.saved_at.replace('T',' '))),
+      h('button',{class:'btn sm',onclick:()=>wbcAct('load_pose',{index:i})},'Load'),h('button',{class:'btn sm ghost',onclick:()=>wbcAct('seq_add',{index:i})},'+Seq'),
+      h('button',{class:'btn sm ghost danger',onclick:async()=>{if(await confirmDialog(`Delete pose ${p.name}?`,'It is removed from the pose file and from the sequence.','Delete'))wbcAct('delete_pose',{index:i});}},'✕'))));}
+  const sq=s.sequence;$('#wbc-seq-waist').textContent=sq.include_waist_new?'New steps include waist':'New steps: arms only';
+  const gap=$('#wbc-gap');if(document.activeElement!==gap)gap.value=s.params.sequence_gap_s;
+  const sl=$('#wbc-seq'),ssig=JSON.stringify([sq.steps,sq.running&&sq.index]);if(sl.dataset.sig!==ssig){sl.dataset.sig=ssig;sl.innerHTML='';if(!sq.steps.length)sl.append(h('div',{class:'muted small'},'Add saved poses with +Seq.'));
+    sq.steps.forEach((st,i)=>sl.append(h('div',{class:'li',style:sq.running&&i===sq.index-1?'box-shadow:inset 0 0 0 2px var(--accent)':''},h('span',{class:'badge'},String(i+1)),h('span',{class:'grow'},st.name),
+      h('button',{class:'btn sm ghost',title:'toggle waist for this step',onclick:()=>wbcAct('seq_toggle_waist',{index:i})},st.include_waist?'waist':'arms'),
+      h('button',{class:'btn sm ghost',onclick:()=>wbcAct('seq_move',{index:i,dir:-1})},'↑'),h('button',{class:'btn sm ghost',onclick:()=>wbcAct('seq_move',{index:i,dir:1})},'↓'),
+      h('button',{class:'btn sm ghost danger',onclick:()=>wbcAct('seq_remove',{index:i})},'✕'))));}}
+$$('#wbc-source button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(WBC.active)wbcAct('source',{source:v,url:$('#wbc-url').value.trim()});else{wbcSource=v;renderWbc(WBC);}});
+$('#wbc-url').oninput=e=>{e.target.dataset.dirty='1';};
+$('#wbc-url-apply').onclick=()=>{const url=$('#wbc-url').value.trim();delete $('#wbc-url').dataset.dirty;if(WBC.active)wbcAct('source',{source:'remote',url});};
+$$('#wbc-arm button').forEach(b=>b.onclick=()=>{if(WBC.active)wbcAct('arm_mode',{mode:b.dataset.v});else{wbcArm=b.dataset.v;renderWbc(WBC);}});
+$$('#wbc-hand button').forEach(b=>b.onclick=()=>{if(WBC.active)wbcAct('hand_mode',{mode:b.dataset.v});else{wbcHand=b.dataset.v;renderWbc(WBC);}});
+$$('#tab-wbc [data-wbc]').forEach(b=>b.onclick=()=>wbcAct(b.dataset.wbc));
+$$('#tab-wbc [data-wbc-dq]').forEach(b=>b.onclick=()=>wbcAct('max_dq',{op:b.dataset.wbcDq}));
+$$('#tab-wbc [data-grip]').forEach(b=>b.onclick=()=>wbcAct('grip',{percent:+b.dataset.grip}));
+$$('#tab-wbc [data-grip-delta]').forEach(b=>b.onclick=()=>wbcAct('grip',{delta:+b.dataset.gripDelta}));
+$('#wbc-grip').oninput=e=>{$('#wbc-grip-out').textContent=e.target.value+'%';};$('#wbc-grip').onchange=e=>wbcAct('grip',{percent:+e.target.value});
+$('#wbc-gap').onchange=e=>wbcAct('params',{sequence_gap_s:+e.target.value});
+$('#wbc-zero').onclick=async()=>{if(await confirmDialog('Send a zero-gain packet?','All arm and waist gains go to zero once: the arms drop until the next control tick re-commands them.','Send'))wbcAct('zero_gains');};
+$('#wbc-save-form').addEventListener('submit',e=>{e.preventDefault();const name=$('#wbc-pose-name').value.trim();if(!name)return;$('#wbc-pose-name').value='';$('#wbc-pose-name').blur();wbcAct('save_pose',{name});});
+$('#wbc-start').onclick=async()=>{if(!await confirmDialog('Start the /wbc session?','The dashboard takes rt/arm_sdk authority (1 s ramp) and holds both arms at their current pose. The gamepad then moves the end effector and walks the robot.','Start'))return;
+  const params={};$$('#wbc-params input').forEach(i=>{if(i.value!=='')params[i.dataset.k]=+i.value;});
+  $('#wbc-status').textContent='Starting… waiting for rt/lowstate and ramping arm authority.';
+  try{const j=await api('/api/wbc/start',{source:wbcSource,url:$('#wbc-url').value.trim(),arm_control:wbcArm,hand_control:wbcHand,params});
+    $$('#wbc-params input').forEach(i=>delete i.dataset.dirty);delete $('#wbc-url').dataset.dirty;WBC=j;renderWbc(j);toast('/wbc session started','ok');}
+  catch(e){toast(e.message,'err');$('#wbc-status').textContent=e.message;}};
+$('#wbc-stop').onclick=async()=>{if(!await confirmDialog('Stop the /wbc session?','Locomotion stops and arm authority fades out over 3 s, handing the arms back to the default controller.','Stop'))return;
+  $('#wbc-status').textContent='Stopping… fading arm authority out.';try{const j=await api('/api/wbc/stop',{});WBC=j;renderWbc(j);}catch(e){toast(e.message,'err');}};
+document.addEventListener('keydown',e=>{if(ACTIVE!=='wbc'||!WBC.active||e.ctrlKey||e.metaKey||e.altKey)return;if(e.target.closest&&e.target.closest('input,select,textarea'))return;
+  const k=e.key,d=WBC.dof_idx||0,jog=['ArrowLeft','ArrowRight','-','+','='].includes(k);let call=null;
+  if(k==='ArrowUp'||k==='k')call=['select_dof',{dof:Math.max(0,d-1)}];else if(k==='ArrowDown'||k==='j')call=['select_dof',{dof:Math.min(5,d+1)}];
+  else if(k==='ArrowLeft'||k==='-')call=['jog',{dir:-1}];else if(k==='ArrowRight'||k==='+'||k==='=')call=['jog',{dir:1}];
+  else if(k==='p'){e.preventDefault();$('#wbc-pose-name').focus();return;}
+  else call={'<':['step',{op:'halve'}],'>':['step',{op:'double'}],'[':['max_dq',{op:'halve'}],']':['max_dq',{op:'double'}],m:['arm_mode',{}],f:['orient',{}],y:['resync',{}],
+    r:['release',{}],e:['engage',{}],z:['zero_gains',{}],w:['waist',{}],H:['hand_mode',{}],'{':['grip',{delta:-5}],'}':['grip',{delta:5}],R:['seq_run',{}],S:['seq_stop',{}]}[k]||null;
+  if(!call)return;e.preventDefault();if(e.repeat&&!jog)return;wbcAct(call[0],call[1]);});
+hooks.wbc={enter:()=>{const t=$('#wbc-help');if(!t.rows.length)for(const[a,b]of WBC_HELP)t.append(h('tr',{},h('td',{},h('kbd',{},a)),h('td',{},b)));pollWbc();}};
+
+/* ---------- sort ---------- */
+let sortView='sort',sortBuilt=false,sortCfgTimer=null,sortCamTimer=null;
+const sortImg=$('#sort-img');
+function sortSnap(){if(ACTIVE!=='sort'||sortImg.dataset.mode!=='snap')return;sortImg.src=`/frame/sort?view=${sortView}&${Date.now()}`;}
+function startSortStream(){stopSortStream();sortImg.dataset.mode='stream';sortImg.src=`/stream/sort?view=${sortView}&${Date.now()}`;
+  sortCamTimer=setTimeout(()=>{if(ACTIVE==='sort'&&!sortImg.naturalWidth){sortImg.dataset.mode='snap';sortSnap();}},5000);}
+function stopSortStream(){clearTimeout(sortCamTimer);sortImg.dataset.mode='off';sortImg.removeAttribute('src');}
+sortImg.onload=()=>{$('#sort-ph').classList.add('hidden');if(sortImg.dataset.mode==='snap')setTimeout(sortSnap,150);};
+sortImg.onerror=()=>{if(sortImg.dataset.mode==='snap')setTimeout(sortSnap,1500);};
+$$('#sort-view-sel button').forEach(b=>b.onclick=()=>{sortView=b.dataset.v;$$('#sort-view-sel button').forEach(x=>x.classList.toggle('on',x===b));startSortStream();});
+const sortField=(label,el,full)=>h('label',{class:full?'full':''},label,el);
+function buildSortConfig(c){sortBuilt=true;const m=c.meta;
+  c.patterns.forEach((p,i)=>{const num=(f,v,step,min,max)=>h('input',{type:'number','data-f':f,value:v,step,min,max});
+    $('#sort-pat-'+i).replaceChildren(h('div',{class:'panel-head'},h('h3',{style:`color:${m.pattern_colors[i]}`},`Drop-off pattern ${m.letters[i]}`),h('span',{class:'small',id:`sort-pat-status-${i}`})),
+      h('div',{class:'cfg','data-pattern':i},sortField('Name',h('input',{'data-f':'name',value:p.name})),
+        sortField('Dictionary',h('select',{'data-f':'dict'},...m.dictionaries.map(d=>h('option',{value:d,selected:d===p.dict},d)))),
+        sortField('Layout',h('select',{'data-f':'layout'},h('option',{value:'single',selected:p.layout==='single'},'single marker'),h('option',{value:'grid',selected:p.layout==='grid'},'grid board'))),
+        sortField('Marker ID (first ID of a grid)',num('id',p.id,1,0)),sortField('Marker size (mm, black square)',num('size',p.size,1,5)),
+        sortField('Rows',num('rows',p.rows,1,1)),sortField('Columns',num('cols',p.cols,1,1)),sortField('Separation (mm)',num('sep',p.sep,1,0)),
+        sortField(`Release height above pattern (cm, ${m.release_cm[0]}–${m.release_cm[1]})`,num('height',p.height,0.5,m.release_cm[0],m.release_cm[1])),
+        h('div',{class:'full muted small',id:`sort-pat-centre-${i}`})));});
+  c.objects.forEach((o,i)=>$('#sort-obj-'+i).replaceChildren(h('div',{class:'panel-head'},h('h3',{style:`color:${m.object_colors[i]}`},`Object ${i+1}`),h('span',{class:'small muted',id:`sort-obj-scene-${i}`})),
+    h('div',{class:'cfg','data-object':i},sortField('Recognition prompt',h('input',{'data-f':'prompt',value:o.prompt,placeholder:'e.g. cube, soda can, tennis ball'}),true),
+      sortField('Colour filter',h('select',{'data-f':'color'},...m.colors.map(cn=>h('option',{value:cn,selected:cn===o.color},cn)))),
+      sortField('Drop-off spot',h('select',{'data-f':'zone'},...m.letters.map((l,k)=>h('option',{value:k,selected:k===o.zone},'Pattern '+l)))),
+      sortField('Mass (kg)',h('input',{type:'number','data-f':'mass',value:o.mass,step:0.05,min:0,max:m.max_mass})),
+      sortField('How many',h('input',{type:'number','data-f':'count',value:o.count,step:1,min:1,max:m.max_items})))));
+  $$('#tab-sort .cfg [data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input',queueSortConfig));
+  syncSortGrid();
+  const o=c.options,send=sendParams('/api/sort/options');
+  $('#sort-options').replaceChildren(paramRow('max joint step rad',o.max_joint_step_rad,0.005,m.max_step,0.005,v=>send('max_joint_step_rad',v)),
+    paramRow('max joint speed rad/s',o.max_joint_speed_rad_s,0.02,m.max_speed,0.01,v=>send('max_joint_speed_rad_s',v)),
+    h('div',{class:'small',style:'margin-top:8px'},'Correct the grab target from live detections during the approach'),checkRow('dynamic target',o.dynamic_target_correction,v=>send('dynamic_target_correction',v)),
+    h('div',{class:'small'},'Turn the waist to centre each object before grabbing'),checkRow('centre waist',o.center_waist,v=>send('center_waist',v)),
+    h('div',{class:'small'},'Carry objects even when tactile sensors don\'t confirm the grasp'),checkRow('unverified grasps',o.allow_unverified_grasp,v=>send('allow_unverified_grasp',v)));
+  renderSortConfig(c);}
+function syncSortGrid(){$$('#tab-sort [data-pattern]').forEach(card=>{const single=$('[data-f=layout]',card).value!=='grid';['rows','cols','sep'].forEach(f=>{$(`[data-f=${f}]`,card).disabled=single;});});}
+function collectSortConfig(){const read=card=>Object.fromEntries($$('[data-f]',card).map(el=>[el.dataset.f,el.type==='number'?(el.value===''?null:+el.value):el.value]));
+  return{patterns:$$('#tab-sort [data-pattern]').map(read),objects:$$('#tab-sort [data-object]').map(card=>{const o=read(card);o.zone=+o.zone;return o;})};}
+function queueSortConfig(){syncSortGrid();clearTimeout(sortCfgTimer);sortCfgTimer=setTimeout(async()=>{try{renderSortConfig(await api('/api/sort/config',collectSortConfig()));}catch(e){toast(e.message,'err');}},500);}
+function renderSortConfig(c){const root=$('#sort-config-status');root.innerHTML='';
+  if(c.running){root.append(h('div',{style:'color:var(--warn)'},c.message));return;}
+  if((c.errors||[]).length)c.errors.forEach(e=>root.append(h('div',{style:'color:var(--err)'},'✕ '+e)));
+  else(c.lines||[]).forEach(l=>root.append(h('div',{style:'color:var(--ok)'},l)));}
+function sortUnavailable(msg){$('#sort-phase').textContent=msg;$('#sort-ph').textContent=msg;$('#sort-ph').classList.remove('hidden');$('#sort-start').disabled=true;}
+async function pollSort(){let s;try{s=await api('/api/sort');}catch(e){sortUnavailable(e.message);return;}
+  if(!sortBuilt){try{buildSortConfig(await api('/api/sort/config'));}catch(e){toast(e.message,'err');}}
+  $('#sort-badges').innerHTML=(s.running?'<span class="badge warn">sorting</span>':'<span class="badge">idle</span>')+(s.arm_busy?`<span class="badge warn">${s.arm_busy}</span>`:'')+(s.holding?'<span class="badge ok">holding object</span>':'');
+  $('#sort-start').disabled=s.sort_disabled;
+  $('#sort-phase').replaceChildren(h('div',{style:'color:var(--warn)'},s.phase+(s.running?'  ·  '+s.scene.map(o=>`${o.name} ${o.sorted}/${o.count}`).join(', '):'')));
+  const sc=$('#sort-scene');sc.innerHTML='';
+  s.scene.forEach(o=>{sc.append(h('div',{class:'li'},h('span',{class:'badge'},String(o.object)),h('span',{class:'grow'},`${o.name} → ${o.zone}`),h('span',{class:'small'},`${o.todo} to sort · ${o.done} on its spot`)));
+    const el=$('#sort-obj-scene-'+(o.object-1));if(el)el.textContent=`${o.todo} to sort · ${o.done} on its spot`;});
+  if(s.ignored.length)sc.append(h('div',{class:'muted small'},'Ignored (colour filter / no match): '+s.ignored.join(', ')));
+  s.patterns.forEach((p,i)=>{const st=$('#sort-pat-status-'+i);if(st){st.textContent=p.status;st.style.color=p.visible?'var(--ok)':'var(--warn)';}
+    const ce=$('#sort-pat-centre-'+i);if(ce)ce.textContent=p.describe+(p.centre?` · centre base xyz (${p.centre.map(v=>fmt(v,3)).join(', ')}) m`:'');});
+  $('#sort-tactile').textContent=s.tactile;
+  const kv=$('#sort-kv');kv.innerHTML='';[['status',s.status_msg],['camera',s.camera],['vision',`${s.vision} · ${s.classes.join(', ')}`],['obstacles',s.obstacles]].forEach(([a,b])=>kv.append(h('div',{},a),h('div',{class:'mono'},b)));
+  if(!sortImg.naturalWidth)$('#sort-ph').textContent=s.camera;
+  const lg=$('#sort-log'),atBottom=lg.scrollHeight-lg.scrollTop-lg.clientHeight<40;lg.textContent=s.log.join('\n');if(atBottom)lg.scrollTop=lg.scrollHeight;}
+every('sort',700,pollSort);
+async function sortAction(action){try{const j=await api('/api/sort/action',{action});toast(j.message,'ok');pollSort();}catch(e){toast(e.message,'err');}}
+$('#sort-start').onclick=async()=>{if(!await confirmDialog('Start sorting?','The right arm picks each configured object, lifts it to the WBC stable pose and places it on its ArUco spot. Keep the workspace clear and stay near the robot.','Sort'))return;sortAction('sort');};
+const SORT_CONFIRM={release_arms:'The arms go limp over 3 s and drop anything the hand holds.',damp:'The robot enters damping: all joints go passive. Support the robot first.'};
+$$('#tab-sort [data-sort]').forEach(b=>b.onclick=async()=>{const a=b.dataset.sort;if(SORT_CONFIRM[a]&&!await confirmDialog(b.textContent+'?',SORT_CONFIRM[a]))return;sortAction(a);});
+hooks.sort={enter:()=>{startSortStream();pollSort();},leave:stopSortStream};
 
 /* ---------- boot ---------- */
 (async function boot(){for(let i=0;;i++){try{META=await api('/api/meta');break;}catch(e){$('#sub').textContent='waiting for server…';await new Promise(r=>setTimeout(r,1000));}}

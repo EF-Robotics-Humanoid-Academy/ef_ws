@@ -176,6 +176,10 @@ class TrackingLoop:
         self.static_obstacles = static_obstacles
 
         self._stop_event = threading.Event()
+        # Bumped by notify_target_updated() when the caller corrects a
+        # "fixed" target mid-grab; the loop then restarts its stall window
+        # so the jump in error isn't judged against the old target.
+        self._target_revision = 0
         self._status = LoopStatus()
         self._thread: Optional[threading.Thread] = None
 
@@ -204,6 +208,10 @@ class TrackingLoop:
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=2.0)
         self.executor.stop_continuous()
+
+    def notify_target_updated(self) -> None:
+        """Signal that the detector's target was corrected mid-run."""
+        self._target_revision += 1
 
     @property
     def status(self) -> LoopStatus:
@@ -237,9 +245,14 @@ class TrackingLoop:
         q_arm_commanded: Optional[np.ndarray],
         err_history: Deque[float],
     ) -> None:
+        seen_target_revision = self._target_revision
         while not self._stop_event.is_set():
             t0 = time.time()
             self._status.iteration += 1
+            if self._target_revision != seen_target_revision:
+                seen_target_revision = self._target_revision
+                err_history.clear()
+                self._status.record("[Step 5] Target corrected — stall window restarted.")
             elapsed = t0 - start_t
             self._status.total_elapsed_s = elapsed
 

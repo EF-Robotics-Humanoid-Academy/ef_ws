@@ -15,6 +15,10 @@ and its camera extrinsic was disconnected from the one calibrated/drawn here
 run_hand_pose_nav.py --use-ros-tf directly if you need that pipeline.
 
 v4 additions over recognition_app_v3.py:
+  - Dynamic grab target correction (on by default, UI toggle): during the
+    DirectHandPoseNav approach, fresh detections of the grabbed object
+    re-measure its position and the running target is corrected in bounded,
+    filtered steps; correction freezes once the hand is near the object.
   - Optional 3 x 4 ArUco GridBoard (DICT_6X6_250; 30 mm markers, 6 mm gaps)
     metric RGB-D reference.  It preserves the configured base_link<-camera
     transform and uses the known marker geometry to refine depth scale for
@@ -208,6 +212,7 @@ class SharedState:
         self.aruco_depth_scale = 1.0
         self.arm_override = "right"
         self.auto_step_base = False
+        self.dynamic_target_correction = True
         self.planning_mode = "direct"  # "direct" | "vla" (vla is scaffolding-only, see vla_planner.py)
         self.obstacle_status = "obstacles: not checked yet"
         self.vision_classes: List[str] = []
@@ -305,6 +310,21 @@ DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.030
 # Tracking measures the palm-mount FK frame while the operator view draws
 # the palm centre, so a visually aligned grasp can retain a modest residual.
 DEFAULT_VISION_STALL_CLOSE_POS_M = 0.075
+# Dynamic grab target correction: while DirectHandPoseNav approaches, fresh
+# perception passes re-measure the grabbed object and the running target is
+# nudged toward it.  A measurement is associated with the target only if it
+# has the same label and lies within the gate of the current estimate; it is
+# low-pass filtered, applied in bounded steps, and the total correction from
+# the grab-start position is capped so a bad mask can't drag the arm away.
+# Correction freezes once the hand is close, because the hand then overlaps
+# the object's box and contaminates its depth mask.
+DYNAMIC_TARGET_GATE_M = 0.06
+DYNAMIC_TARGET_FILTER_ALPHA = 0.35
+DYNAMIC_TARGET_DEADBAND_M = 0.008
+DYNAMIC_TARGET_MAX_STEP_M = 0.015
+DYNAMIC_TARGET_MAX_TOTAL_M = 0.08
+DYNAMIC_TARGET_FREEZE_ERR_M = 0.06
+DYNAMIC_TARGET_HAND_EXCLUSION_M = 0.10
 DEFAULT_HAND_COMMAND_HOLD_S = 1.0
 DEFAULT_HAND_RECOVERY_HOLD_S = 1.6
 DEFAULT_HAND_TARGET_TOL_RAD = 0.12
@@ -1489,6 +1509,12 @@ app.layout = dbc.Container([
                 value=False,
                 className="mb-2",
             ),
+            dbc.Checkbox(
+                id="dynamic-target-correction",
+                label="Correct grab target from live detections during the approach",
+                value=True,
+                className="mb-2",
+            ),
             dbc.Label("Object mass (kg) — sets grip force target and lift stiffness", className="mt-1"),
             dbc.Input(
                 id="object-mass-kg",
@@ -1792,6 +1818,17 @@ def _sync_auto_step(value):
     enabled = bool(value)
     with STATE.lock:
         STATE.auto_step_base = enabled
+    return enabled
+
+
+@app.callback(
+    Output("dynamic-target-correction", "value"),
+    Input("dynamic-target-correction", "value"),
+)
+def _sync_dynamic_target_correction(value):
+    enabled = bool(value)
+    with STATE.lock:
+        STATE.dynamic_target_correction = enabled
     return enabled
 
 
@@ -3616,6 +3653,114 @@ def _lift_end_effector_z_with_continuous_executor(
     }
 
 
+class _GrabTargetCorrector:
+    """Steer a running DirectHandPoseNav toward fresh detections of its object.
+
+    The tracking loop already closes the loop on joint encoders (FK -> pose
+    error -> IK from measured joints); this closes the outer loop on vision,
+    so object-position error from the grab-start frame is corrected as new
+    perception passes arrive.  See the DYNAMIC_TARGET_* constants.
+    """
+
+    def __init__(
+        self,
+        det: Detection,
+        arm: str,
+        T_base_camera: np.ndarray,
+        T_base_object: np.ndarray,
+        obstacles: Optional[Obstacles],
+        standoff_m: float,
+    ) -> None:
+        self.det = det
+        self.arm = arm
+        self.T_base_camera = T_base_camera.copy()
+        self.T_camera_base = np.linalg.inv(T_base_camera)
+        self.T_base_object = T_base_object.copy()
+        self.obstacles = obstacles
+        self.standoff_m = standoff_m
+        self.p_initial = T_base_object[:3, 3].copy()
+        self.p_filtered = self.p_initial.copy()
+        self.p_commanded = self.p_initial.copy()
+        with STATE.lock:
+            self.last_detection_ts = STATE.last_detection_ts
+        self.frozen = False
+        self.updates = 0
+
+    def _candidate_poses(self) -> Tuple[float, List[np.ndarray]]:
+        """Latest perception timestamp and T_camera_object of every detection
+        that may be the grabbed object.  Override to match more strictly."""
+        with STATE.lock:
+            return STATE.last_detection_ts, [
+                d.T_camera_object.copy()
+                for d in STATE.detections.values()
+                if d.source == self.det.source and d.label == self.det.label
+            ]
+
+    def _measure(self) -> Optional[np.ndarray]:
+        detection_ts, candidates = self._candidate_poses()
+        with STATE.lock:
+            T_base_hand = STATE.hand_fk_T_base.get(self.arm)
+            T_base_hand = None if T_base_hand is None else T_base_hand.copy()
+        if detection_ts <= self.last_detection_ts or (time.time() - detection_ts) > STALE_AFTER_S:
+            return None
+        self.last_detection_ts = detection_ts
+        best, best_dist = None, DYNAMIC_TARGET_GATE_M
+        for T_camera_object in candidates:
+            p_base = (self.T_base_camera @ T_camera_object)[:3, 3]
+            dist = float(np.linalg.norm(p_base - self.p_filtered))
+            if dist <= best_dist:
+                best, best_dist = p_base, dist
+        if best is None:
+            return None
+        if T_base_hand is not None:
+            palm = _palm_visual_point(T_base_hand)
+            if float(np.linalg.norm(palm - best)) < DYNAMIC_TARGET_HAND_EXCLUSION_M:
+                return None
+        return best
+
+    def step(self, nav, pos_err: Optional[float]) -> Optional[str]:
+        """Apply at most one bounded correction; return a log line if any."""
+        if self.frozen:
+            return None
+        if pos_err is not None and pos_err < DYNAMIC_TARGET_FREEZE_ERR_M:
+            self.frozen = True
+            total = float(np.linalg.norm(self.p_commanded - self.p_initial))
+            return (
+                f"dynamic target frozen near the object (pos_err={pos_err:.3f}m) after "
+                f"{self.updates} correction(s), total {total * 100:.1f} cm."
+            )
+        p_meas = self._measure()
+        if p_meas is None:
+            return None
+        a = DYNAMIC_TARGET_FILTER_ALPHA
+        self.p_filtered = (1.0 - a) * self.p_filtered + a * p_meas
+        offset = self.p_filtered - self.p_initial
+        offset_norm = float(np.linalg.norm(offset))
+        if offset_norm > DYNAMIC_TARGET_MAX_TOTAL_M:
+            offset *= DYNAMIC_TARGET_MAX_TOTAL_M / offset_norm
+        delta = (self.p_initial + offset) - self.p_commanded
+        delta_norm = float(np.linalg.norm(delta))
+        if delta_norm < DYNAMIC_TARGET_DEADBAND_M:
+            return None
+        if delta_norm > DYNAMIC_TARGET_MAX_STEP_M:
+            delta *= DYNAMIC_TARGET_MAX_STEP_M / delta_norm
+        p_new = self.p_commanded + delta
+        T_base_object = self.T_base_object.copy()
+        T_base_object[:3, 3] = p_new
+        T_base_hand = _direct_grasp_hand_pose(self.det, T_base_object, self.arm, self.obstacles)
+        T_base_target = _direct_nav_target_frame_from_hand_pose(T_base_hand, self.arm, self.standoff_m)
+        nav.update_fixed_target(self.T_camera_base @ T_base_target, self.det.score)
+        self.p_commanded = p_new
+        self.updates += 1
+        total = p_new - self.p_initial
+        return (
+            f"dynamic target correction #{self.updates}: object base xyz="
+            f"({p_new[0]:+.3f}, {p_new[1]:+.3f}, {p_new[2]:+.3f}) m "
+            f"(step {np.linalg.norm(delta) * 100:.1f} cm, total "
+            f"{total[0] * 100:+.1f}/{total[1] * 100:+.1f}/{total[2] * 100:+.1f} cm)"
+        )
+
+
 def _run_direct_grab_inline(
     det: Detection,
     arm: str,
@@ -3746,10 +3891,14 @@ def _run_direct_grab_inline(
                 "with stable robot-side approach"
             )
         _log("[recognition_app] Wrist orientation is free for IK adjustment during the grasp approach.")
-        _log(
-            "[recognition_app] using fixed selected direct target for this grab; "
-            "camera detections will not retarget the arm mid-grab."
-        )
+        with STATE.lock:
+            correction_note = (
+                "fresh detections of the same object will correct it during the approach "
+                "(bounded, frozen near the object)."
+                if STATE.dynamic_target_correction and det.source == "vision" else
+                "camera detections will not retarget the arm mid-grab."
+            )
+        _log(f"[recognition_app] using the selected direct target for this grab; {correction_note}")
         _log(
             "[recognition_app] slow grab config: "
             f"rate={config['rate_hz']:.1f}Hz "
@@ -3766,6 +3915,14 @@ def _run_direct_grab_inline(
         )
         with ACTIVE_NAV_LOCK:
             ACTIVE_DIRECT_NAV = nav
+        with STATE.lock:
+            dynamic_correction = STATE.dynamic_target_correction
+        corrector = None
+        if dynamic_correction and det.source == "vision":
+            corrector = _GrabTargetCorrector(
+                det, arm, T_base_camera, T_base_object, obstacles, grasp_standoff_m,
+            )
+            _log("[recognition_app] Dynamic grab target correction enabled for this approach.")
         ok = False
         stalled = False
         last_nav_status: Dict[str, Any] = {}
@@ -3809,6 +3966,15 @@ def _run_direct_grab_inline(
                 if not status.get("running", True):
                     _log(f"[recognition_app] direct nav stopped: {status}")
                     break
+                if corrector is not None:
+                    try:
+                        pos_err = status.get("last_error_pos_m")
+                        message = corrector.step(nav, None if pos_err is None else float(pos_err))
+                        if message:
+                            _log(f"[recognition_app] {message}")
+                    except Exception as exc:
+                        _log(f"[recognition_app] dynamic target correction disabled after error: {exc}")
+                        corrector = None
                 time.sleep(0.2)
         finally:
             nav_holding = bool(ok or stalled)

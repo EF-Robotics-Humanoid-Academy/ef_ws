@@ -1,5 +1,6 @@
 import audioop
 import asyncio
+import csv
 import importlib
 import inspect
 import json
@@ -18,7 +19,41 @@ from pathlib import Path
 
 import numpy as np
 
-from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient
+
+def ensure_cyclonedds_environment():
+    """Point CYCLONEDDS_HOME / CYCLONEDDS_URI at a local CycloneDDS install
+    and config when they are unset or invalid.  Runs before unitree_sdk2py is
+    imported below (its cyclonedds binding reads them at import time)."""
+    home = Path.home()
+    current = os.environ.get("CYCLONEDDS_HOME")
+    homes = ([Path(current).expanduser()] if current else []) + [
+        home / "cyclonedds_ws" / "install" / "cyclonedds",
+        home / "unitree_ros2" / "cyclonedds_ws" / "install" / "cyclonedds",
+        home / "academy_prep" / "academy_content" / "docs" / "repos" / "cyclonedds_0_10" / "install_0_10",
+        home / "cyclonedds" / "install",
+        home / "Desktop" / "unitree" / "cyclonedds" / "install",
+        home / "academy_prep" / "academy_content" / "docs" / "repos" / "cyclonedds" / "install",
+    ]
+    found = next((path for path in homes if (path / "lib" / "libddsc.so").is_file()), None)
+    if found is not None:
+        os.environ["CYCLONEDDS_HOME"] = str(found)
+    uri = os.environ.get("CYCLONEDDS_URI")
+    if uri and (uri.lstrip().startswith("<") or Path(uri).expanduser().is_file()):
+        return
+    configs = [
+        home / "cyclonedds_ws" / "cyclonedds.xml",
+        home / "unitree_ros2" / "cyclonedds_ws" / "src" / "cyclonedds.xml",
+        home / "Desktop" / "unitree" / "unitree_sdk2_python" / "cyclonedds.xml",
+        home / "academy_prep" / "academy_content" / "docs" / "repos" / "unitree_sdk2_python" / "cyclonedds.xml",
+    ]
+    found = next((path for path in configs if path.is_file()), None)
+    if found is not None:
+        os.environ["CYCLONEDDS_URI"] = str(found)
+
+
+ensure_cyclonedds_environment()
+
+from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient  # noqa: E402
 from unitree_sdk2py.core.channel import ChannelFactoryInitialize, ChannelPublisher, ChannelSubscriber
 from unitree_sdk2py.g1.arm.g1_arm_action_client import G1ArmActionClient
 from unitree_sdk2py.g1.audio.g1_audio_client import AudioClient
@@ -50,7 +85,7 @@ if not getattr(CRC, "_wbc_python_crc_fallback", False):
 # (only WaistYaw is a free joint; WaistRoll/WaistPitch are absent/invalid —
 # see JOINT_GROUPS/WAIST_JOINTS). FSM 501 is the balanced-stand/walk id for
 # the unlocked 3-DOF waist variant and is not valid on this hardware.
-FSM_IDS = {"zero_torque": 0, "damp": 1, "prepare": 4, "walk": 500, "run": 802}
+FSM_IDS = {"zero_torque": 0, "damp": 1, "squat": 2, "prepare": 4, "walk": 500, "run": 802}
 SERVICE_CATALOG = {
     "ai_sport": "Main Motion Control Service",
     "basic_service": "Basic Service",
@@ -221,6 +256,13 @@ def _normalize_side(hand):
 
 def _clamp_hand(side, targets):
     return [max(float(lo), min(float(hi), float(v))) for v, lo, hi in zip(targets, HAND_MIN[side], HAND_MAX[side])]
+
+
+def dex3_grip_targets(hand, percent):
+    """Dex3 joint targets `percent` of the way from open (0) to closed (100)."""
+    side = _normalize_side(hand)
+    alpha = min(1.0, max(0.0, float(percent) / 100.0))
+    return [o + (c - o) * alpha for o, c in zip(HAND_OPEN[side], HAND_CLOSED[side])]
 
 
 def _parse_color(value):
@@ -855,6 +897,56 @@ def _filter_row(previous, current, alpha):
             for old, new in zip(previous, current)]
 
 
+def load_motion_file(path):
+    """Read a recorded arm motion as {"joints", "ts", "qs", "hands"} lists.
+
+    Formats: CSV with one time column (t_s/ts/time_s/time) and joint columns
+    j15..j28 (the expressive-motion recordings); NPZ with joints/ts/qs and
+    optional left_hand_qs/right_hand_qs (7 Dex3 targets per sample); JSON in
+    the teach()/repeat() trajectory format.
+    """
+    path = Path(path).expanduser()
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    hands = {}
+    ext = path.suffix.lower()
+    if ext == ".csv":
+        with open(path, "r", encoding="utf-8", newline="") as handle:
+            reader = csv.DictReader(handle)
+            fields = reader.fieldnames or []
+            ts_key = next((k for k in ("t_s", "ts", "time_s", "time") if k in fields), None)
+            if ts_key is None:
+                raise ValueError(f"CSV must include one time column (t_s/ts/time_s/time): {path}")
+            joint_cols = [(int(m.group(1)), name) for name in fields
+                          for m in [re.fullmatch(r"j(\d+)", str(name).strip().lower())] if m]
+            if not joint_cols:
+                raise ValueError(f"CSV must include joint columns like j22,j23,...: {path}")
+            ts, qs = [], []
+            for row in reader:
+                if row and str(row.get(ts_key) or "").strip():
+                    ts.append(float(row[ts_key]))
+                    qs.append([float(row[col]) for _, col in joint_cols])
+        joints = [joint for joint, _ in joint_cols]
+    elif ext == ".npz":
+        with np.load(path, allow_pickle=False) as data:
+            joints = [int(j) for j in np.asarray(data["joints"]).tolist()]
+            ts = [float(t) for t in np.asarray(data["ts"]).tolist()]
+            qs = np.asarray(data["qs"], dtype=float).tolist()
+            for side in ("left", "right"):
+                key = f"{side}_hand_qs"
+                if key in data.files and np.asarray(data[key]).shape == (len(ts), 7):
+                    hands[side] = np.asarray(data[key], dtype=float).tolist()
+    elif ext == ".json":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        joints, ts, qs = [int(j) for j in data["joints"]], list(data["ts"]), list(data["qs"])
+        hands = {side: frames for side, frames in (data.get("hands") or {}).items() if frames}
+    else:
+        raise ValueError(f"unsupported motion file type {ext!r}: {path}")
+    if not ts or len(ts) != len(qs) or any(len(row) != len(joints) for row in qs):
+        raise ValueError(f"motion file has no samples or inconsistent rows: {path}")
+    return {"joints": joints, "ts": ts, "qs": qs, "hands": hands}
+
+
 def _row_changed(previous, current, deadband):
     return previous is None or any(
         abs(float(new) - float(old)) >= float(deadband)
@@ -1358,8 +1450,44 @@ class G1:
     def run_mode(self):
         return self._client.SetFsmId(FSM_IDS["run"])
 
+    def squat_mode(self):
+        return self._client.SetFsmId(FSM_IDS["squat"])
+
+    def get_fsm(self):
+        """Current locomotion FSM id and mode (None when the RPC fails)."""
+        return {"id": _rpc_get_int(self._client, ROBOT_API_ID_LOCO_GET_FSM_ID),
+                "mode": _rpc_get_int(self._client, ROBOT_API_ID_LOCO_GET_FSM_MODE)}
+
     def toggle_dev_mode(self):
         return self.toggle_service("ai_sport")
+
+    def set_ai_sport(self, enabled, timeout_s=10.0):
+        """Turn the ai_sport service on/off (off = low-level developer mode)
+        and wait until ServiceList confirms it.  Turning it back on also
+        re-selects the ai_sport MotionSwitcher mode so the balance controller
+        is active again.  Returns {"ok", "code", "status"}."""
+        want = 0 if enabled else 1
+        row = self.get_service("ai_sport")
+        status = None if row is None else row.get("status")
+        code = 0
+        if status != want:
+            code = _result_code(self._robot_state_client().ServiceSwitch("ai_sport", bool(enabled)))
+            deadline = time.time() + max(0.0, float(timeout_s))
+            while code == 0 and time.time() < deadline:
+                row = self.get_service("ai_sport")
+                status = None if row is None else row.get("status")
+                if status == want:
+                    break
+                time.sleep(0.2)
+        if enabled and status == want:
+            code = _result_code(self._motion_client().SelectMode("ai_sport"))
+        return {"ok": status == want and code == 0, "code": code, "status": status}
+
+    def execute_arm_action(self, action, release_after_s=None):
+        """Run a high-level arm action: a name from HL_ARM_ACTIONS (aliases
+        allowed) or an SDK action id.  With release_after_s, the arm is
+        released again after that pause.  Returns the RPC code."""
+        return self._exec_arm_action(action, release_after_s=release_after_s)
 
     def get_gait(self):
         msg = self._sport_msg()
@@ -1411,6 +1539,17 @@ class G1:
                 self._gait_override = 0
                 return {"gait": 0, "codes": codes}
         return {"gait": target, "codes": codes}
+
+    def get_joint_positions(self, joints=None, max_age_s=None):
+        """Latest rt/lowstate joint angles as ({joint_id: q}, receive_time),
+        or None before the first sample (or when it is older than
+        max_age_s). Non-blocking, unlike _upper_body_pose(), so a control
+        loop can poll it every tick. joints defaults to all 29 body joints."""
+        msg, ts = self._lowstate.get()
+        if msg is None or (max_age_s is not None and time.time() - ts > float(max_age_s)):
+            return None
+        indices = LOWCMD_JOINTS if joints is None else [int(j) for j in joints]
+        return {j: float(msg.motor_state[j].q) for j in indices}, ts
 
     def get_lowstate(self):
         msg = self._lowstate_msg()
@@ -1525,13 +1664,16 @@ class G1:
         pose[joint] = float(target)
         return self.interpolate_to_pose(pose, duration_s=duration_s, steps=steps, max_joint_speed=max_joint_speed)
 
-    def loco_move(self, vx, vy, vyaw, duration_s=2):
+    def loco_move(self, vx, vy, vyaw, duration_s=2, continuous=True):
         """Sends a continuous velocity command. With a duration_s (the
         default), blocks for that long then stops -- pass duration_s=None
         for a true fire-and-forget send (one Move() RPC, returns
         immediately, no auto-stop): e.g. sending (0, 0, 0) to stop
-        immediately shouldn't itself block for a couple of seconds first."""
-        code = int(self._client.Move(float(vx), float(vy), float(vyaw), continous_move=True) or 0)
+        immediately shouldn't itself block for a couple of seconds first.
+        continuous=False gives the command a ~1 s lease on the robot instead,
+        so it stops on its own if the caller stops refreshing it (streamed
+        joystick input)."""
+        code = int(self._client.Move(float(vx), float(vy), float(vyaw), continous_move=bool(continuous)) or 0)
         if duration_s is None:
             return code
         try:
@@ -1832,24 +1974,37 @@ class G1:
     def grip_dex3_hand(self, hand, percent, hold_s=0.6, rate_hz=50.0, ramp_s=None):
         """Grips at `percent` between fully open (0) and fully closed (100)."""
         sides = self._dex3_sides(hand)
-        alpha = min(1.0, max(0.0, float(percent) / 100.0))
         out = {}
         for side in sides:
             try:
-                targets = [o + (c - o) * alpha for o, c in zip(HAND_OPEN[side], HAND_CLOSED[side])]
-                self._dex3_hand(side).set_targets(targets, hold_s=hold_s, rate_hz=rate_hz, kp=1.5, kd=0.1, tau=0.03, ramp_s=ramp_s)
+                self._dex3_hand(side).set_targets(dex3_grip_targets(side, percent), hold_s=hold_s, rate_hz=rate_hz, kp=1.5, kd=0.1, tau=0.03, ramp_s=ramp_s)
                 out[side] = {"hand": side, "ok": True, "action": "grip_dex3_hand", "percent": float(percent)}
             except Exception as exc:
                 out[side] = self._hand_error(side, "grip_dex3_hand", exc)
         return out if len(sides) > 1 else out[sides[0]]
 
+    def write_dex3_grip(self, hand, percent, kp=1.2, kd=0.05, tau=0.05):
+        """Publishes ONE Dex3 command at `percent` grip (0 open, 100 closed)
+        without ramping or blocking -- for callers that stream the grip from
+        their own control loop (e.g. a gamepad at 10 Hz) instead of running a
+        timed set_targets() move."""
+        side = _normalize_side(hand)
+        dex3 = self._dex3_hand(side)
+        dex3._stop_release_thread()
+        targets = dex3_grip_targets(side, percent)
+        dex3._write(targets, kp=kp, kd=kd, tau=tau)
+        dex3._last_targets = _clamp_hand(side, targets)
+        return {"hand": side, "ok": True, "action": "write_dex3_grip", "percent": float(percent)}
+
     def hand_pose(self, targets, hand="right", hold_s=0.6, rate_hz=50.0, kp=1.2, kd=0.05, tau=0.05, ramp_s=None):
         """Moves one hand to an explicit list of 7 joint targets (see
         HAND_JOINT_NAMES for the order), ramped smoothly like open/close/
-        grip -- for poses other than plain open/closed/a grip percentage."""
+        grip -- for poses other than plain open/closed/a grip percentage.
+        ok is False (reason collision_or_stall) when a finger stalled and was
+        released mid-move."""
         side = _normalize_side(hand)
-        self._dex3_hand(side).set_targets(targets, hold_s=hold_s, rate_hz=rate_hz, kp=kp, kd=kd, tau=tau, ramp_s=ramp_s)
-        return {"hand": side, "ok": True, "action": "hand_pose"}
+        result = self._dex3_hand(side).set_targets(targets, hold_s=hold_s, rate_hz=rate_hz, kp=kp, kd=kd, tau=tau, ramp_s=ramp_s)
+        return {"hand": side, "action": "hand_pose", **result}
 
     def release_dex3_fingers(self, hand="both", hold_s=0.5, rate_hz=50.0, persistent=False):
         """Lets the fingers go backdrivable (zero gain) at their last
@@ -2521,24 +2676,62 @@ class G1:
         if name is None:
             raise ValueError("No sequence given and nothing taught yet; call teach(name) first.")
         seq = self._sequences[name]
-        arm_sdk = self._arm_sdk_client()
-        waist_kp = {j: 480.0 for j in WAIST_JOINTS}
-        waist_kd = {j: MAX_KD for j in WAIST_JOINTS}
         # Backward compatible: an old discrete list-of-poses sequence.
         if isinstance(seq, list):
             for waypoint in seq:
                 self.interpolate_to_pose(waypoint, max_joint_speed=max_joint_speed)
             return {"sequence": name, "waypoints": len(seq)}
-        joints = [int(j) for j in seq["joints"]]
+        result = self.play_trajectory(seq["joints"], seq["ts"], seq["qs"], hands=seq.get("hands"), speed=speed,
+                                      rate_hz=rate_hz, start_ramp_s=start_ramp_s, final_hold_s=final_hold_s,
+                                      max_joint_speed=max_joint_speed, hand_filter_alpha=hand_filter_alpha,
+                                      hand_deadband_rad=hand_deadband_rad)
+        return {"sequence": name, **result}
+
+    def repeat_motion_file(self, motion_file, arm="both", speed=1.0, **kwargs):
+        """Replays a recorded motion file (see load_motion_file(): the CSV /
+        NPZ format of the expressive-motion recordings, or this wrapper's
+        JSON trajectory format) with play_trajectory().  `arm` selects which
+        arm's joints are replayed ("left", "right" or "both"); every one of
+        them must be in the file."""
+        data = load_motion_file(motion_file)
+        side = str(arm).strip().lower()
+        wanted = {"left": LEFT_ARM_JOINTS, "right": RIGHT_ARM_JOINTS, "both": LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS}.get(side)
+        if wanted is None:
+            raise ValueError("arm must be 'left', 'right', or 'both'.")
+        missing = [j for j in wanted if j not in data["joints"]]
+        if missing:
+            raise ValueError(f"motion file {motion_file} lacks joints for arm={side}: {missing}")
+        cols = [data["joints"].index(j) for j in wanted]
+        qs = [[row[c] for c in cols] for row in data["qs"]]
+        result = self.play_trajectory(wanted, data["ts"], qs, hands=data["hands"], speed=speed, **kwargs)
+        return {"motion_file": str(motion_file), "arm": side, **result}
+
+    def play_trajectory(self, joints, ts, qs, hands=None, speed=1.0, rate_hz=50.0, start_ramp_s=0.8,
+                        final_hold_s=0.6, max_joint_speed=DEFAULT_MAX_JOINT_SPEED_RAD_S,
+                        hand_filter_alpha=DEX3_REPEAT_FILTER_ALPHA, hand_deadband_rad=DEX3_REPEAT_DEADBAND_RAD):
+        """Plays a joint trajectory over rt/arm_sdk -- the engine behind
+        repeat() and repeat_motion_file().  `joints` are waist/arm joint ids,
+        `ts` sample times (s), `qs` one row of joint angles per sample, and
+        `hands` optional {side: rows of 7 Dex3 targets}.  Ramps safely from
+        the current pose to the first sample, plays back at `speed`x, then
+        holds the final pose."""
+        joints = [int(j) for j in joints]
         speed = max(1e-6, float(speed))
-        ts = [float(t) / speed for t in seq["ts"]]
-        qs = seq["qs"]
+        t0 = float(ts[0]) if len(ts) else 0.0
+        ts = [(float(t) - t0) / speed for t in ts]
+        qs = [[float(v) for v in row] for row in qs]
+        if not ts or len(ts) != len(qs):
+            raise ValueError("trajectory needs matching, non-empty ts and qs")
+        arm_sdk = self._arm_sdk_client()
+        waist_kp = {j: 480.0 for j in WAIST_JOINTS}
+        waist_kd = {j: MAX_KD for j in WAIST_JOINTS}
         # Replay Dex3 fingers only for hands that were recorded AND are
         # reachable now.  _Dex3 is lazy, so wait for its first DDS callback:
         # otherwise the initial repeat() after G1 construction falsely treats
         # a healthy hand as absent.
+        hands_in = hands or {}
         hands = {}
-        for side, frames in (seq.get("hands", {}) or {}).items():
+        for side, frames in hands_in.items():
             if not frames:
                 continue
             try:
@@ -2601,7 +2794,7 @@ class G1:
             for side, frames in hands.items():
                 write_hand_frame(side, frames[-1], time.monotonic())
             time.sleep(dt)
-        return {"sequence": name, "samples": len(ts), "duration_s": t_final, "hands": list(hands)}
+        return {"samples": len(ts), "duration_s": t_final, "hands": list(hands)}
 
     # -- rt/lowcmd-based continuous dev-mode teach/repeat ------------------
     #
