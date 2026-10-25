@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Browser dashboard for the G1, built on g1_cli's console backend.
 
-Run from academy/: ``python3 g1_dashboard.py`` and open http://127.0.0.1:8765
-(``--host 0.0.0.0`` to reach it from another machine).  Every g1_cli slash
+Run from academy/: ``python3 g1_dashboard.py`` and open http://<robot>:8765
+(it binds 0.0.0.0 by default; ``--host 127.0.0.1`` keeps it local).  Every g1_cli slash
 command has its own tab.  /control adds a SLAM workspace: the processed
 obstacle point cloud as an orbitable 3D top view, the RGB stream with convex
 hulls around depth-segmented obstacles, the colorized depth stream, and SLAM
@@ -12,7 +12,7 @@ view still works if an RGB-D ZMQ stream is running.
 
 Two tabs have no g1_cli counterpart.  /wbc is WBC/ik_pose_cli_v4.py: 6D
 end-effector IK pose control driven by the remote controller stream or a
-gamepad on the browser machine (wbc_ik.py).  /sort is
+the /control tab's arm buttons (wbc_ik.py).  /sort is
 hand_pose_navigation/sorting_app.py: pick two kinds of objects and place each
 on its ArUco spot (sorting.py on grasp_pipeline.py).  Both run on
 sdk_wrapper.G1 like every other tab; nothing from modules/ is used for them.
@@ -805,7 +805,9 @@ class ControlSession:
     """
 
     HAND_CYCLE = ("right", "left", "both")
-    MOVES = {"w": (1, 0, 0), "s": (-1, 0, 0), "d": (0, 1, 0), "a": (0, -1, 0), "q": (0, 0, 1), "e": (0, 0, -1)}
+    # key -> (EE DOF, direction) for wbc_ik's jog: x, y, z as in /wbc (y is
+    # mirrored between the arms there, so "y+" moves both hands outward).
+    MOVES = {"w": (0, 1), "s": (0, -1), "d": (1, 1), "a": (1, -1), "q": (2, 1), "e": (2, -1)}
 
     def __init__(self, dash: Dashboard):
         self.dash = dash
@@ -865,14 +867,13 @@ class ControlSession:
         motion_future: concurrent.futures.Future[Any] | None = None
         motion_active = False
         arm_future: concurrent.futures.Future[Any] | None = None
-        arm_cancel = threading.Event()
-        hold_stop = threading.Event()
-        hold_enabled = threading.Event()
-        hold_targets: dict[int, float] = {}
-        hold_targets_lock = threading.Lock()
-        hold_errors: list[str] = []
+        # The arm keys drive the same IK controller as /wbc (wbc_ik, no input
+        # stream): warm-started IK per jog, rollback on failure, orientation
+        # lock, and a continuous rt/arm_sdk hold between jogs.  It is
+        # started on the first arm command and faded out when /control ends.
+        ik: Any = None
+        pending_move: tuple[int, int] | None = None
         pending_arm_toggle: bool | None = None
-        arm_toggle_target: bool | None = None
         arm_label = ""
         hand_mode = "right"
         status = "Ready"
@@ -886,47 +887,35 @@ class ControlSession:
         sent_revision = 0
         deadline = 0.0
 
-        def hold_loop() -> None:
-            arm_sdk = None
-            while not hold_stop.wait(0.02):
-                if not hold_enabled.is_set():
-                    continue
-                with hold_targets_lock:
-                    targets = dict(hold_targets)
-                if targets:
-                    try:
-                        if arm_sdk is None:
-                            arm_sdk = robot._arm_sdk_client()
-                        arm_sdk.write(
-                            targets,
-                            kp=float(settings["ll_kp"]),
-                            kd=float(settings["ll_kd"]),
-                            waist_kp={12: 200.0, 13: 200.0, 14: 480.0},
-                            waist_kd={j: 12.0 for j in sdk_wrapper.WAIST_JOINTS},
-                        )
-                    except Exception as exc:
-                        hold_enabled.clear()
-                        hold_errors.append(f"Arm pose hold unavailable: {exc}")
+        def start_ik() -> Any:
+            wbc_ik = dash.wbc._module()
+            try:
+                return wbc_ik.IKPoseController(
+                    robot, pose_path=dash.wbc.pose_file, source="none", arm_control=hand_mode,
+                    hand_control="off", params={"pos_step": float(settings["ik_step_m"])})
+            except wbc_ik.ControllerLockError as exc:
+                raise RuntimeError(str(exc)) from exc
 
-        hold_thread = threading.Thread(target=hold_loop, name="g1-dash-arm-hold", daemon=True)
-        hold_thread.start()
+        def ik_action(name: str, body: dict[str, Any]) -> str:
+            """One wbc_ik action; errors become the status line, not a crash."""
+            try:
+                ik.status = ""
+                ik.action(name, body)
+                return ik.status
+            except Exception as exc:
+                return f"IK {name} failed: {exc}"
 
-        def move_selected(hand_selection: str, increment: list[float], position_only: bool) -> list[Any]:
-            sides = ("right", "left") if hand_selection == "both" else (hand_selection,)
-            results = []
-            for side in sides:
-                if arm_cancel.is_set():
-                    break
-                inc = list(increment)
-                # ik_move_ee mirrors dy for the right arm internally.
-                if abs(inc[1]) > 0:
-                    inc[1] *= -1 if side == "right" else 1
-                results.append(robot.ik_move_ee(
-                    hand=side, pose_increment=inc,
-                    max_speed=float(settings["ll_max_joint_speed"] if settings["ramping"] else 0.75),
-                    max_dq=0.2, kp=float(settings["ll_kp"]), kd=float(settings["ll_kd"]),
-                    position_only=position_only, stop_event=arm_cancel))
-            return results
+        def jog(dof: int, direction: int) -> str:
+            ik.pos_step = max(0.0001, float(settings["ik_step_m"]))
+            message = ik_action("jog", {"dof": dof, "dir": direction})
+            failed = [arm for arm in ik._active_arms() if ik.ik_info[arm].get("success") is False]
+            if failed:
+                return f"IK failed for {' + '.join(failed)} arm: target rolled back, joints not moved"
+            return message or "IK step applied · pose held"
+
+        def release_arms() -> bool:
+            robot.release_arms()
+            return True
 
         def tactile_view(side: str) -> dict[str, Any]:
             snap = tactile_data.get(side)
@@ -956,8 +945,6 @@ class ControlSession:
                 if now - self.last_seen > HEARTBEAT_TIMEOUT_S:
                     dash.say("system", "/control session ended: dashboard heartbeat lost; locomotion stopped.")
                     break
-                if hold_errors:
-                    status = hold_errors.pop()
                 if now - tactile_last_poll >= 0.20:
                     tactile_last_poll = now
                     try:
@@ -987,34 +974,16 @@ class ControlSession:
                 if arm_future is not None and arm_future.done():
                     try:
                         result = arm_future.result()
-                        if arm_label == "release/engage":
-                            dash.arms_released = bool(arm_toggle_target)
-                            arm_toggle_target = None
-                            status = "Arms released" if dash.arms_released else "Arms engaged"
-                            if dash.arms_released:
-                                hold_enabled.clear()
-                            else:
-                                try:
-                                    targets = robot._upper_body_pose(timeout=1.0)
-                                    with hold_targets_lock:
-                                        hold_targets.update(targets)
-                                    hold_enabled.set()
-                                except Exception as exc:
-                                    status = f"Arms engaged; hold refresh failed: {exc}"
-                        elif arm_label.startswith("Move "):
-                            if isinstance(result, list):
-                                with hold_targets_lock:
-                                    for item in result:
-                                        if isinstance(item, dict):
-                                            command = item.get("command_targets") or {}
-                                            if not hold_targets:
-                                                hold_targets.update(command)
-                                            joints = (sdk_wrapper.LEFT_ARM_JOINTS if item.get("hand") == "left"
-                                                      else sdk_wrapper.RIGHT_ARM_JOINTS)
-                                            hold_targets.update({joint: command[joint] for joint in joints if joint in command})
-                                if hold_targets and not dash.arms_released:
-                                    hold_enabled.set()
-                            status = f"{arm_label} completed · pose held"
+                        if arm_label == "Engaging IK":
+                            ik = result
+                            dash.arms_released = False
+                            ik_action("orient", {"value": orientation_locked})
+                            status = "IK control engaged · pose held"
+                            if pending_move is not None:
+                                status = jog(*pending_move)
+                        elif arm_label == "release/engage":
+                            dash.arms_released = not ik.armed if ik is not None else bool(result)
+                            status = "Arms released" if dash.arms_released else "Arms engaged · pose held"
                         else:
                             status = f"{arm_label} completed"
                             dash.say("tool", f"{arm_label}: {result}")
@@ -1022,15 +991,20 @@ class ControlSession:
                         status = f"{arm_label} failed: {exc}"
                         dash.say("error", status)
                     arm_future = None
-                    arm_cancel = threading.Event()
+                    pending_move = None
                     arm_label = ""
                 if pending_arm_toggle is not None and arm_future is None:
                     target_released = pending_arm_toggle
                     pending_arm_toggle = None
-                    arm_toggle_target = target_released
                     arm_label = "release/engage"
-                    method = robot.release_arms if target_released else robot.engage_arms
-                    arm_future = arm_executor.submit(method)
+                    if ik is not None:
+                        arm_future = arm_executor.submit(ik.action, "release" if target_released else "engage", {})
+                    elif target_released:
+                        arm_future = arm_executor.submit(release_arms)
+                    else:
+                        # Engaging means taking the arms under IK hold control.
+                        arm_label = "Engaging IK"
+                        arm_future = arm_executor.submit(start_ik)
                 if deadline and now >= deadline:
                     if desired != (0.0, 0.0, 0.0):
                         desired = (0.0, 0.0, 0.0)
@@ -1052,6 +1026,8 @@ class ControlSession:
                     "status": status, "hand_mode": hand_mode, "orientation_locked": orientation_locked,
                     "arms_released": dash.arms_released, "desired": list(desired), "motion_active": motion_active,
                     "arm_busy": arm_label or (pending_arm_toggle is not None and "release/engage") or "",
+                    "ik": None if ik is None else {"armed": ik.armed, "status": ik.status,
+                                                   "info": {arm: ik.ik_info[arm] for arm in ik._active_arms()}},
                     "deadline_s": max(0.0, deadline - now) if deadline else 0.0,
                     "threshold": float(settings["tactile_threshold"]),
                     "tactile": {side: tactile_view(side) for side in ("left", "right")},
@@ -1098,19 +1074,21 @@ class ControlSession:
                     except queue.Empty:
                         pass
                     if pending_arm_toggle is None:
-                        pending_arm_toggle = not dash.arms_released
-                        hold_enabled.clear()
-                        if arm_future is not None:
-                            arm_cancel.set()
-                        status = "Stopping arm motion before release/engage…"
+                        pending_arm_toggle = (ik.armed if ik is not None else not dash.arms_released)
+                        status = "Release/engage queued…" if arm_future is not None else "Release/engage…"
                     continue
                 if key == "m":
                     hand_mode = self.HAND_CYCLE[(self.HAND_CYCLE.index(hand_mode) + 1) % len(self.HAND_CYCLE)]
+                    if ik is not None:
+                        ik_action("arm_mode", {"mode": hand_mode})
                     status = f"Selected {hand_mode} hand control"
                     continue
                 if key == "f":
                     orientation_locked = not orientation_locked
-                    status = f"EE orientation {'locked' if orientation_locked else 'free'} during position moves"
+                    if ik is not None:
+                        ik_action("orient", {"value": orientation_locked})
+                    status = (f"EE orientation {'locked' if orientation_locked else 'free (shoulder + elbow only)'} "
+                              "during position moves")
                     continue
                 if key in ("o", "c"):
                     if arm_future is not None or pending_arm_toggle is not None:
@@ -1132,20 +1110,19 @@ class ControlSession:
                     if arm_future is not None or pending_arm_toggle is not None:
                         status = "Arm busy; command not queued"
                         continue
-                    unit = self.MOVES[key]
-                    step = float(settings["ik_step_m"])
-                    increment = [unit[0] * step, unit[1] * step, unit[2] * step, 0, 0, 0]
-                    arm_cancel.clear()
-                    arm_label = f"Move {key}"
-                    hold_enabled.clear()
-                    arm_future = arm_executor.submit(move_selected, hand_mode, increment, not orientation_locked)
-                    status = f"{arm_label}…"
+                    if ik is None:
+                        pending_move = self.MOVES[key]
+                        arm_label = "Engaging IK"
+                        arm_future = arm_executor.submit(start_ik)
+                        status = "Taking the arms under IK control (1 s ramp)…"
+                        continue
+                    if not ik.armed:
+                        status = "Arms are released; press r to engage before moving"
+                        continue
+                    status = jog(*self.MOVES[key])
         except Exception as exc:
             dash.say("error", f"Control error: {type(exc).__name__}: {exc}")
         finally:
-            hold_enabled.clear()
-            hold_stop.set()
-            hold_thread.join(timeout=0.2)
             try:
                 if motion_future is not None and not motion_future.done():
                     motion_future.result(timeout=0.5)
@@ -1156,12 +1133,17 @@ class ControlSession:
                     executor.submit(robot.loco_stop)
                 except Exception:
                     pass
-            if arm_future is not None and not arm_future.done():
-                arm_cancel.set()
+            if arm_future is not None:
                 try:
-                    arm_future.result(timeout=0.3)
+                    result = arm_future.result(timeout=5.0)
+                    if arm_label == "Engaging IK":
+                        ik = result
                 except Exception:
                     pass
+            if ik is not None:
+                # Fades arm authority out over 3 s and frees the IK lock.
+                ik.close()
+                dash.arms_released = True
             executor.shutdown(wait=False)
             arm_executor.shutdown(wait=False)
             try:
@@ -1213,7 +1195,6 @@ class WbcSession:
                     self.controller = wbc_ik.IKPoseController(
                         self.dash.robot, pose_path=self.pose_file,
                         remote_url=str(body.get("url") or self.remote_url).strip(),
-                        source="browser" if body.get("source") == "browser" else "remote",
                         arm_control=str(body.get("arm_control") or "right"),
                         hand_control=str(body.get("hand_control") or "off"),
                         hand_grip=float(body.get("hand_grip") or 0.0),
@@ -1256,11 +1237,6 @@ class WbcSession:
     def action(self, name: str, body: dict[str, Any]) -> dict[str, Any]:
         return self._controller().action(name, body)
 
-    def gamepad(self, state: dict[str, Any]) -> dict[str, Any]:
-        controller = self.controller
-        if controller is None or controller._closed:
-            return {"ok": False, "message": "no /wbc session"}
-        return controller.gamepad(state)
 
 
 class SortSession:
@@ -1271,7 +1247,7 @@ class SortSession:
     hold, so they cannot command the arm at the same time.
     """
 
-    MOTION_ACTIONS = ("sort", "retract", "engage_arms", "hand_open")
+    MOTION_ACTIONS = ("sort", "retract", "engage_arms", "hand_open", "hand_close")
 
     def __init__(self, dash: Dashboard, args: argparse.Namespace):
         self.dash = dash
@@ -2270,7 +2246,6 @@ ROUTES: dict[tuple[str, str], Any] = {
     ("POST", "/api/wbc/start"): lambda d, q, b: d.wbc.start(b),
     ("POST", "/api/wbc/stop"): lambda d, q, b: d.wbc.stop(),
     ("POST", "/api/wbc/action"): lambda d, q, b: d.wbc.action(str(b.get("action")), b),
-    ("POST", "/api/wbc/gamepad"): lambda d, q, b: d.wbc.gamepad(b),
     ("GET", "/api/sort"): lambda d, q, b: d.sort.get().status(),
     ("GET", "/api/sort/config"): lambda d, q, b: d.sort.config(),
     ("POST", "/api/sort/config"): lambda d, q, b: d.sort.get().set_config(b),
@@ -2361,8 +2336,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--offline", action="store_true", help="start without robot or OpenAI; live chat is disabled")
     parser.add_argument("--off-robot", action="store_true",
                         help="UI test mode: simulated robot, SLAM, camera and agent; no robot, DDS, OpenAI or hardware modules are imported")
-    parser.add_argument("--host", default=os.environ.get("G1_DASHBOARD_HOST", "127.0.0.1"),
-                        help="bind address; use 0.0.0.0 to allow other machines (anyone on the network can then drive the robot)")
+    parser.add_argument("--host", default=os.environ.get("G1_DASHBOARD_HOST", "0.0.0.0"),
+                        help="bind address; the default 0.0.0.0 lets anyone on the network drive the robot, 127.0.0.1 keeps it local")
     parser.add_argument("--port", type=int, default=int(os.environ.get("G1_DASHBOARD_PORT", "8765")))
     parser.add_argument("--rgbd", default=os.environ.get("G1_RGBD_ENDPOINT", "tcp://127.0.0.1:5555"),
                         help="ZMQ endpoint of realsense_rgbd_zmq_stream.py")
@@ -2862,7 +2837,7 @@ table.t th{color:var(--muted);font-weight:600}
     <div class="glass panel span-2">
       <div class="panel-head"><h2>WBC · 6D end-effector IK</h2><span class="row" id="wbc-badges"></span></div>
       <div class="row">
-        <div class="seg" id="wbc-source"><button data-v="remote" class="on">Remote stream</button><button data-v="browser">Browser gamepad</button></div>
+        <span class="small muted">Remote stream</span>
         <input id="wbc-url" class="grow mono" placeholder="http://LAPTOP_IP:8765/events">
         <button class="btn sm" id="wbc-url-apply">Use</button>
       </div>
@@ -2934,7 +2909,7 @@ table.t th{color:var(--muted);font-weight:600}
       <div id="sort-phase" class="small" style="margin-top:10px"></div>
       <div id="sort-scene" class="list" style="margin-top:8px"></div>
       <div class="section-title">Arm &amp; hand</div>
-      <div class="row"><button class="btn sm" data-sort="retract">Retract to stable pose</button><button class="btn sm" data-sort="hand_open">Open hand</button>
+      <div class="row"><button class="btn sm" data-sort="retract">Retract to stable pose</button><button class="btn sm" data-sort="hand_open">Open hand</button><button class="btn sm" data-sort="hand_close">Close hand</button>
         <button class="btn sm" data-sort="release_arms">Release arms</button><button class="btn sm" data-sort="engage_arms">Re-engage arms</button><button class="btn sm danger" data-sort="damp">Damp</button></div>
       <div class="section-title">Dex3 tactile</div>
       <pre id="sort-tactile" class="console" style="max-height:130px"></pre>
@@ -3198,8 +3173,8 @@ function renderThemes(){const g=$('#theme-grid');g.innerHTML='';for(const t of M
 hooks.theme={enter:renderThemes};
 
 /* ---------- help / clear / exit ---------- */
-const KEYS=[['↑ / ↓','walk forward / back'],['← / →','rotate left / right'],['Space / Esc','stop locomotion'],['w / s','end effector x + / −'],['d / a','end effector y + / −'],['q / e','end effector z + / −'],
-  ['m','cycle right / left / both hands'],['f','lock / free EE orientation'],['o / c','open / close Dex3 hands'],['r','release / engage arms (cancels IK step)']];
+const KEYS=[['↑ / ↓','walk forward / back'],['← / →','rotate left / right'],['Space / Esc','stop locomotion'],['w / s','end effector x + / −'],['d / a','end effector y outward / inward (mirrored per arm, as in /wbc)'],['q / e','end effector z + / −'],
+  ['m','cycle right / left / both hands'],['f','lock / free EE orientation'],['o / c','open / close Dex3 hands'],['r','release / engage arms (IK hold)']];
 hooks.help={enter:()=>{const t=$('#help-cmds');t.innerHTML='';for(const[c,d]of Object.entries(META.commands))t.append(h('tr',{},h('td',{},h('a',{href:'#'+c.slice(1),class:'mono',style:'color:var(--accent)'},c)),h('td',{},d)));
   const k=$('#help-keys');k.innerHTML='';for(const[a,b]of KEYS)k.append(h('tr',{},h('td',{},h('kbd',{},a)),h('td',{},b)));
   const w=$('#help-wbc');w.innerHTML='';for(const[a,b]of WBC_HELP)w.append(h('tr',{},h('td',{},h('kbd',{},a)),h('td',{},b)));}};
@@ -3232,6 +3207,7 @@ function renderControl(j){$('#kbd-state').innerHTML=j.active?'<span class="dot o
   $('#release-btn').classList.toggle('on',!!j.arms_released);
   const kv=$('#ctl-kv');kv.innerHTML='';const d=j.desired||[0,0,0];
   [['hands',hm.toUpperCase()],['orientation',j.orientation_locked===false?'FREE':'LOCKED'],['arms',j.arms_released?'RELEASED':'ENGAGED'],['motion',`vx ${fmt(d[0])} · vyaw ${fmt(d[2])}`],
+   ['IK',!j.ik?'starts on the first arm command':Object.entries(j.ik.info||{}).map(([a,i])=>`${a} ${i.success==null?'pending':i.success?`OK ${fmt(i.error_pos_m,4)} m`:'FAIL (rolled back)'}`).join(' · ')],
    ['steps',j.step?`EE ${j.step.ik_step_m} m · ${j.step.locomotion_speed} m/s · ${j.step.rotation_speed} rad/s`:'—']].forEach(([a,b])=>kv.append(h('div',{},a),h('div',{class:'mono'},b)));
   $('#ctl-status').innerHTML=`<span class="badge ${j.arm_busy?'warn':'ok'}">${j.arm_busy||'idle'}</span> ${j.status||''}`;
   const thr=j.threshold;$('#tac-thr').textContent=thr!=null?`threshold ${thr} · green ≥ threshold`:'';const root=$('#tactile');root.innerHTML='';
@@ -3386,18 +3362,12 @@ const WBC_HELP=[['Left stick','walk forward/back and turn (leased Move; StopMove
   ['< / >','halve / double the selected step'],['[ / ]','halve / double max Δq'],['m','cycle arms'],['f','orientation lock'],['w','waist hold on / off'],
   ['y','resync EE targets to the live pose'],['r / e','release / engage arms'],['z','send one zero-gain packet'],['H','cycle Dex3 hand mode'],
   ['{ / }','grip −5 / +5 %'],['p','name and save the commanded pose'],['R / S','run / stop the replay sequence']];
-let WBC={active:false},wbcSource='remote',wbcArm='right',wbcHand='off',wbcParamsBuilt=false,wbcDofRows=null;
+let WBC={active:false},wbcArm='right',wbcHand='off',wbcParamsBuilt=false,wbcDofRows=null;
 const fmtq=(v,d=3)=>v==null||!isFinite(v)?'—':(v>=0?'+':'')+Number(v).toFixed(d);
 async function wbcAct(action,extra){try{const j=await api('/api/wbc/action',{action,...(extra||{})});if(j.status)$('#wbc-status').textContent=j.status;pollWbc();return j;}catch(e){toast(e.message,'err');}}
 async function pollWbc(){let s;try{s=await api('/api/wbc');}catch(e){$('#wbc-status').textContent=e.message;return;}
   if(s.busy){$('#wbc-status').textContent=s.status||'busy…';return;}WBC=s;renderWbc(s);}
 every('wbc',250,pollWbc);
-function gamepadState(){if(!navigator.getGamepads)return null;let pads=[];try{pads=[...navigator.getGamepads()].filter(Boolean);}catch(e){return null;}const g=pads[0];if(!g)return null;
-  const b=i=>!!(g.buttons[i]&&g.buttons[i].pressed);
-  return{name:g.id,axes:[...g.axes].slice(0,4).map(v=>+v.toFixed(4)),buttons:g.buttons.slice(0,17).map(x=>!!x.pressed),hats:[[(b(15)?1:0)-(b(14)?1:0),(b(12)?1:0)-(b(13)?1:0)]]};}
-let gpBusy=false;
-setInterval(()=>{if(ACTIVE!=='wbc'||!WBC.active||!WBC.input||WBC.input.source!=='browser'||document.hidden||gpBusy)return;
-  const st=gamepadState();if(!st)return;gpBusy=true;api('/api/wbc/gamepad',st).catch(()=>{}).finally(()=>{gpBusy=false;});},50);
 function buildWbcDofs(){const t=$('#wbc-dofs');t.innerHTML='';t.append(h('tr',{},h('th',{},'DOF'),h('th',{},'live FK'),h('th',{},'target'),h('th',{},'step'),h('th',{},'jog')));
   wbcDofRows=[0,1,2,3,4,5].map(i=>{const c={name:h('b'),free:h('span',{class:'muted small'}),live:h('td',{class:'num'}),target:h('td',{class:'num'}),step:h('span',{class:'mono'})};
     c.tr=h('tr',{style:'cursor:pointer',onclick:e=>{if(!e.target.closest('button'))wbcAct('select_dof',{dof:i});}},h('td',{},c.name,c.free),c.live,c.target,
@@ -3417,11 +3387,9 @@ function renderWbcInput(inp){const[x,w,hh]=setupCanvas($('#wbc-pad'));const ax=(
   const kv=$('#wbc-input-kv');kv.innerHTML='';
   if(!inp){$('#wbc-input-badge').innerHTML='';kv.append(h('div',{},'input'),h('div',{},'no session'));}
   else{$('#wbc-input-badge').innerHTML=inp.stale?'<span class="badge err">stale · locomotion stopped</span>':'<span class="badge ok">live</span>';
-    [['source',inp.source==='browser'?'browser gamepad'+(inp.name?` · ${inp.name}`:''):inp.url],['link',inp.error||'—'],['age',inp.age==null?'—':inp.age.toFixed(2)+' s'],
+    [['source',inp.url],['link',inp.error||'—'],['age',inp.age==null?'—':inp.age.toFixed(2)+' s'],
      ['locomotion',`vx ${fmt(inp.loco[0])} m/s · yaw ${fmt(inp.loco[1])} rad/s`]].forEach(([a,b])=>kv.append(h('div',{},a),h('div',{class:'mono'},b)));}
-  $('#wbc-gp-hint').textContent=wbcSource!=='browser'?'Input from controller_stream.py on the machine with the gamepad (modules/scripts/remote_controller_stream).'
-    :!window.isSecureContext||!navigator.getGamepads?'The browser only exposes gamepads to secure pages: open the dashboard as http://localhost:PORT (e.g. ssh -L PORT:localhost:PORT to the robot) or over HTTPS.'
-    :gamepadState()?'Gamepad state is sent from this browser while the /wbc tab is visible.':'No gamepad seen yet: connect one and press a button.';}
+  $('#wbc-gp-hint').textContent='Input from controller_stream.py on the machine with the gamepad (modules/scripts/remote_controller_stream). From the browser, use the arm buttons in /control.';}
 function renderWbcParams(s){const vals=s.active?s.params:(s.defaults||{});const root=$('#wbc-params');
   if(!wbcParamsBuilt&&Object.keys(vals).length){wbcParamsBuilt=true;root.innerHTML='';
     for(const[k,label,step]of WBC_PARAMS)root.append(h('div',{class:'param',style:'grid-template-columns:1fr 96px'},h('span',{},label),
@@ -3430,10 +3398,8 @@ function renderWbcParams(s){const vals=s.active?s.params:(s.defaults||{});const 
   $$('#wbc-params input').forEach(i=>{if(document.activeElement!==i&&!i.dataset.dirty&&vals[i.dataset.k]!=null)i.value=+Number(vals[i.dataset.k]).toFixed(4);});}
 function renderWbc(s){const on=!!s.active,inp=s.input||{};
   $$('#tab-wbc .wbc-live').forEach(e=>e.classList.toggle('wbc-off',!on));$('#wbc-start').disabled=on;$('#wbc-stop').disabled=!on;
-  if(on){wbcSource=inp.source;wbcArm=s.arm_mode;wbcHand=s.hand.mode;}
-  $$('#wbc-source button').forEach(b=>b.classList.toggle('on',b.dataset.v===wbcSource));
+  if(on){wbcArm=s.arm_mode;wbcHand=s.hand.mode;}
   const url=$('#wbc-url');if(document.activeElement!==url&&!url.dataset.dirty)url.value=on?inp.url:(s.remote_url||'');
-  url.disabled=$('#wbc-url-apply').disabled=wbcSource==='browser';
   $('#wbc-badges').innerHTML=on?`<span class="badge ${s.seeded?'ok':'err'}">${s.seeded?'connected':'waiting for lowstate'}</span><span class="badge ${s.armed?'ok':'warn'}">${s.armed?'armed':'released'}</span>`
     +(s.sequence.running?'<span class="badge warn">sequence running</span>':''):'<span class="badge">no session</span>';
   $('#wbc-status').textContent=on?s.status:(s.error||'Start a session to stream rt/arm_sdk targets. Only one IK pose session (this tab or ik_pose_cli_v4.py) can run at a time.');
@@ -3467,9 +3433,8 @@ function renderWbc(s){const on=!!s.active,inp=s.input||{};
       h('button',{class:'btn sm ghost',title:'toggle waist for this step',onclick:()=>wbcAct('seq_toggle_waist',{index:i})},st.include_waist?'waist':'arms'),
       h('button',{class:'btn sm ghost',onclick:()=>wbcAct('seq_move',{index:i,dir:-1})},'↑'),h('button',{class:'btn sm ghost',onclick:()=>wbcAct('seq_move',{index:i,dir:1})},'↓'),
       h('button',{class:'btn sm ghost danger',onclick:()=>wbcAct('seq_remove',{index:i})},'✕'))));}}
-$$('#wbc-source button').forEach(b=>b.onclick=()=>{const v=b.dataset.v;if(WBC.active)wbcAct('source',{source:v,url:$('#wbc-url').value.trim()});else{wbcSource=v;renderWbc(WBC);}});
 $('#wbc-url').oninput=e=>{e.target.dataset.dirty='1';};
-$('#wbc-url-apply').onclick=()=>{const url=$('#wbc-url').value.trim();delete $('#wbc-url').dataset.dirty;if(WBC.active)wbcAct('source',{source:'remote',url});};
+$('#wbc-url-apply').onclick=()=>{const url=$('#wbc-url').value.trim();delete $('#wbc-url').dataset.dirty;if(WBC.active)wbcAct('source',{url});};
 $$('#wbc-arm button').forEach(b=>b.onclick=()=>{if(WBC.active)wbcAct('arm_mode',{mode:b.dataset.v});else{wbcArm=b.dataset.v;renderWbc(WBC);}});
 $$('#wbc-hand button').forEach(b=>b.onclick=()=>{if(WBC.active)wbcAct('hand_mode',{mode:b.dataset.v});else{wbcHand=b.dataset.v;renderWbc(WBC);}});
 $$('#tab-wbc [data-wbc]').forEach(b=>b.onclick=()=>wbcAct(b.dataset.wbc));
@@ -3483,7 +3448,7 @@ $('#wbc-save-form').addEventListener('submit',e=>{e.preventDefault();const name=
 $('#wbc-start').onclick=async()=>{if(!await confirmDialog('Start the /wbc session?','The dashboard takes rt/arm_sdk authority (1 s ramp) and holds both arms at their current pose. The gamepad then moves the end effector and walks the robot.','Start'))return;
   const params={};$$('#wbc-params input').forEach(i=>{if(i.value!=='')params[i.dataset.k]=+i.value;});
   $('#wbc-status').textContent='Starting… waiting for rt/lowstate and ramping arm authority.';
-  try{const j=await api('/api/wbc/start',{source:wbcSource,url:$('#wbc-url').value.trim(),arm_control:wbcArm,hand_control:wbcHand,params});
+  try{const j=await api('/api/wbc/start',{url:$('#wbc-url').value.trim(),arm_control:wbcArm,hand_control:wbcHand,params});
     $$('#wbc-params input').forEach(i=>delete i.dataset.dirty);delete $('#wbc-url').dataset.dirty;WBC=j;renderWbc(j);toast('/wbc session started','ok');}
   catch(e){toast(e.message,'err');$('#wbc-status').textContent=e.message;}};
 $('#wbc-stop').onclick=async()=>{if(!await confirmDialog('Stop the /wbc session?','Locomotion stops and arm authority fades out over 3 s, handing the arms back to the default controller.','Stop'))return;
@@ -3514,9 +3479,8 @@ function buildSortConfig(c){sortBuilt=true;const m=c.meta;
     $('#sort-pat-'+i).replaceChildren(h('div',{class:'panel-head'},h('h3',{style:`color:${m.pattern_colors[i]}`},`Drop-off pattern ${m.letters[i]}`),h('span',{class:'small',id:`sort-pat-status-${i}`})),
       h('div',{class:'cfg','data-pattern':i},sortField('Name',h('input',{'data-f':'name',value:p.name})),
         sortField('Dictionary',h('select',{'data-f':'dict'},...m.dictionaries.map(d=>h('option',{value:d,selected:d===p.dict},d)))),
-        sortField('Layout',h('select',{'data-f':'layout'},h('option',{value:'single',selected:p.layout==='single'},'single marker'),h('option',{value:'grid',selected:p.layout==='grid'},'grid board'))),
         sortField('Marker ID (first ID of a grid)',num('id',p.id,1,0)),sortField('Marker size (mm, black square)',num('size',p.size,1,5)),
-        sortField('Rows',num('rows',p.rows,1,1)),sortField('Columns',num('cols',p.cols,1,1)),sortField('Separation (mm)',num('sep',p.sep,1,0)),
+        sortField('Rows (1 × 1 = single marker)',num('rows',p.rows,1,1)),sortField('Columns',num('cols',p.cols,1,1)),sortField('Separation (mm)',num('sep',p.sep,1,0)),
         sortField(`Release height above pattern (cm, ${m.release_cm[0]}–${m.release_cm[1]})`,num('height',p.height,0.5,m.release_cm[0],m.release_cm[1])),
         h('div',{class:'full muted small',id:`sort-pat-centre-${i}`})));});
   c.objects.forEach((o,i)=>$('#sort-obj-'+i).replaceChildren(h('div',{class:'panel-head'},h('h3',{style:`color:${m.object_colors[i]}`},`Object ${i+1}`),h('span',{class:'small muted',id:`sort-obj-scene-${i}`})),
@@ -3526,7 +3490,6 @@ function buildSortConfig(c){sortBuilt=true;const m=c.meta;
       sortField('Mass (kg)',h('input',{type:'number','data-f':'mass',value:o.mass,step:0.05,min:0,max:m.max_mass})),
       sortField('How many',h('input',{type:'number','data-f':'count',value:o.count,step:1,min:1,max:m.max_items})))));
   $$('#tab-sort .cfg [data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input',queueSortConfig));
-  syncSortGrid();
   const o=c.options,send=sendParams('/api/sort/options');
   $('#sort-options').replaceChildren(paramRow('max joint step rad',o.max_joint_step_rad,0.005,m.max_step,0.005,v=>send('max_joint_step_rad',v)),
     paramRow('max joint speed rad/s',o.max_joint_speed_rad_s,0.02,m.max_speed,0.01,v=>send('max_joint_speed_rad_s',v)),
@@ -3534,10 +3497,9 @@ function buildSortConfig(c){sortBuilt=true;const m=c.meta;
     h('div',{class:'small'},'Turn the waist to centre each object before grabbing'),checkRow('centre waist',o.center_waist,v=>send('center_waist',v)),
     h('div',{class:'small'},'Carry objects even when tactile sensors don\'t confirm the grasp'),checkRow('unverified grasps',o.allow_unverified_grasp,v=>send('allow_unverified_grasp',v)));
   renderSortConfig(c);}
-function syncSortGrid(){$$('#tab-sort [data-pattern]').forEach(card=>{const single=$('[data-f=layout]',card).value!=='grid';['rows','cols','sep'].forEach(f=>{$(`[data-f=${f}]`,card).disabled=single;});});}
 function collectSortConfig(){const read=card=>Object.fromEntries($$('[data-f]',card).map(el=>[el.dataset.f,el.type==='number'?(el.value===''?null:+el.value):el.value]));
   return{patterns:$$('#tab-sort [data-pattern]').map(read),objects:$$('#tab-sort [data-object]').map(card=>{const o=read(card);o.zone=+o.zone;return o;})};}
-function queueSortConfig(){syncSortGrid();clearTimeout(sortCfgTimer);sortCfgTimer=setTimeout(async()=>{try{renderSortConfig(await api('/api/sort/config',collectSortConfig()));}catch(e){toast(e.message,'err');}},500);}
+function queueSortConfig(){clearTimeout(sortCfgTimer);sortCfgTimer=setTimeout(async()=>{try{renderSortConfig(await api('/api/sort/config',collectSortConfig()));}catch(e){toast(e.message,'err');}},500);}
 function renderSortConfig(c){const root=$('#sort-config-status');root.innerHTML='';
   if(c.running){root.append(h('div',{style:'color:var(--warn)'},c.message));return;}
   if((c.errors||[]).length)c.errors.forEach(e=>root.append(h('div',{style:'color:var(--err)'},'✕ '+e)));

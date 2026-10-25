@@ -305,6 +305,12 @@ DEFAULT_SLOW_GRAB_TIMEOUT_S = 180.0
 # detection.  The prior 6.5 cm tolerance regularly marked a visible miss as a
 # grasp; keep this tighter than a fingertip/palm width.
 DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.030
+# Pre-grab reach limit for the planned hand target.  The URDF arm reaches at
+# most ~0.432 m from the shoulder, so a target farther than that plus the
+# vision convergence tolerance (0.030 m) cannot converge: with the 0.52 m
+# executor limit such targets passed the check and the approach IK stalled
+# 5-7 cm short until the timeout.
+GRAB_TARGET_MAX_REACH_M = 0.46
 # If progress has genuinely stopped inside this narrow band, attempt a close
 # and let tactile feedback decide whether anything was actually grasped.
 # Tracking measures the palm-mount FK frame while the operator view draws
@@ -1288,7 +1294,7 @@ def _reach_preview(
     obstacles: Optional[Obstacles] = None,
 ) -> Tuple[str, float, float, float, float]:
     arm, _T_base_camera, T_base_object = _resolve_arm_and_base_pose(det, cam, arm_override)
-    checker = ReachabilityChecker(arm=arm, max_reach_m=DEFAULT_DIRECT_MAX_REACH_M)
+    checker = ReachabilityChecker(arm=arm, max_reach_m=GRAB_TARGET_MAX_REACH_M)
     T_base_desired = _direct_grasp_hand_pose(det, T_base_object, arm, obstacles)
     shoulder_y = 0.10 if arm == "left" else -0.10
     shoulder = np.array([0.0, shoulder_y, 0.292], dtype=np.float64)
@@ -3100,12 +3106,12 @@ def _run_extend_arm_ee_ik(
     )
     results = []
 
-    def stage_obstacles() -> Obstacles:
+    def stage_obstacles(table_margin_m: float = TABLE_COLLISION_MARGIN_M) -> Obstacles:
         with STATE.lock:
             T_opposite = STATE.hand_fk_T_base.get(opposite_arm)
         return Obstacles(
             table=static_obstacles.table,
-            table_margin_m=TABLE_COLLISION_MARGIN_M,
+            table_margin_m=table_margin_m,
             table_xy_margin_m=TABLE_COLLISION_XY_MARGIN_M,
             opposite_shoulder_base=SHOULDER_IN_BASE[opposite_arm] if T_opposite is not None else None,
             opposite_wrist_base=T_opposite[:3, 3].copy() if T_opposite is not None else None,
@@ -3129,10 +3135,22 @@ def _run_extend_arm_ee_ik(
                     "success": False, "reason": "preclear_ik_failed", "ik_info": info,
                     "stage_results": results,
                 }
+            # The preclear only runs because the hand starts low, often
+            # inside the conservative table buffer; checked against the full
+            # buffer, its very first sample (alpha=0, the current pose) was
+            # rejected.  As for the post-grasp lift, keep 1.5 cm below the
+            # measured start clearance and check every later sample.
+            start_clearance_m = float(T_current[2, 3] - static_obstacles.table.z_base_m)
+            preclear_margin_m = min(TABLE_COLLISION_MARGIN_M, max(0.03, start_clearance_m - 0.015))
+            if preclear_margin_m < TABLE_COLLISION_MARGIN_M:
+                _log(
+                    "[recognition_app] preclear starts inside the conservative table buffer; "
+                    f"using {preclear_margin_m:.3f}m path margin from {start_clearance_m:.3f}m clearance."
+                )
             result = executor.execute(
                 q_preclear, duration_s=DEFAULT_EXTEND_STAGE_DURATION_S,
                 q_arm_start=q_cur, T_base_desired=T_preclear,
-                stop_event=ARM_CANCEL_EVENT, obstacles=stage_obstacles(),
+                stop_event=ARM_CANCEL_EVENT, obstacles=stage_obstacles(preclear_margin_m),
             )
             results.append({"stage": "vertical_table_preclear", "ik": info, "execute": result})
             _log(f"[recognition_app] extend vertical_table_preclear: {result}")
@@ -4202,7 +4220,7 @@ def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="G1 recognition layer web app.")
     p.add_argument("--iface", default="eth0")
     p.add_argument("--domain-id", type=int, default=0)
-    p.add_argument("--rgbd-host", default="10.34.0.47")
+    p.add_argument("--rgbd-host", default="0.0.0.0")
     p.add_argument("--rgbd-port", type=int, default=5555)
     p.add_argument("--rgbd-topic", default="")
     p.add_argument(

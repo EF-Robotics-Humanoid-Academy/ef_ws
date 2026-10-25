@@ -81,6 +81,18 @@ DEFAULT_DIRECT_MAX_REACH_M = 0.52
 DEFAULT_SLOW_GRAB_RATE_HZ = 3.0
 DEFAULT_SLOW_GRAB_TIMEOUT_S = 180.0
 DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.030
+# Pre-grab reach limit for the planned hand target.  The URDF arm reaches at
+# most ~0.432 m from the shoulder, so a target farther than that plus the
+# vision convergence tolerance (0.030 m) cannot converge: with the 0.52 m
+# executor limit such targets passed the check and the approach IK stalled
+# 5-7 cm short until the timeout.
+GRAB_TARGET_MAX_REACH_M = 0.46
+# Vision grabs keep the palm level: the Dex3 fingers close in the palm x-y
+# plane, so palm z must stay vertical or closing sweeps the fingers into the
+# table.  IK accepts up to this palm-normal tilt; the approach converges below
+# the second value (yaw is free).
+GRASP_PALM_LEVEL_TOL_RAD = math.radians(6.0)
+GRASP_PALM_LEVEL_CONVERGENCE_RAD = math.radians(10.0)
 DEFAULT_VISION_STALL_CLOSE_POS_M = 0.075
 DYNAMIC_TARGET_GATE_M = 0.06
 DYNAMIC_TARGET_FILTER_ALPHA = 0.35
@@ -238,10 +250,21 @@ def stable_vision_object_pose(T_base_object: np.ndarray, table: Optional[TablePl
     return T
 
 
+def level_grasp_rotation(arm: str, p_object: np.ndarray) -> np.ndarray:
+    """Palm z up (fingers close parallel to the table), fingers pointing
+    horizontally from the shoulder toward the object."""
+    d = np.asarray(p_object, dtype=np.float64)[:2] - SHOULDER_IN_BASE[arm][:2]
+    yaw = math.atan2(float(d[1]), float(d[0]))
+    c, s = math.cos(yaw), math.sin(yaw)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])
+
+
 def direct_grasp_hand_pose(det: Detection, T_base_object: np.ndarray, arm: str,
                            obstacles: Optional[Obstacles] = None, fixed_R_base: Optional[np.ndarray] = None) -> np.ndarray:
     T_object = (stable_vision_object_pose(T_base_object, table=obstacles.table if obstacles is not None else None)
                 if det.source == "vision" else T_base_object)
+    if fixed_R_base is None and det.source == "vision":
+        fixed_R_base = level_grasp_rotation(arm, T_base_object[:3, 3])
     T_base_hand = GraspPlanner(arm=arm, standoff_m=grasp_standoff_for_surface(det.grasp_surface)).compute(T_object)
     if fixed_R_base is not None:
         T_base_hand = T_base_hand.copy()
@@ -574,7 +597,7 @@ class HandApproach:
                 self._record(f"[Step 8] Workspace fail: {reach_check.reasons}")
                 self._record("[Step 8] Fixed selected target is unreachable - stopping grab.")
                 break
-            err_pos, err_rot = self._pose_error_scalars(T_base_desired, T_base_hand)
+            err_pos, err_rot = self._pose_error_scalars(T_base_desired, T_base_hand, level=self.ik.solver == "level_dls")
             self.status["last_error_pos_m"], self.status["last_error_rot_rad"] = err_pos, err_rot
             if err_pos < self.convergence_pos_m and err_rot < self.convergence_rot_rad:
                 self.status["converged"] = True
@@ -633,8 +656,11 @@ class HandApproach:
             self._sleep(dt, t0)
 
     @staticmethod
-    def _pose_error_scalars(T_des: np.ndarray, T_cur: np.ndarray) -> Tuple[float, float]:
+    def _pose_error_scalars(T_des: np.ndarray, T_cur: np.ndarray, level: bool = False) -> Tuple[float, float]:
         pos_err = float(np.linalg.norm(T_des[:3, 3] - T_cur[:3, 3]))
+        if level:
+            # Level-palm grasp: only the palm-normal tilt counts, yaw is free.
+            return pos_err, float(np.arccos(np.clip(np.dot(T_des[:3, 2], T_cur[:3, 2]), -1.0, 1.0)))
         R = T_des[:3, :3] @ T_cur[:3, :3].T
         rot_err = float(np.linalg.norm([R[2, 1] - R[1, 2], R[0, 2] - R[2, 0], R[1, 0] - R[0, 1]]) * 0.5)
         return pos_err, rot_err
@@ -1070,7 +1096,7 @@ class GraspPipeline:
         T_base_desired = direct_grasp_hand_pose(det, T_base_object, arm, obstacles)
         shoulder = np.array([0.0, 0.10 if arm == "left" else -0.10, 0.292])
         reach = float(np.linalg.norm(T_base_desired[:3, 3] - shoulder))
-        return arm, reach, DEFAULT_DIRECT_MAX_REACH_M, max(0.0, reach - DEFAULT_DIRECT_MAX_REACH_M)
+        return arm, reach, GRAB_TARGET_MAX_REACH_M, max(0.0, reach - GRAB_TARGET_MAX_REACH_M)
 
     # -- arm authority, holds and motions -------------------------------------
 
@@ -1140,9 +1166,9 @@ class GraspPipeline:
         executor = self._executor(arm, step, speed)
         results = []
 
-        def stage_obstacles() -> Obstacles:
+        def stage_obstacles(table_margin_m: float = TABLE_COLLISION_MARGIN_M) -> Obstacles:
             T_opposite = self.hand_T(opposite_arm)
-            return Obstacles(table=static_obstacles.table, table_margin_m=TABLE_COLLISION_MARGIN_M,
+            return Obstacles(table=static_obstacles.table, table_margin_m=table_margin_m,
                              table_xy_margin_m=TABLE_COLLISION_XY_MARGIN_M,
                              opposite_shoulder_base=SHOULDER_IN_BASE[opposite_arm] if T_opposite is not None else None,
                              opposite_wrist_base=T_opposite[:3, 3].copy() if T_opposite is not None else None)
@@ -1159,8 +1185,18 @@ class GraspPipeline:
                                          tol_rot_rad=math.pi).solve(T_preclear, q_init=q_cur)
                 if q_preclear is None:
                     return {"success": False, "reason": "preclear_ik_failed", "ik_info": info, "stage_results": results}
+                # The preclear runs because the hand starts low, often inside
+                # the table buffer: checked against the full buffer its first
+                # sample (the current pose) is rejected.  As for the post-grasp
+                # lift, keep 1.5 cm below the start clearance from then on.
+                start_clearance_m = float(T_current[2, 3] - static_obstacles.table.z_base_m)
+                preclear_margin_m = min(TABLE_COLLISION_MARGIN_M, max(0.03, start_clearance_m - 0.015))
+                if preclear_margin_m < TABLE_COLLISION_MARGIN_M:
+                    self.log(f"[grasp] preclear starts inside the table buffer; using {preclear_margin_m:.3f}m "
+                             f"path margin from {start_clearance_m:.3f}m clearance.")
                 result = executor.execute(q_preclear, duration_s=DEFAULT_EXTEND_STAGE_DURATION_S, q_arm_start=q_cur,
-                                          T_base_desired=T_preclear, stop_event=self.cancel, obstacles=stage_obstacles())
+                                          T_base_desired=T_preclear, stop_event=self.cancel,
+                                          obstacles=stage_obstacles(preclear_margin_m))
                 results.append({"stage": "vertical_table_preclear", "execute": result})
                 self.log(f"[grasp] extend vertical_table_preclear: success={result.get('success')} reason={result.get('reason', '')}")
                 if not result.get("success"):
@@ -1632,21 +1668,34 @@ class GraspPipeline:
                          f"excess={excess:.3f} m; move closer.")
                 return
             # The extend pose is a safe starting posture, not an orientation
-            # constraint: IK may use wrist pitch/roll to reach the target.
+            # constraint.  Vision grabs keep the palm level (yaw free) so the
+            # fingers close parallel to the table instead of into it.
             T_base_hand = direct_grasp_hand_pose(det, T_base_object, arm, obstacles)
             vision = det.source == "vision"
             config = {
-                "arm": arm, "ik_solver": "position_dls" if vision else "dls", "rate_hz": DEFAULT_SLOW_GRAB_RATE_HZ,
+                "arm": arm, "ik_solver": "level_dls" if vision else "dls", "rate_hz": DEFAULT_SLOW_GRAB_RATE_HZ,
                 "timeout_s": DEFAULT_SLOW_GRAB_TIMEOUT_S, "ik_tol_pos_m": 0.040 if vision else 0.003,
-                "ik_tol_rot_rad": 3.14 if vision else 0.01,
+                "ik_tol_rot_rad": GRASP_PALM_LEVEL_TOL_RAD if vision else 0.01,
                 "convergence_pos_m": DEFAULT_VISION_GRAB_CONVERGENCE_POS_M if vision else 0.015,
-                "convergence_rot_rad": 3.14 if vision else 0.05, "max_joint_step_rad": step,
+                "convergence_rot_rad": GRASP_PALM_LEVEL_CONVERGENCE_RAD if vision else 0.05, "max_joint_step_rad": step,
                 "max_joint_speed_rad_s": speed, "max_reach_m": DEFAULT_DIRECT_MAX_REACH_M,
             }
             p_obj, p_hand = T_base_object[:3, 3], T_base_hand[:3, 3]
             self.log(f"[grasp] object_base_xyz=({p_obj[0]:+.3f}, {p_obj[1]:+.3f}, {p_obj[2]:+.3f}) m")
             self.log(f"[grasp] desired hand xyz=({p_hand[0]:+.3f}, {p_hand[1]:+.3f}, {p_hand[2]:+.3f}) m "
-                     "with stable robot-side approach; wrist orientation free for IK.")
+                     "with stable robot-side approach; " + ("palm kept level (fingers close parallel to the table)."
+                                                            if vision else "full 6-D hand pose."))
+            if vision:
+                # Fail in ~1 s instead of a timed-out approach when no level
+                # hand pose reaches the target.
+                _q, level_info = ArmIK(arm=arm, solver="level_dls", tol_pos_m=config["ik_tol_pos_m"],
+                                       tol_rot_rad=GRASP_PALM_LEVEL_TOL_RAD).solve(
+                    T_base_hand, q_init=self.read_current_arm_q(arm))
+                if not level_info.get("success"):
+                    self.log(f"[grasp] no level-palm hand pose reaches the target (best pos_err="
+                             f"{level_info['error_pos_m']:.3f} m, tilt={math.degrees(level_info['error_rot_rad']):.1f} deg); "
+                             "move the object or the robot closer.")
+                    return
             with self.lock:
                 dynamic = self.dynamic_target_correction and vision
             self.log("[grasp] fresh detections of the same object will correct the target during the approach "

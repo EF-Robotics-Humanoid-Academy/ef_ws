@@ -4,8 +4,8 @@ drop each on its ArUco spot.
 Port of hand_pose_navigation/sorting_app.py onto academy/grasp_pipeline.py
 (sdk_wrapper.G1 only).  As in the original:
 
-  - Two configurable ArUco drop-off patterns (dictionary, single marker or
-    grid board, first marker ID, marker size, grid rows/cols/separation,
+  - Two configurable ArUco drop-off patterns (dictionary, grid rows/cols
+    -- 1 x 1 is a single marker -- first marker ID, marker size, separation,
     release height).  Each pattern's pose comes from solvePnP over whichever
     of its markers are visible; the drop point is the pattern centre offset
     along its upward normal by the release height.
@@ -86,7 +86,6 @@ VIEWS = ("sort", "rgb", "depth", "segmentation", "desk-obstacles")
 class PatternConfig:
     name: str
     dictionary: str
-    layout: str  # "single" | "grid"
     first_id: int
     marker_length_m: float
     rows: int
@@ -95,12 +94,17 @@ class PatternConfig:
     release_height_m: float
 
     @property
+    def layout(self) -> str:
+        # A 1 x 1 grid is a single marker; there is no separate layout switch.
+        return "single" if self.rows * self.cols == 1 else "grid"
+
+    @property
     def grid_rows(self) -> int:
-        return 1 if self.layout == "single" else self.rows
+        return self.rows
 
     @property
     def grid_cols(self) -> int:
-        return 1 if self.layout == "single" else self.cols
+        return self.cols
 
     @property
     def marker_count(self) -> int:
@@ -165,8 +169,10 @@ class ObjectConfig:
 
 
 DEFAULT_PATTERNS = [
-    PatternConfig("Spot A", "DICT_4X4_50", "single", 10, 0.050, 2, 2, 0.010, DEFAULT_RELEASE_HEIGHT_M),
-    PatternConfig("Spot B", "DICT_4X4_50", "single", 11, 0.050, 2, 2, 0.010, DEFAULT_RELEASE_HEIGHT_M),
+    # aruco_3x4_30mm_6x6_250 / aruco_3x4_30mm_7x7_250: 3 columns x 4 rows of
+    # 30 mm markers, 6 mm gaps, ids 0-11 (recognition_app_v4's board geometry).
+    PatternConfig("Spot A", "DICT_6X6_250", 0, 0.030, 4, 3, 0.006, DEFAULT_RELEASE_HEIGHT_M),
+    PatternConfig("Spot B", "DICT_7X7_250", 0, 0.030, 4, 3, 0.006, DEFAULT_RELEASE_HEIGHT_M),
 ]
 DEFAULT_OBJECTS = [
     ObjectConfig("cube", "red", 0.10, 1, 0, ["cube"]),
@@ -194,7 +200,6 @@ def parse_pattern(values: Dict[str, Any], fallback: PatternConfig, letter: str) 
     pattern = PatternConfig(
         name=str(values.get("name") or f"Spot {letter}").strip() or f"Spot {letter}",
         dictionary=values.get("dict") if values.get("dict") in ARUCO_DICTIONARIES else fallback.dictionary,
-        layout=values.get("layout") if values.get("layout") in ("single", "grid") else "single",
         first_id=max(0, _to_int(values.get("id"), fallback.first_id)),
         marker_length_m=_to_float(values.get("size"), fallback.marker_length_m * 1000.0) / 1000.0,
         rows=max(1, _to_int(values.get("rows"), fallback.rows)),
@@ -972,6 +977,7 @@ class Sorter:
             "stop": (stop_sort, "Stopping sort; holding the current arm pose..."),
             "retract": (self.p.run_retract_stable_pose, "Retracting right arm to the stable pose..."),
             "hand_open": (lambda: self.p.run_hand_action("open", SORT_ARM), "Opening right hand..."),
+            "hand_close": (lambda: self.p.run_hand_action("close", SORT_ARM), "Closing right hand..."),
             "release_arms": (self.p.run_release_arms, "Releasing arms..."),
             "engage_arms": (self.p.run_engage_arms, "Re-engaging arms..."),
             "damp": (self.p.run_damp, "Damping..."),

@@ -143,6 +143,8 @@ class ArmIK:
             # the redundant wrist joints (especially wrist pitch) find the
             # reachable position rather than forcing a brittle 6-D pose.
             return self._solve_position_dls(T_base_desired, q)
+        elif self.solver == "level_dls":
+            return self._solve_level_dls(T_base_desired, q)
         elif self.solver == "scipy":
             return self._solve_scipy(T_base_desired, q)
         elif self.solver == "pin":
@@ -230,6 +232,60 @@ class ArmIK:
             "success": False,
             "error_pos_m": err_pos,
             "error_rot_rad": 0.0,
+            "iterations": self.max_iter,
+        }
+
+    def _solve_level_dls(
+        self, T_des: np.ndarray, q: np.ndarray
+    ) -> Tuple[Optional[np.ndarray], Dict]:
+        """DLS on position plus the palm normal (EE z axis); yaw is free.
+
+        The Dex3 finger joints all rotate about the palm z axis, so the
+        fingers close in the palm x-y plane.  Aligning palm z with T_des's
+        z axis (world up for a side grasp) keeps that closing plane parallel
+        to the table, while rotation about the axis stays free for reach.
+        error_rot_rad is the angle between the two axes.
+        """
+        lam = self.damping
+        target_pos = T_des[:3, 3]
+        z_des = T_des[:3, 2] / max(1e-9, float(np.linalg.norm(T_des[:3, 2])))
+
+        def errors(T_cur: np.ndarray) -> Tuple[np.ndarray, np.ndarray, float, float]:
+            pos_err = target_pos - T_cur[:3, 3]
+            z_cur = T_cur[:3, 2]
+            axis_err = np.cross(z_cur, z_des)  # rotates z_cur onto z_des
+            angle = float(np.arccos(np.clip(np.dot(z_cur, z_des), -1.0, 1.0)))
+            return pos_err, axis_err, float(np.linalg.norm(pos_err)), angle
+
+        for iteration in range(self.max_iter):
+            T_cur = self._fk.compute_arm(q)
+            pos_err, axis_err, err_pos, err_rot = errors(T_cur)
+            if err_pos < self.tol_pos_m and err_rot < self.tol_rot_rad:
+                return q, {
+                    "success": True,
+                    "error_pos_m": err_pos,
+                    "error_rot_rad": err_rot,
+                    "iterations": iteration,
+                }
+
+            J = _numerical_jacobian(q, self._fk)
+            # Drop the angular-rate component about the palm axis: yaw is free.
+            z_cur = T_cur[:3, 2]
+            J_rot = (np.eye(3) - np.outer(z_cur, z_cur)) @ J[3:, :]
+            J_level = np.vstack([J[:3, :], J_rot])
+            err = np.concatenate([pos_err, axis_err])
+            dq = J_level.T @ np.linalg.solve(J_level @ J_level.T + lam**2 * np.eye(6), err)
+
+            norm_dq = float(np.linalg.norm(dq))
+            if norm_dq > 0.3:
+                dq *= 0.3 / norm_dq
+            q = _clamp(q + dq, self._limits)
+
+        _pos, _axis, err_pos, err_rot = errors(self._fk.compute_arm(q))
+        return None, {
+            "success": False,
+            "error_pos_m": err_pos,
+            "error_rot_rad": err_rot,
             "iterations": self.max_iter,
         }
 

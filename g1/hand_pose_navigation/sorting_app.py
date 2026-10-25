@@ -7,8 +7,8 @@ capture + vision perception threads, Unitree control robot, extend/grab
 pipeline (DirectHandPoseNav + tactile-guided close), lift to the WBC stable
 pose, and the safety actions are all reused unchanged.  This app adds:
 
-  - Two configurable ArUco drop-off patterns (dictionary, single marker or
-    grid board, first marker ID, marker size, grid rows/cols/separation,
+  - Two configurable ArUco drop-off patterns (dictionary, grid rows/cols
+    -- 1 x 1 is a single marker -- first marker ID, marker size, separation,
     release height).  Each pattern's pose is estimated with solvePnP from
     whichever of its markers are visible; the drop point is the pattern
     centre, offset along its upward normal by the release height.
@@ -125,7 +125,6 @@ IGNORED_COLOR_BGR = (150, 150, 150)
 class PatternConfig:
     name: str
     dictionary: str
-    layout: str  # "single" | "grid"
     first_id: int
     marker_length_m: float
     rows: int
@@ -134,12 +133,17 @@ class PatternConfig:
     release_height_m: float
 
     @property
+    def layout(self) -> str:
+        # A 1 x 1 grid is a single marker; there is no separate layout switch.
+        return "single" if self.rows * self.cols == 1 else "grid"
+
+    @property
     def grid_rows(self) -> int:
-        return 1 if self.layout == "single" else self.rows
+        return self.rows
 
     @property
     def grid_cols(self) -> int:
-        return 1 if self.layout == "single" else self.cols
+        return self.cols
 
     @property
     def marker_count(self) -> int:
@@ -204,8 +208,10 @@ class ObjectConfig:
 
 
 DEFAULT_PATTERNS = [
-    PatternConfig("Spot A", "DICT_4X4_50", "single", 10, 0.050, 2, 2, 0.010, DEFAULT_RELEASE_HEIGHT_M),
-    PatternConfig("Spot B", "DICT_4X4_50", "single", 11, 0.050, 2, 2, 0.010, DEFAULT_RELEASE_HEIGHT_M),
+    # aruco_3x4_30mm_6x6_250 / aruco_3x4_30mm_7x7_250: 3 columns x 4 rows of
+    # 30 mm markers, 6 mm gaps, ids 0-11 (recognition_app_v4's board geometry).
+    PatternConfig("Spot A", "DICT_6X6_250", 0, 0.030, 4, 3, 0.006, DEFAULT_RELEASE_HEIGHT_M),
+    PatternConfig("Spot B", "DICT_7X7_250", 0, 0.030, 4, 3, 0.006, DEFAULT_RELEASE_HEIGHT_M),
 ]
 DEFAULT_OBJECTS = [
     ObjectConfig("cube", "red", 0.10, 1, 0, ["cube"]),
@@ -276,11 +282,9 @@ def _to_float(value, default: float) -> float:
 def _parse_pattern(values: Dict[str, Any], fallback: PatternConfig, letter: str) -> Tuple[PatternConfig, List[str]]:
     errors: List[str] = []
     dictionary = values.get("dict") if values.get("dict") in ARUCO_DICTIONARIES else fallback.dictionary
-    layout = values.get("layout") if values.get("layout") in ("single", "grid") else "single"
     pattern = PatternConfig(
         name=str(values.get("name") or f"Spot {letter}").strip() or f"Spot {letter}",
         dictionary=dictionary,
-        layout=layout,
         first_id=max(0, _to_int(values.get("id"), fallback.first_id)),
         marker_length_m=_to_float(values.get("size"), fallback.marker_length_m * 1000.0) / 1000.0,
         rows=max(1, _to_int(values.get("rows"), fallback.rows)),
@@ -1091,6 +1095,12 @@ def _run_hand_open() -> None:
     rec._run_hand_action("open")
 
 
+def _run_hand_close() -> None:
+    with rec.STATE.lock:
+        rec.STATE.arm_override = SORT_ARM
+    rec._run_hand_action("close")
+
+
 # ---------------------------------------------------------------------------
 # Drawing
 # ---------------------------------------------------------------------------
@@ -1161,7 +1171,7 @@ def _draw_sort_view(image: np.ndarray, snap: Dict[str, Any], entries: List[Dict[
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.title = "G1 Sorting"
 
-PATTERN_FIELDS = ("name", "dict", "layout", "id", "size", "rows", "cols", "sep", "height")
+PATTERN_FIELDS = ("name", "dict", "id", "size", "rows", "cols", "sep", "height")
 OBJECT_FIELDS = ("prompt", "color", "mass", "count", "zone")
 _SMALL = {"fontSize": "12px"}
 
@@ -1184,10 +1194,6 @@ def _pattern_card(i: int) -> dbc.Card:
                     style={"color": "#111", "fontSize": "12px"},
                 )),
             ]),
-            dbc.RadioItems(
-                id=f"pat{i}-layout", value=p.layout, inline=True, className="mb-2", style=_SMALL,
-                options=[{"label": "Single marker", "value": "single"}, {"label": "Grid board", "value": "grid"}],
-            ),
             dbc.Row([
                 _labeled("Marker ID (first ID for a grid)", dbc.Input(
                     id=f"pat{i}-id", type="number", min=0, step=1, value=p.first_id, debounce=True, size="sm")),
@@ -1196,7 +1202,7 @@ def _pattern_card(i: int) -> dbc.Card:
                     debounce=True, size="sm")),
             ]),
             dbc.Row([
-                _labeled("Rows", dbc.Input(
+                _labeled("Rows (1 x 1 = single marker)", dbc.Input(
                     id=f"pat{i}-rows", type="number", min=1, step=1, value=p.rows, debounce=True, size="sm"), 4),
                 _labeled("Columns", dbc.Input(
                     id=f"pat{i}-cols", type="number", min=1, step=1, value=p.cols, debounce=True, size="sm"), 4),
@@ -1309,6 +1315,7 @@ app.layout = dbc.Container([
                 dbc.ButtonGroup([
                     dbc.Button("Retract to stable pose", id="retract-stable-btn", color="secondary"),
                     dbc.Button("Open hand", id="hand-open-btn", color="info"),
+                    dbc.Button("Close hand", id="hand-close-btn", color="info"),
                     dbc.Button("Release arms", id="release-arms-btn", color="warning"),
                     dbc.Button("Re-engage arms", id="unrelease-arms-btn", color="primary"),
                     dbc.Button("Damp", id="damp-btn", color="danger"),
@@ -1373,18 +1380,6 @@ def _update_config(*values):
         for i, o in enumerate(objects)
     ]
     return html.Div([html.Div(line) for line in lines], className="text-success")
-
-
-for _i in range(PATTERN_COUNT):
-    @app.callback(
-        Output(f"pat{_i}-rows", "disabled"),
-        Output(f"pat{_i}-cols", "disabled"),
-        Output(f"pat{_i}-sep", "disabled"),
-        Input(f"pat{_i}-layout", "value"),
-    )
-    def _toggle_grid_fields(layout):
-        single = layout != "grid"
-        return single, single, single
 
 
 @app.callback(
@@ -1509,6 +1504,7 @@ def _refresh(_n, view_name):
     Input("stop-sort-btn", "n_clicks"),
     Input("retract-stable-btn", "n_clicks"),
     Input("hand-open-btn", "n_clicks"),
+    Input("hand-close-btn", "n_clicks"),
     Input("release-arms-btn", "n_clicks"),
     Input("unrelease-arms-btn", "n_clicks"),
     Input("damp-btn", "n_clicks"),
@@ -1524,6 +1520,7 @@ def _buttons(*_clicks):
         "stop-sort-btn": (_run_stop_sort, "Stopping sort; holding the current arm pose..."),
         "retract-stable-btn": (rec._run_retract_stable_pose, "Retracting right arm to stable pose..."),
         "hand-open-btn": (_run_hand_open, "Opening right hand..."),
+        "hand-close-btn": (_run_hand_close, "Closing right hand..."),
         "release-arms-btn": (rec._run_release_arms, "Releasing arms…"),
         "unrelease-arms-btn": (rec._run_unrelease_arms, "Re-engaging arms..."),
         "damp-btn": (rec._run_damp, "Damping…"),

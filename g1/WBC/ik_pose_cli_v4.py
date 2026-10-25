@@ -238,6 +238,88 @@ class RemoteStateStream:
                     self.last_received_s = 0.0
                 time.sleep(1.0)
 
+
+class LocoCommandSender:
+    """Send streamed locomotion commands from a worker thread.
+
+    Move/StopMove are blocking RPCs, and the robot's shared LocoClient waits
+    up to 10 s for each reply.  Issued from the control loop, one slow or lost
+    reply froze input handling, so the next stick motion was ignored until
+    that call returned.  The worker only ever sends the newest command (no
+    backlog) on its own LocoClient with a short timeout; a missed reply costs
+    at most ``timeout_s`` and the next refresh simply goes out.
+    """
+
+    def __init__(self, robot: Any, move_fn: Any, stop_fn: Any, timeout_s: float = 0.3) -> None:
+        self._move_fn = move_fn
+        self._stop_fn = stop_fn
+        self._client: Any = None
+        try:
+            from unitree_sdk2py.g1.loco.g1_loco_client import LocoClient
+            if isinstance(getattr(robot, "_client", None), LocoClient):
+                client = LocoClient()
+                client.SetTimeout(float(timeout_s))
+                client.Init()
+                self._client = client
+        except Exception:
+            self._client = None
+        self._cond = threading.Condition()
+        self._pending: Optional[Tuple[float, float]] = None
+        self._running = True
+        self._error = ""
+        self._thread = threading.Thread(target=self._run, name="loco-cmd", daemon=True)
+        self._thread.start()
+
+    def move(self, vx: float, vyaw: float) -> None:
+        self._submit((float(vx), float(vyaw)))
+
+    def stop(self) -> None:
+        self._submit((0.0, 0.0))
+
+    def _submit(self, cmd: Tuple[float, float]) -> None:
+        with self._cond:
+            self._pending = cmd
+            self._cond.notify()
+
+    def take_error(self) -> str:
+        """The latest send failure, reported once."""
+        with self._cond:
+            error, self._error = self._error, ""
+        return error
+
+    def close(self, timeout: float = 1.0) -> None:
+        with self._cond:
+            self._running = False
+            self._cond.notify()
+        if self._thread is not threading.current_thread():
+            self._thread.join(timeout=timeout)
+
+    def _send(self, vx: float, vyaw: float) -> int:
+        if self._client is not None:
+            # SetVelocity with a 1 s duration == Move(continous_move=False);
+            # all zeros == StopMove.  Unlike Move it returns the RPC code.
+            return int(self._client.SetVelocity(vx, 0.0, vyaw, 1.0) or 0)
+        return int((self._move_fn(vx, vyaw) if vx or vyaw else self._stop_fn()) or 0)
+
+    def _run(self) -> None:
+        while True:
+            with self._cond:
+                while self._pending is None and self._running:
+                    self._cond.wait()
+                if self._pending is None:
+                    return
+                vx, vyaw = self._pending
+                self._pending = None
+            try:
+                rc = self._send(vx, vyaw)
+                error = f"rc={rc}" if rc != 0 else ""
+            except Exception as exc:
+                error = str(exc)
+            if error:
+                with self._cond:
+                    self._error = error
+
+
 # ── Rotation helpers ──────────────────────────────────────────────────────────
 
 def _Rx(a: float) -> np.ndarray:
@@ -556,6 +638,11 @@ class IKPoseCLI:
         ensure_channel_factory_initialized(self.domain_id, self.iface)
         self.robot = Robot(iface=self.iface, domain_id=self.domain_id,
                            auto_start_sensors=False)
+        self.loco = LocoCommandSender(
+            self.robot,
+            move_fn=lambda vx, vyaw: self.robot.loco_move(vx, 0.0, vyaw, continuous=False),
+            stop_fn=self.robot.stop_moving,
+        )
         self.state_sub = UpperBodyStateSubscriber(UPPER_BODY_JOINTS)
         self.pub = ArmSDKPublisher()
         self.hand_controllers: Dict[str, Dex3HandController] = {}
@@ -1126,10 +1213,7 @@ class IKPoseCLI:
             # Flush the active locomotion command once when the stream drops.
             # Do not repeatedly enqueue zero commands while it is offline.
             if not self._remote_loco_stopped:
-                try:
-                    self.robot.stop_moving()
-                except Exception as exc:
-                    self.status = f"Remote stop error: {exc}"
+                self.loco.stop()
                 self._remote_loco_stopped = True
         axes = state.get("axes", [])
         buttons = [bool(v) for v in state.get("buttons", [])]
@@ -1215,16 +1299,11 @@ class IKPoseCLI:
             # every 0.2 s, so a lost stop or a stalled loop cannot leave the
             # robot walking on an old command.
             if changed or now - self._remote_last_loco_s >= 0.2:
-                try:
-                    rc = self.robot.loco_move(vx, 0.0, vyaw, continuous=False)
-                    if rc != 0:
-                        self.status = f"Remote locomotion rc={rc}"
-                    self._remote_last_loco_s = now
-                    self._remote_loco_was_active = True
-                    self._remote_last_loco_cmd = loco_cmd
-                    self._remote_loco_stopped = False
-                except Exception as exc:
-                    self.status = f"Remote locomotion error: {exc}"
+                self.loco.move(vx, vyaw)
+                self._remote_last_loco_s = now
+                self._remote_loco_was_active = True
+                self._remote_last_loco_cmd = loco_cmd
+                self._remote_loco_stopped = False
         else:
             if self._remote_loco_was_active:
                 # Stick released: repeat StopMove for a short window instead
@@ -1233,12 +1312,12 @@ class IKPoseCLI:
                 self._remote_stop_until_s = now + 0.6
                 self._remote_last_loco_s = 0.0
             if now <= self._remote_stop_until_s and now - self._remote_last_loco_s >= 0.15:
-                try:
-                    self.robot.stop_moving()
-                    self._remote_last_loco_s = now
-                    self._remote_last_loco_cmd = loco_cmd
-                except Exception as exc:
-                    self.status = f"Remote stop error: {exc}"
+                self.loco.stop()
+                self._remote_last_loco_s = now
+                self._remote_last_loco_cmd = loco_cmd
+        loco_error = self.loco.take_error()
+        if loco_error:
+            self.status = f"Remote locomotion error: {loco_error}"
         self._remote_prev_buttons = buttons
 
     def _publish_hand_targets_once(self) -> None:
@@ -1952,6 +2031,9 @@ class IKPoseCLI:
             self.remote.close()
         except Exception:
             pass
+        loco = getattr(self, "loco", None)
+        if loco is not None:
+            loco.close()
         try:
             self.robot.stop_moving()
         except Exception:
