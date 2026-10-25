@@ -122,16 +122,35 @@ WBC_RIGHT_ARM_FORWARD_POSE_NAME = "right arm forward"
 # to the visible palm centre.
 _PALM_VISUAL_OFFSET_M = 0.045
 
-# Dex3 tactile raw values: 30000 is the "no reading" sentinel, >=100000 a
-# confirmed contact.
+# Dex3 tactile raw values: 30000 is the "no reading" sentinel.  The Unitree
+# docs call >=100000 a contact, but these pads idle at ~101000, so contact
+# and the grip target start at 103000.
 TACTILE_INVALID_VALUE = 30000.0
-TACTILE_VALID_THRESHOLD = 100000.0
-DEFAULT_TACTILE_BASE_TARGET_RAW = 120000.0
+TACTILE_VALID_THRESHOLD = 103000.0
+DEFAULT_TACTILE_BASE_TARGET_RAW = 103000.0
 DEFAULT_TACTILE_PER_KG_RAW = 60000.0
 DEFAULT_TACTILE_MAX_TARGET_RAW = 450000.0
 DEFAULT_TACTILE_CLOSE_STEPS = 10
 DEFAULT_TACTILE_STEP_HOLD_S = 0.12
 DEFAULT_TACTILE_STEP_SETTLE_S = 0.06
+# kp 1.0-1.4 cannot track the close steps even in free air (fingers lag the
+# command by more than the stall threshold), so the close runs at the
+# recovery-move stiffness.
+DEFAULT_TACTILE_CLOSE_KP = 1.8
+DEFAULT_TACTILE_CLOSE_KD = 0.08
+DEFAULT_TACTILE_CLOSE_TAU = 0.06
+# A suspected finger stall is re-checked while the step target keeps being
+# commanded; tracking lag clears within this window, a blocked finger does not.
+DEX3_GRIP_STALL_CONFIRM_S = 0.25
+DEX3_GRIP_STREAM_DT_S = 0.02
+# A confirmed stall with a stalled finger measured at least this far
+# (open=0, closed=1) means the fingers met the object (the pads often miss
+# side contact): hold there with a small squeeze instead of releasing.  The
+# squeeze stays below DEX3_STALL_ERROR_RAD so no stall detector fires on the
+# hold.  Stalls right at the open pose are treated as jams.
+DEX3_GRIP_CONTACT_MIN_CLOSURE = 0.10
+DEX3_GRIP_SQUEEZE_RAD = 0.10
+DEX3_GRIP_SQUEEZE_HOLD_S = 0.4
 
 # Post-grasp lift stiffness/speed/duration scale with the object mass.
 DEFAULT_LIFT_KP = 30.0
@@ -1528,6 +1547,48 @@ class GraspPipeline:
                     self.log(f"[grasp] hand_{action}({side}) still off target (max_err={retry_err:.3f}rad).")
         return feedback
 
+    def stream_hand_pose(self, side: str, target: List[float], duration_s: float) -> None:
+        """Command `target` for `duration_s` without the SDK's stall release."""
+        deadline = time.monotonic() + max(0.0, duration_s)
+        while True:
+            self.robot.write_dex3_pose(side, target, kp=DEFAULT_TACTILE_CLOSE_KP, kd=DEFAULT_TACTILE_CLOSE_KD,
+                                       tau=DEFAULT_TACTILE_CLOSE_TAU)
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(DEX3_GRIP_STREAM_DT_S)
+
+    def confirm_hand_stall(self, side: str, target: List[float], start: Optional[List[float]]) -> List[str]:
+        """Keep commanding `target` and return the joints still stalled after
+        DEX3_GRIP_STALL_CONFIRM_S; a finger that was only lagging catches up."""
+        stalled = self.hand_stalled_joints(side, target, start)
+        deadline = time.monotonic() + DEX3_GRIP_STALL_CONFIRM_S
+        while stalled and time.monotonic() < deadline:
+            self.stream_hand_pose(side, target, 0.0)
+            time.sleep(DEX3_GRIP_STREAM_DT_S)
+            stalled = self.hand_stalled_joints(side, target, start)
+        return stalled
+
+    def hold_grip_contact(self, side: str, stalled: List[str], open_t: List[float],
+                          closed_t: List[float]) -> Optional[Tuple[float, List[float]]]:
+        """Hold the fingers where they met the object, squeezed slightly
+        further toward closed; None when no stalled finger has closed far
+        enough for the stall to be contact rather than a jam."""
+        snap = self.hand_snapshot(side)
+        if snap is None:
+            return None
+        try:
+            actual = [float(snap["positions"][n]) for n in HAND_JOINT_NAMES]
+        except (KeyError, TypeError, ValueError):
+            return None
+        closure = max([(cur - o) / (c - o) for name, cur, o, c in zip(HAND_JOINT_NAMES, actual, open_t, closed_t)
+                       if name in stalled and abs(c - o) > 1e-3] or [0.0])
+        if closure < DEX3_GRIP_CONTACT_MIN_CLOSURE:
+            return None
+        squeeze = [cur + max(-DEX3_GRIP_SQUEEZE_RAD, min(DEX3_GRIP_SQUEEZE_RAD, closed - cur))
+                   for cur, closed in zip(actual, closed_t)]
+        self.stream_hand_pose(side, squeeze, DEX3_GRIP_SQUEEZE_HOLD_S)
+        return closure, squeeze
+
     def run_hand_action(self, action: str, side: str = "right") -> None:
         try:
             feedback = self.send_hand_action(action, side)
@@ -1570,7 +1631,8 @@ class GraspPipeline:
             target_positions = [o + fraction * (c - o) for o, c in zip(open_t, closed_t)]
             try:
                 command = self.robot.hand_pose(target_positions, hand=side, hold_s=DEFAULT_TACTILE_STEP_HOLD_S,
-                                               rate_hz=50.0, kp=1.4, kd=0.06, tau=0.06, ramp_s=0.06)
+                                               rate_hz=50.0, kp=DEFAULT_TACTILE_CLOSE_KP, kd=DEFAULT_TACTILE_CLOSE_KD,
+                                               tau=DEFAULT_TACTILE_CLOSE_TAU, ramp_s=0.06)
             except Exception as exc:
                 self.log(f"[grasp] Tactile-guided close step {step} command failed: {exc}")
                 break
@@ -1588,19 +1650,48 @@ class GraspPipeline:
                 with self.lock:
                     self.last_grip_result = dict(result)
                 return result
-            # Without tactile confirmation, a finger that stopped well short
-            # of its command is jammed: release it instead of pushing harder.
-            stalled = self.hand_stalled_joints(side, target_positions, close_start)
-            if isinstance(command, dict) and command.get("reason") == "collision_or_stall" and not stalled:
+            # A finger short of its step target may only be lagging: re-check
+            # while still commanding the step before calling it a stall.
+            sdk_stall = isinstance(command, dict) and command.get("reason") == "collision_or_stall"
+            stalled = self.confirm_hand_stall(side, target_positions, close_start)
+            if sdk_stall and not stalled:
                 stalled = [str(command.get("joint"))]
-            if stalled:
-                self.release_stalled_fingers(side, stalled, "tactile-guided close")
-                result = {"success": False, "method": "dex3_stall_release", "reason": "collision_or_stall", "side": side,
-                          "stalled_joints": stalled, "fraction": fraction, "pressure": pressure,
-                          "target_pressure": target_pressure, "mass_kg": mass_kg}
+            if not stalled:
+                continue
+            pressure = self.max_tactile_pressure(side)
+            if pressure is not None and pressure >= target_pressure:
+                self.log(f"[grasp] Grip target reached ({side}) while confirming a stall: fraction={fraction:.2f} "
+                         f"pressure={pressure:.0f} raw.")
+                result = {"success": True, "method": "tactile", "side": side, "fraction": fraction,
+                          "pressure": pressure, "target_pressure": target_pressure, "mass_kg": mass_kg}
                 with self.lock:
                     self.last_grip_result = dict(result)
                 return result
+            # Fingers blocked partway through the close met the object even
+            # when the pads read nothing (side contact): hold the contact
+            # instead of releasing it.  The grasp stays tactile-unverified.
+            hold = self.hold_grip_contact(side, stalled, open_t, closed_t)
+            if hold is not None:
+                closure = hold[0]
+                self.log(f"[grasp] Fingers stopped on the object at fraction={fraction:.2f} closure={closure:.2f} "
+                         f"(stalled joints: {', '.join(stalled)}); holding the contact with a "
+                         f"{DEX3_GRIP_SQUEEZE_RAD:.2f}rad squeeze (pressure={'n/a' if pressure is None else f'{pressure:.0f}'} raw, "
+                         "no tactile confirmation).")
+                result = {"success": True, "method": "stall_contact", "side": side, "stalled_joints": stalled,
+                          "fraction": fraction, "closure": closure, "pressure": pressure, "target_pressure": target_pressure,
+                          "mass_kg": mass_kg}
+                with self.lock:
+                    self.last_grip_result = dict(result)
+                return result
+            # A stall before the fingers could reach the object is a jam:
+            # release it instead of pushing harder.
+            self.release_stalled_fingers(side, stalled, "tactile-guided close")
+            result = {"success": False, "method": "dex3_stall_release", "reason": "collision_or_stall", "side": side,
+                      "stalled_joints": stalled, "fraction": fraction, "pressure": pressure,
+                      "target_pressure": target_pressure, "mass_kg": mass_kg}
+            with self.lock:
+                self.last_grip_result = dict(result)
+            return result
         self.log(f"[grasp] Tactile-guided close reached full closure without hitting target pressure ({side}); "
                  f"last_pressure={last_pressure:.0f} raw target={target_pressure:.0f} raw.")
         # A fully closed hand with no measured contact cannot confirm a grasp.
@@ -1785,7 +1876,7 @@ class GraspPipeline:
             try:
                 grip = self.tactile_guided_hand_close(arm, mass_kg)
                 closed = bool(grip.get("success"))
-                unverified = grip.get("method") == "tactile_full_close_no_contact"
+                unverified = grip.get("method") in ("tactile_full_close_no_contact", "stall_contact")
                 self.log(f"[grasp] Closed {arm} hand: {grip}")
                 if not closed and not unverified:
                     self.log("[grasp] Hand close was unavailable; not lifting.")

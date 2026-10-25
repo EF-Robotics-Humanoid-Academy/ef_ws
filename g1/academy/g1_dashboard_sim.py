@@ -434,7 +434,7 @@ class SimRobot:
         rows = [dict(row) for row in self.services.values()]
         return rows if service is None else next((r for r in rows if r["name"] == service), None)
 
-    def set_service(self, service: str, enabled: bool) -> dict[str, Any]:
+    def set_service(self, service: str, enabled: bool, timeout_s: float | None = None) -> dict[str, Any]:
         row = self.services.get(service)
         if row is None:
             return {"code": 5201}

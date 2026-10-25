@@ -1412,13 +1412,23 @@ class G1:
         code = _result_code(self._robot_state_client().ServiceSwitch(row["name"], bool(enabled)))
         return {"name": row["name"], "previous_status": row.get("status"), "enabled": enabled, "code": code}
 
-    def set_service(self, service, enabled):
+    def set_service(self, service, enabled, timeout_s=None):
         """Like toggle_service(), but sets an explicit on/off state instead
-        of always flipping whatever the current one is."""
+        of always flipping whatever the current one is. `timeout_s` widens
+        the RPC timeout for this switch only -- stopping a service (e.g.
+        dex3_service_*) can take longer than the client's 2 s default."""
         row = self.get_service(service)
         if row is None:
             raise ValueError(f"Unknown service: {service}")
-        code = _result_code(self._robot_state_client().ServiceSwitch(row["name"], bool(enabled)))
+        client = self._robot_state_client()
+        widen = timeout_s is not None and hasattr(client, "SetTimeout")
+        if widen:
+            client.SetTimeout(float(timeout_s))
+        try:
+            code = _result_code(client.ServiceSwitch(row["name"], bool(enabled)))
+        finally:
+            if widen:
+                client.SetTimeout(2.0)
         return {"name": row["name"], "previous_status": row.get("status"), "enabled": bool(enabled), "code": code}
 
     def set_report_freq(self, interval, duration):
@@ -1995,6 +2005,18 @@ class G1:
         dex3._write(targets, kp=kp, kd=kd, tau=tau)
         dex3._last_targets = _clamp_hand(side, targets)
         return {"hand": side, "ok": True, "action": "write_dex3_grip", "percent": float(percent)}
+
+    def write_dex3_pose(self, hand, targets, kp=1.2, kd=0.05, tau=0.05):
+        """Publishes ONE Dex3 command at explicit joint targets (see
+        HAND_JOINT_NAMES for the order) without ramping, blocking or stall
+        release -- the explicit-pose counterpart of write_dex3_grip(), for
+        callers that run their own contact/stall logic (tactile grasping)."""
+        side = _normalize_side(hand)
+        dex3 = self._dex3_hand(side)
+        dex3._stop_release_thread()
+        dex3._write(targets, kp=kp, kd=kd, tau=tau)
+        dex3._last_targets = _clamp_hand(side, targets)
+        return {"hand": side, "ok": True, "action": "write_dex3_pose"}
 
     def hand_pose(self, targets, hand="right", hold_s=0.6, rate_hz=50.0, kp=1.2, kd=0.05, tau=0.05, ramp_s=None):
         """Moves one hand to an explicit list of 7 joint targets (see

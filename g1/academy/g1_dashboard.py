@@ -75,6 +75,11 @@ except ImportError:  # camera views need OpenCV
 
 HERE = g1_cli.HERE
 HEARTBEAT_TIMEOUT_S = 2.5
+# ServiceSwitch RPC timeout, and how long /services keeps polling ServiceList
+# for the new status: stopping a service such as dex3_service_l takes a few
+# seconds, longer than robot_state's 2 s default.
+SERVICE_SWITCH_TIMEOUT_S = 10.0
+SERVICE_VERIFY_S = 8.0
 CONFIRM_TIMEOUT_S = 120.0
 MAX_MESSAGES = 600
 LIVE_CLOUD_TOPICS = ("rt/utlidar/cloud_deskewed", "rt/utlidar/cloud_livox_mid360")
@@ -508,35 +513,39 @@ class Dashboard(G1Console):
         """Same flow as g1_cli's services menu: switch, then verify via ServiceList."""
         self._require_live()
         with self.rpc_lock:
-            result = self.robot.set_service(name, bool(enabled))
+            result = self.robot.set_service(name, bool(enabled), timeout_s=SERVICE_SWITCH_TIMEOUT_S)
             code = int(result["code"])
             if code != 0:
-                message = f"{name} ServiceSwitch returned RPC {code}; status was not assumed to change."
-                self.say("error", message)
-                return {"ok": False, "message": message, "rows": self.service_rows}
+                # A timed-out or rejected switch may still be applied by the
+                # robot (stopping dex3_service takes a few seconds), so keep
+                # verifying against ServiceList instead of showing stale rows.
+                self.say("error", f"{name} ServiceSwitch returned RPC {code}"
+                                  f"{' (timeout)' if code == 3104 else ''}; checking the live status.")
             target_status = 0 if enabled else 1
             verified = None
-            for attempt in range(3):
-                if attempt:
-                    time.sleep(0.25)
+            deadline = time.monotonic() + SERVICE_VERIFY_S
+            while True:
                 try:
                     updated = self.robot.get_service()
                     self.service_rows = updated
                     current = next((item for item in updated if item.get("name") == name), None)
                     if current is not None:
                         verified = current.get("status")
-                    if verified == target_status:
-                        break
                 except Exception:
                     pass
+                if verified == target_status or time.monotonic() >= deadline:
+                    break
+                time.sleep(0.5)
         if name == "ai_sport" and verified in (0, 1):
             self.dev_mode = int(verified) == 1
+        rpc = "" if code == 0 else f" (ServiceSwitch RPC {code})"
         if verified == target_status:
-            message, ok = f"{name} is {'ON' if enabled else 'OFF'} (verified).", True
+            message, ok = f"{name} is {'ON' if enabled else 'OFF'} (verified){rpc}.", True
         elif verified in (0, 1):
-            message, ok = f"{name} is still {'ON' if verified == 0 else 'OFF'} after the switch request.", False
+            message, ok = (f"{name} is still {'ON' if verified == 0 else 'OFF'} {SERVICE_VERIFY_S:.0f}s after the "
+                           f"switch request{rpc}."), False
         else:
-            message, ok = f"{name} switch returned success; refreshed status could not be verified.", False
+            message, ok = f"{name} switch sent{rpc}; refreshed status could not be verified.", False
         self.service_message = message
         self.say("system" if ok else "error", message)
         return {"ok": ok, "message": message, "rows": self.service_rows}

@@ -77,7 +77,7 @@ DEFAULT_SETTINGS = {
     "ll_kd": 1.5,
     "ik_step_m": 0.03,
     "ik_rotation_rad": 0.08,
-    "tactile_threshold": 100000.0,
+    "tactile_threshold": 103000.0,
     "climb_fsm_id": int(os.environ.get("G1_CLIMB_FSM_ID", "812")),
 }
 
