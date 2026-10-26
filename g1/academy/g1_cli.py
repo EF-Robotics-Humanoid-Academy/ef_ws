@@ -69,7 +69,7 @@ DEFAULT_SETTINGS = {
     "robot_volume": 50,
     "voice_language": "en",
     "ai_language": "en",
-    "theme": "amber",
+    "theme": "ef",
     "waist_locked": False,
     "ramping": True,
     "ll_max_joint_speed": 0.45,
@@ -128,7 +128,7 @@ class G1Console:
         self.confirm_queue: queue.Queue[Any] = queue.Queue()
         self.pending_confirmation: Any = None
         self.spinner_index = 0
-        self.theme = "amber"
+        self.theme = "ef"
         self._topic_readers: dict[str, Any] = {}
         self.settings = dict(DEFAULT_SETTINGS)
         try:
@@ -137,9 +137,9 @@ class G1Console:
                 self.settings.update({k: v for k, v in saved.items() if k in DEFAULT_SETTINGS})
         except (OSError, json.JSONDecodeError):
             pass
-        self.theme = self.settings.get("theme", "amber")
-        if self.theme not in ("dark", "light", "ocean", "amber"):
-            self.theme = "amber"
+        self.theme = self.settings.get("theme", "ef")
+        if self.theme not in ("ef", "dark", "light", "ocean", "amber"):
+            self.theme = "ef"
         try:
             self.agent.settings.set("interface.reply_language", self.settings["ai_language"], persist=False)
             self.agent.settings.set("announcements.audio_enabled", bool(self.settings["voice_reply"]), persist=False)
@@ -609,7 +609,7 @@ class G1Console:
             screen.timeout(100)
 
     def open_theme_menu(self) -> None:
-        themes = ["dark", "light", "ocean", "amber"]
+        themes = ["ef", "dark", "light", "ocean", "amber"]
         def choose(index: int) -> None:
             self.theme = themes[index]
             self.settings["theme"] = self.theme
@@ -619,12 +619,14 @@ class G1Console:
         self.open_menu("Theme", themes, choose, "↑/↓ select · Enter apply · Esc back", stay_open=True)
 
     def _init_colors(self) -> None:
-        fg_bg = {"dark": (curses.COLOR_WHITE, curses.COLOR_BLACK),
+        fg_bg = {"ef": (curses.COLOR_WHITE, curses.COLOR_BLACK),
+                 "dark": (curses.COLOR_WHITE, curses.COLOR_BLACK),
                  "light": (curses.COLOR_BLACK, curses.COLOR_WHITE),
                  "ocean": (curses.COLOR_WHITE, curses.COLOR_BLUE),
                  "amber": (curses.COLOR_YELLOW, curses.COLOR_BLACK)}
         foreground, background = fg_bg[self.theme]
-        accent = curses.COLOR_CYAN if self.theme == "ocean" else curses.COLOR_YELLOW if self.theme == "amber" else curses.COLOR_MAGENTA
+        accent = (curses.COLOR_CYAN if self.theme == "ocean" else curses.COLOR_YELLOW if self.theme == "amber"
+                  else curses.COLOR_RED if self.theme == "ef" else curses.COLOR_MAGENTA)
         try:
             curses.init_pair(1, foreground, background)
             curses.init_pair(2, curses.COLOR_CYAN if self.theme != "amber" else curses.COLOR_YELLOW, background)

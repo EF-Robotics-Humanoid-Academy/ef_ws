@@ -40,6 +40,7 @@ from grasp_pipeline import (
     TABLE_COLLISION_MARGIN_M, WAIST_YAW_JOINT_INDEX, Detection, GraspPipeline, base_from_camera, colorize_depth,
     copy_detection, placeholder,
 )
+from hand_pose_navigation.arm_fk import SHOULDER_IN_BASE
 from hand_pose_navigation.segmentation import draw_segmentation_overlay
 from hand_pose_navigation.vision_detector import parse_prompt_to_classes
 
@@ -64,8 +65,15 @@ DEFAULT_RELEASE_HEIGHT_M = DEFAULT_BOARD_PLACE_RELEASE_M
 MIN_RELEASE_HEIGHT_M = TABLE_COLLISION_MARGIN_M
 MAX_RELEASE_HEIGHT_M = 0.30
 PLACE_APPROACH_EXTRA_M = 0.05
-# An object within the pattern's half-diagonal plus this margin lies on it.
-ZONE_MARGIN_M = 0.04
+# The URDF wrist reaches ~0.432 m from the shoulder; placement moves accept
+# 2.5 cm of residual error.  When a spot's centre is farther, the drop point
+# slides toward the robot, staying this far inside the pattern.
+PLACE_MAX_REACH_M = 0.45
+DROP_EDGE_MARGIN_M = 0.015
+# An object whose centre is over the pattern's rectangle, grown by this
+# margin, lies on it.  (A circle of the half-diagonal plus 4 cm also claimed
+# objects standing between two nearby patterns.)
+ZONE_MARGIN_M = 0.015
 # With the waist fixed, a pattern pose stays valid while the arm or the
 # carried object occludes it; how long a remembered pose is trusted.
 PATTERN_MEMORY_S = 300.0
@@ -121,9 +129,10 @@ class PatternConfig:
     def height_m(self) -> float:
         return self.grid_rows * self.marker_length_m + (self.grid_rows - 1) * self.separation_m
 
-    @property
-    def zone_radius_m(self) -> float:
-        return 0.5 * math.hypot(self.width_m, self.height_m) + ZONE_MARGIN_M
+    def contains(self, p_pattern: np.ndarray) -> bool:
+        """Whether a point (pattern frame) lies over the pattern, horizontally."""
+        m = ZONE_MARGIN_M
+        return bool(-m <= float(p_pattern[0]) <= self.width_m + m and -m <= float(p_pattern[1]) <= self.height_m + m)
 
     def marker_object_corners(self, marker_id: int) -> np.ndarray:
         """Pattern-frame corners of one marker in OpenCV corner order: origin at
@@ -175,8 +184,8 @@ DEFAULT_PATTERNS = [
     PatternConfig("Spot B", "DICT_7X7_250", 0, 0.030, 4, 3, 0.006, DEFAULT_RELEASE_HEIGHT_M),
 ]
 DEFAULT_OBJECTS = [
-    ObjectConfig("cube", "red", 0.10, 1, 0, ["cube"]),
-    ObjectConfig("cup", "any", 0.20, 1, 1, ["cup"]),
+    ObjectConfig("coffee cup", "any", 0.20, 1, 0, ["coffee cup"]),
+    ObjectConfig("domol bottle", "any", 0.10, 1, 1, ["domol bottle"]),
 ]
 
 
@@ -323,6 +332,10 @@ class Sorter:
         self._aruco_detectors: Dict[str, Any] = {}
         self._pattern_thread: Optional[threading.Thread] = None
         self.p.correction_candidates = self._correction_candidates
+        # /sort starts at the fastest allowed joint increment and speed.
+        with self.p.lock:
+            self.p.max_joint_step_rad = ABSOLUTE_MAX_JOINT_STEP_RAD
+            self.p.max_joint_speed_rad_s = ABSOLUTE_MAX_JOINT_SPEED_RAD_S
         self._apply_config(list(DEFAULT_PATTERNS), list(DEFAULT_OBJECTS), [])
 
     def _log(self, line: str) -> None:
@@ -551,6 +564,35 @@ class Sorter:
 
     # -- object classification -------------------------------------------------
 
+    def _drop_targets(self, pattern: PatternConfig, centre: np.ndarray,
+                      normal: np.ndarray) -> Tuple[Optional[Tuple[np.ndarray, np.ndarray, float]], float, float]:
+        """Placement hand poses for the drop point nearest the spot centre
+        that the arm reaches (approach and release): (targets or None, shift
+        toward the robot, worst shoulder-to-hand distance)."""
+        toward = np.append(SHOULDER_IN_BASE[SORT_ARM][:2] - centre[:2], 0.0)
+        toward /= max(1e-9, float(np.linalg.norm(toward)))
+        max_shift = max(0.0, 0.5 * min(pattern.width_m, pattern.height_m) - DROP_EDGE_MARGIN_M)
+        reach = float("inf")
+        for shift in np.append(np.arange(0.0, max_shift, 0.01), max_shift):
+            targets = self.p.place_hand_targets(SORT_ARM, centre + toward * shift, normal, pattern.release_height_m,
+                                                PLACE_APPROACH_EXTRA_M)
+            reach = max(self.p.hand_reach_m(SORT_ARM, T[:3, 3]) for T in targets[:2])
+            if reach <= PLACE_MAX_REACH_M:
+                return targets, float(shift), reach
+        return None, max_shift, reach
+
+    def _pattern_hand_reach(self, index: int, pattern: PatternConfig) -> Optional[float]:
+        """Worst shoulder-to-hand distance for placing on a pattern (drop
+        point shifted toward the robot when needed); 0 when reachable."""
+        T_camera_pattern = self._pattern_T_camera(index, require_current_epoch=False)
+        if T_camera_pattern is None:
+            return None
+        with self.p.lock:
+            cam = dict(self.p.camera_extrinsic)
+        centre, normal = self._pattern_drop_geometry(pattern, T_camera_pattern, cam)
+        targets, _shift, reach = self._drop_targets(pattern, centre, normal)
+        return 0.0 if targets is not None else reach
+
     def _scene_snapshot(self) -> Dict[str, Any]:
         p = self.p
         with p.lock:
@@ -567,14 +609,15 @@ class Sorter:
             snap["objects"] = list(self.objects)
         return snap
 
-    def _zone_centres(self, patterns: List[PatternConfig], cam: Dict[str, float]) -> List[Optional[np.ndarray]]:
-        centres: List[Optional[np.ndarray]] = []
-        for i, pattern in enumerate(patterns):
+    def _zone_transforms(self, patterns: List[PatternConfig], cam: Dict[str, float]) -> List[Optional[np.ndarray]]:
+        """Each pattern's pose in base_link (None while it was never seen)."""
+        transforms: List[Optional[np.ndarray]] = []
+        for i, _pattern in enumerate(patterns):
             T = self._pattern_T_camera(i, require_current_epoch=True)
             if T is None:
                 T = self._pattern_T_camera(i, require_current_epoch=False)
-            centres.append(None if T is None else self._pattern_drop_geometry(pattern, T, cam)[0])
-        return centres
+            transforms.append(None if T is None else base_from_camera(cam) @ T)
+        return transforms
 
     def _classify(self, snap: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Assign each detection to an object definition and drop-off zone.
@@ -589,7 +632,7 @@ class Sorter:
         objects: List[ObjectConfig] = snap["objects"]
         patterns: List[PatternConfig] = snap["patterns"]
         T_base_camera = base_from_camera(snap["cam"])
-        centres = self._zone_centres(patterns, snap["cam"])
+        zones = self._zone_transforms(patterns, snap["cam"])
         entries = []
         for det_id, det in sorted(snap["detections"].items()):
             best_obj, best_fraction = None, -1.0
@@ -603,8 +646,9 @@ class Sorter:
                     best_obj, best_fraction = obj_index, fraction
             p_base = (T_base_camera @ det.T_camera_object)[:3, 3]
             zone = None
-            for zone_index, centre in enumerate(centres):
-                if centre is not None and float(np.linalg.norm(p_base[:2] - centre[:2])) <= patterns[zone_index].zone_radius_m:
+            for zone_index, T_base_pattern in enumerate(zones):
+                if T_base_pattern is not None and patterns[zone_index].contains(
+                        np.linalg.solve(T_base_pattern, np.append(p_base, 1.0))):
                     zone = zone_index
                     break
             entries.append({"det": det, "obj": best_obj, "zone": zone, "p_base": p_base, "color_fraction": best_fraction,
@@ -706,13 +750,8 @@ class Sorter:
             self.p.arm_lock.release()
 
     def _abandon_grasp(self) -> None:
-        """Open the hand at the grasp pose and retract to the stable pose."""
-        try:
-            self.p.send_hand_action("open", SORT_ARM)
-        except Exception as exc:
-            self._log(f"Opening hand after rejected grasp failed: {exc}")
-        self.p.clear_hold_flags()
-        self.p.run_retract_stable_pose()
+        """Open the hand at the grasp pose, rise clear of the table and retract to the stable pose."""
+        self.p.run_release_and_retract(SORT_ARM)
 
     def _grab_object(self, obj_index: int, obj: ObjectConfig, det: Detection, options: Dict[str, Any]) -> str:
         """Pick one object and lift it to the WBC stable pose.
@@ -768,15 +807,26 @@ class Sorter:
         with p.lock:
             grasped = p.lift_confirmation_pending and p.holding_object
             unverified = p.lift_unverified
+            grip_method = p.last_grip_result.get("method")
+            blocked = p.last_grab_blocked
         if self.stop_event.is_set():
             return "abort"
+        if blocked:
+            self._log(f"Another object is in the way of {obj.name}; trying the other objects first.")
+            return "failed"
         if not grasped:
             self._log(f"Grab of {obj.name} did not end with a closed hand.")
             return "failed"
-        if unverified and not options["allow_unverified_grasp"]:
+        # Fingers that stalled partway closed met something: lift it and check
+        # whether they are still blocked by the object instead of dropping a
+        # grasp the pads simply did not feel (side contact).
+        check_after_lift = unverified and grip_method == "stall_contact" and not options["allow_unverified_grasp"]
+        if unverified and not options["allow_unverified_grasp"] and not check_after_lift:
             self._log(f"Grasp of {obj.name} is not tactile-verified; releasing and retrying.")
             self._abandon_grasp()
             return "abort" if self.stop_event.is_set() else "failed"
+        if check_after_lift:
+            self._log(f"Grasp of {obj.name} has finger contact but no tactile confirmation; lifting to check it.")
         self._set_phase(f"Lifting {obj.name} to the stable pose")
         p.run_confirm_lift()
         with p.lock:
@@ -785,6 +835,17 @@ class Sorter:
         if not lifted:
             self._log(f"Lift of {obj.name} failed; stopping with the object held. Status: {status}")
             return "abort"
+        if check_after_lift:
+            holds = p.grip_contact_holds(SORT_ARM)
+            if holds is None:
+                self._log(f"Cannot read the Dex3 fingers to check the {obj.name} grasp; stopping with it possibly held.")
+                return "abort"
+            if not holds:
+                self._log(f"{obj.name} is not in the hand after the lift (fingers closed on nothing); retrying.")
+                p.send_hand_action("open", SORT_ARM)
+                p.clear_hold_flags()
+                return "abort" if self.stop_event.is_set() else "failed"
+            self._log(f"Grasp of {obj.name} confirmed after the lift: the fingers are still blocked by it.")
         return "held"
 
     def _place_held_object(self, obj: ObjectConfig, pattern_index: int, pattern: PatternConfig,
@@ -796,7 +857,7 @@ class Sorter:
         try:
             p._busy(f"place on {pattern.name}")
             with p.lock:
-                max_step, max_speed = p.max_joint_step_rad, p.max_joint_speed_rad_s
+                max_speed = p.max_joint_speed_rad_s
                 cam = dict(p.camera_extrinsic)
             start_yaw = options.get("start_waist_yaw")
             if start_yaw is not None:
@@ -812,33 +873,44 @@ class Sorter:
             if T_camera_pattern is None:
                 raise RuntimeError(f"no current pose for {pattern.name}; keep the pattern in camera view")
             centre, normal = self._pattern_drop_geometry(pattern, T_camera_pattern, cam)
-            release = centre + normal * pattern.release_height_m
-            approach = centre + normal * (pattern.release_height_m + PLACE_APPROACH_EXTRA_M)
-            self._log(f"{pattern.name} centre base xyz=({centre[0]:+.3f}, {centre[1]:+.3f}, {centre[2]:+.3f}) m; "
-                      f"release {pattern.release_height_m * 100:.1f} cm above it.")
+            self._log(f"{pattern.name} centre base xyz=({centre[0]:+.3f}, {centre[1]:+.3f}, {centre[2]:+.3f}) m.")
+            # Every placement move runs closed-loop on one continuous hold
+            # (palm level, sag corrected), started before the grasp hold stops.
             with p.nav_lock:
                 nav = p.active_nav
+            p.hold_current_arm_pose(SORT_ARM)
             p.shutdown_nav(nav, "before sort placement")
-            p.stop_active_hold()
+            hold = p.hold_executor
+            if hold is None:
+                raise RuntimeError("could not establish continuous current-pose hold")
             obstacles = p.estimate_obstacles(cam)
-            lift = p.lift_end_effector_z_slowly(SORT_ARM, max_step, max_speed, mass_kg=obj.mass_kg, obstacles=obstacles)
+            lift = p.lift_end_effector_z_with_continuous_executor(SORT_ARM, hold, mass_kg=obj.mass_kg, obstacles=obstacles)
             if not lift.get("success"):
                 raise RuntimeError(f"clearance lift failed: {lift.get('reason')} {lift.get('violations') or ''}")
-            for label, point in ((f"{pattern.name} approach", approach), (f"{pattern.name} release", release)):
+            targets, shift, reach = self._drop_targets(pattern, centre, normal)
+            if targets is None:
+                raise RuntimeError(f"{pattern.name} is out of the right arm's reach (hand {reach:.2f} m from the "
+                                   f"shoulder, max {PLACE_MAX_REACH_M:.2f} m); move it closer")
+            T_approach, T_release, release_h = targets
+            self._log(f"Releasing {obj.name} with the hand {release_h * 100:.1f} cm above {pattern.name}, object "
+                      + (f"{shift * 100:.0f} cm toward the robot from the spot centre (reach)." if shift > 0.0
+                         else "centred over the spot."))
+            for label, T_target in ((f"{pattern.name} approach", T_approach), (f"{pattern.name} release", T_release)):
                 if self.stop_event.is_set():
                     raise RuntimeError("sort stopped")
-                result = p.move_ee_to_position(SORT_ARM, point, max_step, max_speed, obstacles, label)
-                self._log(f"{label} result: success={result.get('success')} reason={result.get('reason', '')}")
+                result = p.move_hand_on_hold(SORT_ARM, hold, T_target, obstacles, label)
+                self._log(f"{label} result: success={result.get('success')} reason={result.get('reason', '')} "
+                          f"pos_err={result.get('pos_err_m', float('nan')):.3f}m")
                 if not result.get("success"):
-                    raise RuntimeError(f"{label} failed: {result.get('reason')}")
+                    raise RuntimeError(f"{label} failed: {result.get('reason')} {result.get('violations') or ''}")
             p.send_hand_action("open", SORT_ARM)
             p.clear_hold_flags()
             self._log(f"Released {obj.name} on {pattern.name}.")
             # Rise straight up before swinging back so the fingers clear the object.
-            retreat = p.move_ee_to_position(SORT_ARM, approach, max_step, max_speed, obstacles, f"{pattern.name} retreat")
+            retreat = p.move_hand_on_hold(SORT_ARM, hold, T_approach, obstacles, f"{pattern.name} retreat")
             if not retreat.get("success"):
                 self._log(f"Retreat above {pattern.name} failed ({retreat.get('reason')}); retracting directly.")
-            stable = p.move_to_wbc_right_arm_forward(max_step, max_speed, obstacles)
+            stable = p.move_to_wbc_right_arm_forward_continuous(hold, max_speed, obstacles)
             self._log(f"Return to WBC stable pose: success={stable.get('success')} reason={stable.get('reason', '')}")
             return True
         except Exception as exc:
@@ -884,6 +956,14 @@ class Sorter:
             for i, pattern in enumerate(patterns):
                 if not self._wait_for_pattern(i, t_check):
                     self._set_phase(f"Sort refused: {pattern.name} ({pattern.describe()}) is not visible")
+                    return
+            for i in sorted({obj.zone for obj in objects}):
+                reach = self._pattern_hand_reach(i, patterns[i])
+                if reach is not None and reach > PLACE_MAX_REACH_M:
+                    self._set_phase(f"Sort refused: {patterns[i].name} is out of the right arm's reach even at its "
+                                    f"nearest edge (hand would be {reach:.2f} m from the shoulder, max "
+                                    f"{PLACE_MAX_REACH_M:.2f} m); move it about {(reach - PLACE_MAX_REACH_M) * 100 + 1:.0f} cm "
+                                    "closer to the robot")
                     return
             if options["center_waist"]:
                 try:
@@ -1128,4 +1208,10 @@ class Sorter:
             is_target = current_target is not None and tuple(current_target[1] or ()) == tuple(det.box)
             cv2.rectangle(out, (x0, y0), (x1, y1), color, 4 if is_target else 2)
             _draw_label(out, f"{text} {det.score:.2f}" + ("  [TARGET]" if is_target else ""), (x0, y0), color)
+        with self.p.lock:
+            cam = dict(self.p.camera_extrinsic)
+        try:
+            self.p.draw_grasp_overlay(out, cam, SORT_ARM)
+        except Exception:
+            pass
         return out

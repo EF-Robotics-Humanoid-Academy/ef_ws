@@ -28,7 +28,7 @@ import time
 from collections import deque
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Callable, Deque, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
@@ -75,14 +75,58 @@ DETECTION_HOLD_S = 1.5
 DEFAULT_GRASP_STANDOFF_M = 0.08
 DEFAULT_VISION_GRASP_LIFT_M = 0.04
 DEFAULT_VISION_TABLE_CLEARANCE_M = 0.14
+# Objects shorter than the clearance above (a coffee cup) put the fingers over
+# the lid: grip this far below the measured object top instead, but keep the
+# hand at least GRASP_MIN_TABLE_CLEARANCE_M above the table.  The grasp
+# approach is checked against GRASP_APPROACH_TABLE_MARGIN_M (just under that
+# floor) instead of TABLE_COLLISION_MARGIN_M.
+GRASP_BELOW_TOP_M = 0.04
+GRASP_MIN_TABLE_CLEARANCE_M = 0.09
+GRASP_APPROACH_TABLE_MARGIN_M = 0.08
+# The hand first reaches the grasp height this far short of the object along
+# the finger direction, then moves straight in, so the fingers never come down
+# onto the object.
+GRASP_PREGRASP_BACKOFF_M = 0.06
+GRASP_PREGRASP_TIMEOUT_S = 60.0
+# ReachabilityChecker rejects a wrist within 0.03 m of the 0.18 m torso
+# cylinder; waypoints (pre-grasp, hover) keep the wrist at least this far from
+# the torso axis, shortening the pre-grasp backoff when needed.
+TORSO_KEEP_OUT_RADIUS_M = 0.23
+# Other objects on the table are obstacles for the grab: each is a vertical
+# cylinder from the table to its measured top; the hand is a chain of spheres
+# from the wrist (hand frame) along the fingers.  When the way to the
+# pre-grasp crosses an obstacle the hand first hovers this far above the
+# tallest one.
+HAND_COLLISION_OFFSETS_M = (0.0, 0.045, 0.09, 0.13)
+HAND_COLLISION_RADIUS_M = 0.04
+OBJECT_OBSTACLE_MARGIN_M = 0.02
+GRASP_HOVER_CLEARANCE_M = 0.05
+# Table objects this close to the target (horizontally) are the target, and
+# those whose visible surface lies this close to the forearm/hand (elbow to
+# fingertips) are the arm itself.
+OBJECT_OBSTACLE_TARGET_GAP_M = 0.04
+OBJECT_OBSTACLE_ARM_GAP_M = 0.08
+# Objects farther than this from the shoulder (horizontally, to their near
+# edge) are out of the hand's reach (0.46 m grasp reach + fingers) and not obstacles.
+OBJECT_OBSTACLE_MAX_REACH_M = 0.60
+TABLE_OBJECTS_WAIT_S = 2.0
+# Sorting-view overlay of the grab plan (BGR); the plan stays visible this
+# long after the grab ends.
+GRAB_PLAN_SHOW_S = 15.0
+EE_COLOR_BGR = (255, 0, 255)
+PLAN_COLOR_BGR = (255, 255, 0)
+BLOCKED_COLOR_BGR = (60, 60, 255)
+OBSTACLE_COLOR_BGR = (0, 140, 255)
+TARGET_COLOR_BGR = (80, 255, 80)
+PATH_CHECK_STEP_M = 0.01
 TABLE_COLLISION_MARGIN_M = 0.10
 TABLE_COLLISION_XY_MARGIN_M = 0.12
 DEFAULT_DIRECT_MAX_REACH_M = 0.52
 DEFAULT_SLOW_GRAB_RATE_HZ = 3.0
 DEFAULT_SLOW_GRAB_TIMEOUT_S = 180.0
-DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.030
+DEFAULT_VISION_GRAB_CONVERGENCE_POS_M = 0.015
 # Pre-grab reach limit for the planned hand target.  The URDF arm reaches at
-# most ~0.432 m from the shoulder, so a target farther than that plus the
+# most ~0.432 m from the shoulder, so a target farther than that plus a
 # vision convergence tolerance (0.030 m) cannot converge: with the 0.52 m
 # executor limit such targets passed the check and the approach IK stalled
 # 5-7 cm short until the timeout.
@@ -92,7 +136,22 @@ GRAB_TARGET_MAX_REACH_M = 0.46
 # table.  IK accepts up to this palm-normal tilt; the approach converges below
 # the second value (yaw is free).
 GRASP_PALM_LEVEL_TOL_RAD = math.radians(6.0)
-GRASP_PALM_LEVEL_CONVERGENCE_RAD = math.radians(10.0)
+GRASP_PALM_LEVEL_CONVERGENCE_RAD = math.radians(4.0)
+# The level IK above returns as soon as it is inside its loose tolerance, so
+# the approach settled ~3-4 cm low and ~6 deg tilted.  It is first solved to
+# these tolerances (falling back to the loose ones), and the remaining
+# gravity sag is removed by a position bias integrated while progress stalls
+# within APPROACH_SAG_ACTIVE_M of the target.
+GRASP_FINE_IK_TOL_POS_M = 0.004
+GRASP_FINE_IK_TOL_ROT_RAD = math.radians(1.0)
+APPROACH_SAG_GAIN = 0.5
+APPROACH_SAG_MAX_M = 0.04
+APPROACH_SAG_ACTIVE_M = 0.06
+# Closed-loop Cartesian moves on the hold executor (lift, placement): re-aim
+# at the measured error for up to this many rounds until within the tolerance.
+HOLD_MOVE_ROUNDS = 4
+HOLD_MOVE_TOL_M = 0.01
+HOLD_MOVE_ACCEPT_M = 0.025
 DEFAULT_VISION_STALL_CLOSE_POS_M = 0.075
 DYNAMIC_TARGET_GATE_M = 0.06
 DYNAMIC_TARGET_FILTER_ALPHA = 0.35
@@ -147,10 +206,16 @@ DEX3_GRIP_STREAM_DT_S = 0.02
 # (open=0, closed=1) means the fingers met the object (the pads often miss
 # side contact): hold there with a small squeeze instead of releasing.  The
 # squeeze stays below DEX3_STALL_ERROR_RAD so no stall detector fires on the
-# hold.  Stalls right at the open pose are treated as jams.
+# hold.  Index/middle joints that had not stalled keep closing to the closed
+# pose so they wrap the object too.  Stalls right at the open pose are
+# treated as jams.
 DEX3_GRIP_CONTACT_MIN_CLOSURE = 0.10
-DEX3_GRIP_SQUEEZE_RAD = 0.10
+DEX3_GRIP_SQUEEZE_RAD = 0.15
 DEX3_GRIP_SQUEEZE_HOLD_S = 0.4
+# After lifting a stall-contact grasp, a stalled finger still at least this
+# far short of its squeeze target is blocked by the object; one that reached
+# the target closed on nothing (the object slipped or the stall was the table).
+DEX3_GRIP_HELD_MIN_ERR_RAD = 0.035
 
 # Post-grasp lift stiffness/speed/duration scale with the object mass.
 DEFAULT_LIFT_KP = 30.0
@@ -162,6 +227,14 @@ LIFT_KD_PER_KG = 0.25
 LIFT_DURATION_PER_KG = 0.35
 MAX_LIFT_DURATION_S = 6.0
 LIFT_SPEED_SLOWDOWN_PER_KG = 0.12
+
+# Depth-based object candidates for the OpenAI detector: connected regions
+# standing this high above the fitted table plane, inside its footprint.
+OBJECT_PROPOSAL_MIN_HEIGHT_M = 0.02
+OBJECT_PROPOSAL_MAX_HEIGHT_M = 0.40
+OBJECT_PROPOSAL_FOOTPRINT_MARGIN_M = 0.05
+OBJECT_PROPOSAL_MIN_AREA_FRAC = 0.0005   # of the image (150 px at 640x480)
+OBJECT_PROPOSAL_PAD_PX = 4
 
 # Perception/camera threads stop this long after the last viewer or task.
 IDLE_STOP_S = 30.0
@@ -176,12 +249,81 @@ class Detection:
     T_camera_object: np.ndarray
     box: Optional[Tuple[int, int, int, int]] = None
     grasp_surface: Optional[GraspSurfaceEstimate] = None
+    # Height of the object's top above its centroid (base frame), from depth.
+    top_offset_m: Optional[float] = None
+
+
+@dataclass
+class TableObject:
+    """Something standing on the table, from depth alone (base frame)."""
+    box: Tuple[int, int, int, int]
+    center_xy: np.ndarray
+    radius_m: float
+    top_z_m: float
+    table_z_m: float
+    # Mean of the visible surface points; on the arm itself when the
+    # "object" is the robot's own hand/forearm over the desk.
+    visible_centroid: Optional[np.ndarray] = None
+
+
+def _draw_overlay_label(image: np.ndarray, text: str, origin: Tuple[int, int], color: Tuple[int, int, int]) -> None:
+    x, y = int(origin[0]), int(origin[1])
+    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 3, cv2.LINE_AA)
+    cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 1, cv2.LINE_AA)
+
+
+def hand_collision_points(T_base_hand: np.ndarray) -> List[np.ndarray]:
+    """Sphere centres from the wrist along the fingers (hand x)."""
+    return [T_base_hand[:3, 3] + T_base_hand[:3, :3] @ np.array([offset, 0.0, 0.0])
+            for offset in HAND_COLLISION_OFFSETS_M]
+
+
+def object_collisions(T_base_hand: np.ndarray, objects: Sequence[TableObject]) -> List[str]:
+    reasons = []
+    for point in hand_collision_points(T_base_hand):
+        for i, obj in enumerate(objects):
+            reach = obj.radius_m + HAND_COLLISION_RADIUS_M + OBJECT_OBSTACLE_MARGIN_M
+            if (float(np.linalg.norm(point[:2] - obj.center_xy)) < reach
+                    and point[2] - HAND_COLLISION_RADIUS_M < obj.top_z_m + OBJECT_OBSTACLE_MARGIN_M):
+                reasons.append(f"hand would hit obstacle {i + 1} at ({obj.center_xy[0]:+.2f}, {obj.center_xy[1]:+.2f}) "
+                               f"top z={obj.top_z_m:.3f}m")
+    return reasons
+
+
+def path_collisions(T_from: np.ndarray, T_to: np.ndarray, objects: Sequence[TableObject]) -> List[str]:
+    """Straight-line hand path (positions interpolated, T_to's orientation)."""
+    if not objects:
+        return []
+    p0, p1 = T_from[:3, 3], T_to[:3, 3]
+    steps = max(1, int(math.ceil(float(np.linalg.norm(p1 - p0)) / PATH_CHECK_STEP_M)))
+    T = T_to.copy()
+    for i in range(steps + 1):
+        T[:3, 3] = p0 + (p1 - p0) * (i / steps)
+        reasons = object_collisions(T, objects)
+        if reasons:
+            return reasons
+    return []
+
+
+def object_top_offset(mask: np.ndarray, depth_m: np.ndarray, K: CameraIntrinsics, R_base_camera: np.ndarray,
+                      centroid_camera: np.ndarray) -> Optional[float]:
+    """Height of the masked object's top (95th percentile) above its
+    centroid, in the base frame's vertical."""
+    ys, xs = np.nonzero(mask)
+    d = depth_m[ys, xs]
+    keep = d > 0.05
+    if int(np.count_nonzero(keep)) < 30:
+        return None
+    xs, ys, d = xs[keep], ys[keep], d[keep].astype(np.float64)
+    pts = np.stack([(xs - K.cx) * d / K.fx, (ys - K.cy) * d / K.fy, d], axis=1)
+    z = pts @ R_base_camera[2]
+    return float(np.percentile(z, 95) - float(R_base_camera[2] @ np.asarray(centroid_camera, dtype=np.float64)))
 
 
 def copy_detection(det: Detection) -> Detection:
     return Detection(id=det.id, label=det.label, source=det.source, score=float(det.score),
                      T_camera_object=det.T_camera_object.copy(), box=None if det.box is None else tuple(det.box),
-                     grasp_surface=det.grasp_surface)
+                     grasp_surface=det.grasp_surface, top_offset_m=det.top_offset_m)
 
 
 def make_transform(xyz: Tuple[float, float, float], rpy: Tuple[float, float, float]) -> np.ndarray:
@@ -249,7 +391,8 @@ def grasp_standoff_for_surface(grasp_surface: Optional[GraspSurfaceEstimate]) ->
     return float(min(MAX_SURFACE_STANDOFF_M, max(DEFAULT_GRASP_STANDOFF_M, surface_standoff)))
 
 
-def stable_vision_object_pose(T_base_object: np.ndarray, table: Optional[TablePlane] = None) -> np.ndarray:
+def stable_vision_object_pose(T_base_object: np.ndarray, table: Optional[TablePlane] = None,
+                              top_offset_m: Optional[float] = None) -> np.ndarray:
     """Synthetic object frame: measured position, robot-side approach, palm
     kept above the table (mask-PCA orientation is too noisy to use)."""
     T = np.eye(4, dtype=np.float64)
@@ -257,6 +400,9 @@ def stable_vision_object_pose(T_base_object: np.ndarray, table: Optional[TablePl
     min_z = pos[2] + DEFAULT_VISION_GRASP_LIFT_M
     if table is not None:
         min_z = max(min_z, float(table.z_base_m) + DEFAULT_VISION_TABLE_CLEARANCE_M)
+        if top_offset_m is not None:
+            below_top = pos[2] + float(top_offset_m) - GRASP_BELOW_TOP_M
+            min_z = max(float(table.z_base_m) + GRASP_MIN_TABLE_CLEARANCE_M, min(min_z, below_top))
     pos[2] = min_z
     z_axis = np.array([-1.0, 0.0, 0.0])
     y_axis = np.array([0.0, 0.0, 1.0])
@@ -280,7 +426,8 @@ def level_grasp_rotation(arm: str, p_object: np.ndarray) -> np.ndarray:
 
 def direct_grasp_hand_pose(det: Detection, T_base_object: np.ndarray, arm: str,
                            obstacles: Optional[Obstacles] = None, fixed_R_base: Optional[np.ndarray] = None) -> np.ndarray:
-    T_object = (stable_vision_object_pose(T_base_object, table=obstacles.table if obstacles is not None else None)
+    T_object = (stable_vision_object_pose(T_base_object, table=obstacles.table if obstacles is not None else None,
+                                          top_offset_m=det.top_offset_m)
                 if det.source == "vision" else T_base_object)
     if fixed_R_base is None and det.source == "vision":
         fixed_R_base = level_grasp_rotation(arm, T_base_object[:3, 3])
@@ -289,6 +436,54 @@ def direct_grasp_hand_pose(det: Detection, T_base_object: np.ndarray, arm: str,
         T_base_hand = T_base_hand.copy()
         T_base_hand[:3, :3] = np.asarray(fixed_R_base, dtype=np.float64)
     return T_base_hand
+
+
+def level_rotation(R: np.ndarray) -> np.ndarray:
+    """R's yaw with the palm normal (z) exactly vertical, as for the grasp."""
+    x = np.array([R[0, 0], R[1, 0], 0.0])
+    norm = float(np.linalg.norm(x))
+    x = x / norm if norm > 1e-6 else np.array([1.0, 0.0, 0.0])
+    z = np.array([0.0, 0.0, 1.0])
+    return np.column_stack([x, np.cross(z, x), z])
+
+
+def palm_tilt_correction(z_target: np.ndarray, z_measured: np.ndarray, max_rad: float = math.radians(12.0)) -> np.ndarray:
+    """Rotation turning the measured palm normal onto the target one (angle
+    capped); pre-multiplied onto an aim pose it cancels the sag tilt."""
+    axis = np.cross(z_measured, z_target)
+    s, c = float(np.linalg.norm(axis)), float(np.dot(z_measured, z_target))
+    angle = min(max_rad, math.atan2(s, c))
+    if s < 1e-9 or angle < 1e-6:
+        return np.eye(3)
+    k = axis / s
+    K = np.array([[0.0, -k[2], k[1]], [k[2], 0.0, -k[0]], [-k[1], k[0], 0.0]])
+    return np.eye(3) + math.sin(angle) * K + (1.0 - math.cos(angle)) * (K @ K)
+
+
+def _status_pos_err(status: Dict[str, Any]) -> float:
+    try:
+        return float(status.get("last_error_pos_m"))
+    except (TypeError, ValueError):
+        return float("inf")
+
+
+def pregrasp_hand_pose(T_base_hand: np.ndarray) -> np.ndarray:
+    """The grasp pose pulled back along the finger direction (hand x), by
+    less than GRASP_PREGRASP_BACKOFF_M when that would bring the wrist
+    within TORSO_KEEP_OUT_RADIUS_M of the torso axis."""
+    T = np.asarray(T_base_hand, dtype=np.float64).copy()
+    forward = T[:3, 0].copy()
+    forward[2] = 0.0
+    norm = float(np.linalg.norm(forward))
+    if norm <= 1e-6:
+        return T
+    forward /= norm
+    grasp_xy = T[:2, 3].copy()
+    backoff = GRASP_PREGRASP_BACKOFF_M
+    while backoff > 0.0 and float(np.linalg.norm(grasp_xy - forward[:2] * backoff)) < TORSO_KEEP_OUT_RADIUS_M:
+        backoff -= 0.005
+    T[:3, 3] -= forward * max(0.0, backoff)
+    return T
 
 
 def extend_arm_forward_joint_waypoints(arm: str) -> List[Tuple[str, np.ndarray]]:
@@ -327,7 +522,8 @@ class ArmExecutor:
 
     def __init__(self, robot: Any, arm: str = "right", kp: float = 60.0, kd: float = 2.0, rate_hz: float = 50.0,
                  safety_gate: bool = True, max_reach_m: float = 0.42, max_joint_step_rad: float = 0.1,
-                 max_joint_speed_rad_s: float = 0.15, read_arm_q: Optional[Callable[[str], Optional[np.ndarray]]] = None) -> None:
+                 max_joint_speed_rad_s: float = 0.15, read_arm_q: Optional[Callable[[str], Optional[np.ndarray]]] = None,
+                 on_takeover: Optional[Callable[[], None]] = None) -> None:
         self.robot = robot
         self.arm = arm
         self.kp = kp
@@ -338,6 +534,10 @@ class ArmExecutor:
         self.max_joint_speed_rad_s = max(0.0, float(max_joint_speed_rad_s))
         self._joint_indices = LEFT_ARM_JOINTS if arm == "left" else RIGHT_ARM_JOINTS
         self._read_arm_q = read_arm_q
+        # Called once a validated execute() is about to publish, so another
+        # publisher (an idle pose hold) stops first: two rt/arm_sdk writers
+        # alternating targets make the joints chatter.
+        self._on_takeover = on_takeover
         # URDF-exact FK for the swept-path obstacle check.
         self._fk = ArmFK(arm=arm, backend="urdf")
         self._checker = ReachabilityChecker(arm=arm, max_reach_m=max_reach_m)
@@ -347,7 +547,8 @@ class ArmExecutor:
         self._target_queue: Optional["queue.Queue[np.ndarray]"] = None
 
     def validate(self, q_arm_desired: np.ndarray, *, T_base_desired: Optional[np.ndarray] = None,
-                 q_arm_start: Optional[np.ndarray] = None, obstacles: Optional[Obstacles] = None) -> Dict:
+                 q_arm_start: Optional[np.ndarray] = None, obstacles: Optional[Obstacles] = None,
+                 objects: Sequence[TableObject] = ()) -> Dict:
         if not self.safety_gate:
             return {"safe": True}
         result = self._checker.check(q_arm_desired, T_base_desired)
@@ -357,6 +558,13 @@ class ArmExecutor:
             sweep = check_swept_path(self._fk, q_arm_start, q_arm_desired, obstacles)
             if not sweep.safe:
                 return {"safe": False, "reason": "obstacle_gate", "violations": sweep.reasons}
+        if objects and q_arm_start is not None:
+            q_start, q_goal = np.asarray(q_arm_start, dtype=np.float64), np.asarray(q_arm_desired, dtype=np.float64)
+            for i in range(9):
+                alpha = i / 8.0
+                reasons = object_collisions(self._fk.compute_arm((1.0 - alpha) * q_start + alpha * q_goal), objects)
+                if reasons:
+                    return {"safe": False, "reason": "object_gate", "violations": [f"[alpha={alpha:.2f}] {reasons[0]}"]}
         return {"safe": True}
 
     def start_continuous(self, rate_hz: Optional[float] = None) -> None:
@@ -426,6 +634,8 @@ class ArmExecutor:
         if not validation.get("safe"):
             return {"success": False, "reason": validation.get("reason"), "violations": validation.get("violations"),
                     "duration_s": 0.0, "steps": 0}
+        if self._on_takeover is not None:
+            self._on_takeover()
         if self._last_command_q is None:
             self._last_command_q = q_arm_start.copy()
         requested_duration_s = max(0.0, float(duration_s))
@@ -510,7 +720,7 @@ class HandApproach:
     _STALL_PROGRESS_TOL_M = 0.001
 
     def __init__(self, pipeline: "GraspPipeline", T_base_hand_desired: np.ndarray, config: Dict[str, Any],
-                 obstacles: Optional[Obstacles]) -> None:
+                 obstacles: Optional[Obstacles], objects: Sequence[TableObject] = ()) -> None:
         arm = config["arm"]
         self.pipeline = pipeline
         self.arm = arm
@@ -521,6 +731,10 @@ class HandApproach:
         self.fk = ArmFK(arm=arm)
         self.ik = ArmIK(arm=arm, solver=config["ik_solver"], tol_pos_m=config["ik_tol_pos_m"],
                         tol_rot_rad=config["ik_tol_rot_rad"])
+        self.ik_fine = (ArmIK(arm=arm, solver="level_dls", tol_pos_m=GRASP_FINE_IK_TOL_POS_M,
+                              tol_rot_rad=GRASP_FINE_IK_TOL_ROT_RAD) if config["ik_solver"] == "level_dls" else None)
+        self._sag_bias = np.zeros(3)
+        self._sag_tilt = np.eye(3)
         self.checker = ReachabilityChecker(arm=arm, max_reach_m=config["max_reach_m"])
         self.executor = ArmExecutor(pipeline.robot, arm=arm, max_reach_m=config["max_reach_m"],
                                     max_joint_step_rad=config["max_joint_step_rad"],
@@ -535,6 +749,7 @@ class HandApproach:
         self.convergence_rot_rad = float(config["convergence_rot_rad"])
         self.timeout_s = float(config["timeout_s"])
         self.static_obstacles = obstacles
+        self.objects: Tuple[TableObject, ...] = tuple(objects)
         self._joint_indices = LEFT_ARM_JOINTS if arm == "left" else RIGHT_ARM_JOINTS
         self._opposite_arm = "left" if arm == "right" else "right"
         self._opposite_fk = ArmFK(arm=self._opposite_arm, backend="urdf")
@@ -631,7 +846,24 @@ class HandApproach:
                              f"increments ({err_history[0]:.4f}m -> {err_history[-1]:.4f}m); "
                              f"delta_xyz=({delta[0]:+.3f},{delta[1]:+.3f},{delta[2]:+.3f}) - aborting.")
                 break
-            q_arm_desired, ik_info = self.ik.solve(T_base_desired, q_init=q_arm_cur)
+            T_ik = T_base_desired
+            if self.ik_fine is not None:
+                settled = len(err_history) >= 2 and abs(err_history[-2] - err_history[-1]) < 0.003
+                if err_pos < APPROACH_SAG_ACTIVE_M and settled:
+                    bias = self._sag_bias + APPROACH_SAG_GAIN * (T_base_desired[:3, 3] - T_base_hand[:3, 3])
+                    norm = float(np.linalg.norm(bias))
+                    self._sag_bias = bias * (APPROACH_SAG_MAX_M / norm) if norm > APPROACH_SAG_MAX_M else bias
+                    z_half = T_base_hand[:3, 2] + T_base_desired[:3, 2]
+                    z_half /= max(1e-9, float(np.linalg.norm(z_half)))
+                    self._sag_tilt = palm_tilt_correction(T_base_desired[:3, 2], z_half) @ self._sag_tilt
+                T_ik = T_base_desired.copy()
+                T_ik[:3, :3] = self._sag_tilt @ T_base_desired[:3, :3]
+                T_ik[:3, 3] += self._sag_bias
+                q_arm_desired, ik_info = self.ik_fine.solve(T_ik, q_init=q_arm_cur)
+                if q_arm_desired is None:
+                    q_arm_desired, ik_info = self.ik.solve(T_ik, q_init=q_arm_cur)
+            else:
+                q_arm_desired, ik_info = self.ik.solve(T_base_desired, q_init=q_arm_cur)
             if q_arm_desired is None:
                 self.status["ik_failures"] += 1
                 p = T_base_desired[:3, 3]
@@ -661,17 +893,21 @@ class HandApproach:
                     torso_z=so.torso_z, self_collision_radius_m=so.self_collision_radius_m,
                     table_margin_m=so.table_margin_m, table_xy_margin_m=so.table_xy_margin_m,
                 )
-            validation = self.executor.validate(q_next, T_base_desired=T_base_desired, q_arm_start=q_start, obstacles=obstacles)
+            validation = self.executor.validate(q_next, T_base_desired=T_base_desired, q_arm_start=q_start,
+                                                obstacles=obstacles, objects=self.objects)
             if not validation.get("safe"):
                 self.status["safety_rejections"] += 1
-                label = "[Step 8b] Obstacle in swept path" if validation.get("reason") == "obstacle_gate" else "[Step 9] Command rejected"
+                label = {"obstacle_gate": "[Step 8b] Obstacle in swept path",
+                         "object_gate": "[Step 8c] Object in swept path"}.get(validation.get("reason"),
+                                                                              "[Step 9] Command rejected")
                 self._record(f"{label}: {validation.get('violations') or validation.get('reason')}")
                 self._sleep(dt, t0)
                 continue
             self.executor.submit_target(q_next)
             q_arm_commanded = q_next.copy()
             self._record(f"[Step 10] it={self.status['iteration']:4d}  pos_err={err_pos:.4f}m  "
-                         f"rot_err={err_rot:.3f}rad  ik_iter={ik_info['iterations']}")
+                         f"rot_err={err_rot:.3f}rad  ik_iter={ik_info['iterations']}"
+                         + (f"  sag_bias={np.linalg.norm(self._sag_bias) * 100:.1f}cm" if self.ik_fine is not None else ""))
             self._sleep(dt, t0)
 
     @staticmethod
@@ -793,10 +1029,11 @@ class GraspPipeline:
 
     def __init__(self, robot: Any, rgbd_endpoint: str, vision_model: str = "yolov8s-world.pt",
                  stable_pose_file: Path = WBC_SAVED_POSES_PATH, perception_rate_hz: float = 3.0,
-                 camera_rate_hz: float = 15.0) -> None:
+                 camera_rate_hz: float = 15.0, vision_backend: str = "yolo") -> None:
         self.robot = robot
         self.endpoint = str(rgbd_endpoint)
         self.vision_model = str(vision_model)
+        self.vision_backend = str(vision_backend)  # "yolo" (local YOLO-World) or "openai"
         self.stable_pose_file = Path(stable_pose_file)
         self.perception_rate_hz = float(perception_rate_hz)
         self.camera_rate_hz = float(camera_rate_hz)
@@ -840,6 +1077,13 @@ class GraspPipeline:
         self.extended_hand_reference_T_base: Dict[str, np.ndarray] = {}
         self.object_mass_kg = DEFAULT_OBJECT_MASS_KG
         self.last_grip_result: Dict[str, Any] = {}
+        # Depth-only objects on the table (obstacles) and the current grab
+        # plan, both drawn on the sorting view.
+        self.table_objects: List[TableObject] = []
+        self.table_objects_ts = 0.0
+        self.grab_plan: Dict[str, Any] = {}
+        self.last_grab_blocked = ""
+        self.held_object: Dict[str, Any] = {}
         self.lift_confirmation_pending = False
         self.lift_arm: Optional[str] = None
         self.lift_unverified = False
@@ -956,8 +1200,12 @@ class GraspPipeline:
     def _load_vision(self) -> None:
         self.vision_status = f"loading {self.vision_model}..."
         try:
-            from hand_pose_navigation.vision_detector import VisionDetector
-            vision = VisionDetector(model_name=self.vision_model)
+            if self.vision_backend == "openai":
+                from openai_vision import OpenAIVisionDetector
+                vision = OpenAIVisionDetector(model_name=self.vision_model)
+            else:
+                from hand_pose_navigation.vision_detector import VisionDetector
+                vision = VisionDetector(model_name=self.vision_model)
         except Exception as exc:
             self.vision_status = f"vision model unavailable: {exc}"
             return
@@ -967,7 +1215,8 @@ class GraspPipeline:
         with self.lock:
             self.vision = vision
             self.vision_classes = classes
-        self.vision_status = "on" if vision.available else f"off ({vision.error})"
+        self.vision_status = (f"on ({self.vision_backend}: {self.vision_model})" if vision.available
+                              else f"off ({vision.error})")
 
     def _perception_loop(self) -> None:
         if self.vision is None:
@@ -998,7 +1247,20 @@ class GraspPipeline:
                 continue
             last_seq = seq
             K = self.K
-            vis_dets = vision.detect(rgb) if vision is not None and vision.available else []
+            vis_dets = []
+            with self.lock:
+                cam = dict(self.camera_extrinsic)
+            R_base_camera = base_from_camera(cam)[:3, :3]
+            table_objects = self.table_objects_from_depth(depth, cam)
+            with self.lock:
+                self.table_objects = table_objects or []
+                self.table_objects_ts = time.time()
+            if vision is not None and vision.available:
+                if getattr(vision, "uses_proposals", False):
+                    vis_dets = vision.detect(rgb, proposals=None if table_objects is None
+                                             else [obj.box for obj in table_objects])
+                else:
+                    vis_dets = vision.detect(rgb)
             detections: Dict[str, Detection] = {}
             boxes: List[Dict] = []
             masks: List[Tuple[str, str, np.ndarray]] = []
@@ -1012,7 +1274,9 @@ class GraspPipeline:
                     continue
                 detections[det_id] = Detection(id=det_id, label=vd.label, source="vision", score=vd.score,
                                                T_camera_object=pose.T_camera_object, box=vd.box_xyxy,
-                                               grasp_surface=estimate_grasp_surface(mask, depth, K))
+                                               grasp_surface=estimate_grasp_surface(mask, depth, K),
+                                               top_offset_m=object_top_offset(mask, depth, K, R_base_camera,
+                                                                              pose.T_camera_object[:3, 3]))
                 masks.append((det_id, vd.label, mask))
             now = time.time()
             for det_id, det in detections.items():
@@ -1030,9 +1294,66 @@ class GraspPipeline:
                 self.boxes_for_draw = boxes
                 self.masks_for_draw = masks
                 self.last_detection_ts = time.time()
-                state = "on" if vision is not None and vision.available else self.vision_status
+                state = self.vision_status
+                if vision is not None and vision.available and getattr(vision, "error", ""):
+                    state += f" - last error: {vision.error}"
                 self.status_msg = f"{len(detections)} detections  |  vision model: {state}  |  frame #{seq}"
             time.sleep(max(0.0, period - (time.time() - t0)))
+
+    def table_objects_from_depth(self, depth_m: np.ndarray, cam: Dict[str, float]) -> Optional[List[TableObject]]:
+        """Everything standing on the table, from depth alone: pixel box plus
+        a vertical base-frame cylinder.  None when no table plane is found."""
+        T = base_from_camera(cam)
+        K = self.camera_matrix()
+        try:
+            table = estimate_table_plane(depth_m, K, T)
+        except Exception:
+            table = None
+        if table is None:
+            return None
+        h, w = depth_m.shape[:2]
+        ys, xs = np.indices((h, w), dtype=np.float32)
+        x_cam = (xs - K[0, 2]) * depth_m / K[0, 0]
+        y_cam = (ys - K[1, 2]) * depth_m / K[1, 1]
+        x_base = T[0, 0] * x_cam + T[0, 1] * y_cam + T[0, 2] * depth_m + T[0, 3]
+        y_base = T[1, 0] * x_cam + T[1, 1] * y_cam + T[1, 2] * depth_m + T[1, 3]
+        height = T[2, 0] * x_cam + T[2, 1] * y_cam + T[2, 2] * depth_m + T[2, 3] - table.z_base_m
+        margin = OBJECT_PROPOSAL_FOOTPRINT_MARGIN_M
+        above = (np.isfinite(depth_m) & (depth_m > 0.15)
+                 & (height >= OBJECT_PROPOSAL_MIN_HEIGHT_M) & (height <= OBJECT_PROPOSAL_MAX_HEIGHT_M)
+                 & (x_base >= table.x_range_m[0] - margin) & (x_base <= table.x_range_m[1] + margin)
+                 & (y_base >= table.y_range_m[0] - margin) & (y_base <= table.y_range_m[1] + margin))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        above = cv2.morphologyEx(above.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+        count, labels, stats, _centroids = cv2.connectedComponentsWithStats(above, connectivity=8)
+        min_area = OBJECT_PROPOSAL_MIN_AREA_FRAC * h * w
+        pad = OBJECT_PROPOSAL_PAD_PX
+        objects = []
+        for index in range(1, count):
+            x, y, bw, bh, area = (int(v) for v in stats[index])
+            if area < min_area:
+                continue
+            sel = labels[y:y + bh, x:x + bw] == index
+            px, py = x_base[y:y + bh, x:x + bw][sel], y_base[y:y + bh, x:x + bw][sel]
+            # The camera only sees the near half: the radius is half the
+            # extent across the line of sight, and the centre sits that far
+            # behind the nearest visible point along it.
+            pts = np.stack([px, py], axis=1).astype(np.float64)
+            sight = np.median(pts, axis=0) - T[:2, 3]
+            sight /= max(1e-9, float(np.linalg.norm(sight)))
+            across = np.array([-sight[1], sight[0]])
+            along_p, across_p = pts @ sight, pts @ across
+            a_lo, a_hi = np.percentile(across_p, 2), np.percentile(across_p, 98)
+            radius = max(0.01, float(a_hi - a_lo) / 2.0)
+            centre = sight * (float(np.percentile(along_p, 2)) + radius) + across * float(a_lo + a_hi) / 2.0
+            objects.append(TableObject(
+                box=(max(0, x - pad), max(0, y - pad), min(w - 1, x + bw + pad), min(h - 1, y + bh + pad)),
+                center_xy=centre, radius_m=radius,
+                top_z_m=float(table.z_base_m + np.percentile(height[y:y + bh, x:x + bw][sel], 98)),
+                table_z_m=float(table.z_base_m),
+                visible_centroid=np.array([float(np.mean(px)), float(np.mean(py)),
+                                           float(table.z_base_m + np.mean(height[y:y + bh, x:x + bw][sel]))])))
+        return objects
 
     # -- joint state / FK ----------------------------------------------------
 
@@ -1169,8 +1490,10 @@ class GraspPipeline:
                     self.active_nav = None
 
     def _executor(self, arm: str, step: float, speed: float, kp: float = 30.0, kd: float = 1.5) -> ArmExecutor:
+        """Blocking-move executor; it stops the idle pose hold when it starts publishing."""
         return ArmExecutor(self.robot, arm=arm, kp=kp, kd=kd, max_reach_m=DEFAULT_DIRECT_MAX_REACH_M,
-                           max_joint_step_rad=step, max_joint_speed_rad_s=speed, read_arm_q=self.read_current_arm_q)
+                           max_joint_step_rad=step, max_joint_speed_rad_s=speed, read_arm_q=self.read_current_arm_q,
+                           on_takeover=self.stop_active_hold)
 
     def move_waist(self, target_yaw: float, max_speed_rad_s: float) -> Dict[str, Any]:
         speed = min(DEFAULT_CENTER_WAIST_SPEED_RAD_S, max(0.05, float(max_speed_rad_s)))
@@ -1279,15 +1602,6 @@ class GraspPipeline:
                 raise RuntimeError(f"WBC pose {WBC_RIGHT_ARM_FORWARD_POSE_NAME!r} lacks right arm joints: {exc}") from exc
         raise RuntimeError(f"WBC pose {WBC_RIGHT_ARM_FORWARD_POSE_NAME!r} was not found in {self.stable_pose_file}")
 
-    def move_to_wbc_right_arm_forward(self, step: float, speed: float, obstacles: Optional[Obstacles]) -> Dict[str, Any]:
-        q_target = self.wbc_right_arm_forward_q()
-        result = self._executor("right", step, speed).execute(
-            q_target, duration_s=DEFAULT_POST_GRASP_LIFT_DURATION_S, q_arm_start=self.read_current_arm_q("right"),
-            T_base_desired=ArmFK(arm="right", backend="urdf").compute_arm(q_target), stop_event=self.cancel,
-            obstacles=obstacles)
-        result["controller"] = "WBC right arm forward"
-        return result
-
     def move_to_wbc_right_arm_forward_continuous(self, executor: ArmExecutor, speed: float,
                                                  obstacles: Optional[Obstacles]) -> Dict[str, Any]:
         """Retarget an already-publishing hold executor without a control gap."""
@@ -1307,77 +1621,152 @@ class GraspPipeline:
             time.sleep(0.05)
         return {"success": True, "controller": "continuous WBC right arm forward", "duration_s": duration_s}
 
-    def move_ee_to_position(self, arm: str, target_position: np.ndarray, step: float, speed: float,
-                            obstacles: Optional[Obstacles], label: str) -> Dict[str, Any]:
-        """Position-first Cartesian move; wrist orientation stays reachable."""
-        q_current = self.read_current_arm_q(arm)
-        T_target = ArmFK(arm=arm, backend="urdf").compute_arm(q_current)
-        T_target[:3, 3] = np.asarray(target_position, dtype=np.float64)
-        q_target, info = ArmIK(arm=arm, solver="position_dls", tol_pos_m=0.012, tol_rot_rad=math.pi).solve(T_target, q_init=q_current)
-        if q_target is None:
-            return {"success": False, "reason": "ik_failed", "ik_info": info, "label": label}
-        result = self._executor(arm, step, speed).execute(q_target, duration_s=DEFAULT_POST_GRASP_LIFT_DURATION_S,
-                                                          q_arm_start=q_current, T_base_desired=T_target,
-                                                          stop_event=self.cancel, obstacles=obstacles)
-        result.update({"label": label, "ik_info": info})
-        return result
+    def _vertical_lift_obstacles(self, obstacles: Optional[Obstacles], T_start: np.ndarray) -> Optional[Obstacles]:
+        """A grasp or a low stable pose may start inside the conservative
+        table margin; for a vertical lift only, keep >=1.5 cm below the start
+        clearance and still check every later sample."""
+        if obstacles is None or obstacles.table is None:
+            return obstacles
+        start_clearance_m = float(T_start[2, 3] - obstacles.table.z_base_m)
+        margin = min(float(obstacles.table_margin_m), max(0.03, start_clearance_m - 0.015))
+        if margin >= float(obstacles.table_margin_m):
+            return obstacles
+        self.log(f"[grasp] vertical lift starts inside the table buffer; using {margin:.3f}m lift-path "
+                 f"margin from {start_clearance_m:.3f}m measured clearance.")
+        return replace(obstacles, table_margin_m=margin)
 
-    def lift_end_effector_z_slowly(self, arm: str, step: float, speed: float, lift_m: float = DEFAULT_POST_GRASP_LIFT_M,
-                                   mass_kg: float = 0.0, obstacles: Optional[Obstacles] = None) -> Dict[str, Any]:
-        if lift_m <= 0.0:
-            return {"success": True, "reason": "lift_disabled"}
-        kp, kd, duration_s, speed_scale = lift_tuning_for_mass(mass_kg)
-        q_cur = self.read_current_arm_q(arm)
-        T_lift = ArmFK(arm=arm, backend="urdf").compute_arm(q_cur)
-        T_lift[2, 3] += float(lift_m)
-        q_solution, info = ArmIK(arm=arm, solver="dls", tol_pos_m=0.010, tol_rot_rad=0.20).solve(T_lift, q_init=q_cur)
-        if q_solution is None:
-            return {"success": False, "reason": "ik_failed", "ik_info": info}
-        result = self._executor(arm, step, speed * speed_scale, kp=kp, kd=kd).execute(
-            q_solution, duration_s=duration_s, q_arm_start=q_cur, T_base_desired=T_lift, stop_event=self.cancel,
-            obstacles=obstacles)
-        result.update({"ik_info": info, "lift_m": float(lift_m), "mass_kg": float(mass_kg)})
-        return result
+    def move_hand_on_hold(self, arm: str, executor: ArmExecutor, T_target: np.ndarray,
+                          obstacles: Optional[Obstacles], label: str) -> Dict[str, Any]:
+        """Closed-loop Cartesian move on a continuous executor with the palm
+        kept level: after each move the measured hand error (gravity sag under
+        the soft gains) is added to the aim point and the move repeated."""
+        fk = ArmFK(arm=arm, backend="urdf")
+        ik_fine = ArmIK(arm=arm, solver="level_dls", tol_pos_m=GRASP_FINE_IK_TOL_POS_M,
+                        tol_rot_rad=GRASP_FINE_IK_TOL_ROT_RAD)
+        ik_loose = ArmIK(arm=arm, solver="level_dls", tol_pos_m=0.012, tol_rot_rad=GRASP_PALM_LEVEL_TOL_RAD)
+        target = T_target[:3, 3].copy()
+        bias = np.zeros(3)
+        R_tilt = np.eye(3)
+        err = float("inf")
+        for attempt in range(HOLD_MOVE_ROUNDS):
+            q_cur = self.read_current_arm_q(arm)
+            T_aim = T_target.copy()
+            T_aim[:3, :3] = R_tilt @ T_target[:3, :3]
+            T_aim[:3, 3] = target + bias
+            q_sol, info = ik_fine.solve(T_aim, q_init=q_cur)
+            if q_sol is None:
+                q_sol, info = ik_loose.solve(T_aim, q_init=q_cur)
+            if q_sol is None:
+                return {"success": False, "reason": "ik_failed", "label": label,
+                        "ik_error_pos_m": info.get("error_pos_m"), "attempt": attempt}
+            if attempt == 0:
+                validation = executor.validate(q_sol, T_base_desired=T_target, q_arm_start=q_cur, obstacles=obstacles)
+                if not validation.get("safe"):
+                    return {"success": False, "reason": validation.get("reason"), "label": label,
+                            "violations": validation.get("violations")}
+            executor.submit_target(q_sol)
+            wait_s = float(np.max(np.abs(q_sol - q_cur))) / max(0.05, executor.max_joint_speed_rad_s) * 2.0 + 0.6
+            deadline = time.time() + wait_s
+            while time.time() < deadline:
+                if self.cancel.is_set():
+                    return {"success": False, "reason": "stopped", "label": label}
+                time.sleep(0.05)
+            T_now = fk.compute_arm(self.read_current_arm_q(arm))
+            delta = target - T_now[:3, 3]
+            err = float(np.linalg.norm(delta))
+            tilt = math.acos(float(np.clip(np.dot(T_now[:3, 2], T_target[:3, 2]), -1.0, 1.0)))
+            if err < HOLD_MOVE_TOL_M and tilt < GRASP_PALM_LEVEL_CONVERGENCE_RAD / 2.0:
+                break
+            R_tilt = palm_tilt_correction(T_target[:3, 2], T_now[:3, 2]) @ R_tilt
+            bias = bias + delta
+            norm = float(np.linalg.norm(bias))
+            if norm > 0.05:
+                bias *= 0.05 / norm
+        return {"success": err < HOLD_MOVE_ACCEPT_M, "reason": "" if err < HOLD_MOVE_ACCEPT_M else "not_reached",
+                "label": label, "pos_err_m": err, "tilt_rad": tilt, "sag_bias_m": float(np.linalg.norm(bias))}
 
     def lift_end_effector_z_with_continuous_executor(self, arm: str, executor: ArmExecutor,
                                                      lift_m: float = DEFAULT_POST_GRASP_LIFT_M, mass_kg: float = 0.0,
                                                      obstacles: Optional[Obstacles] = None) -> Dict[str, Any]:
+        """Vertical lift keeping the palm level, closed-loop on the hand's
+        measured height (the soft lift gains sag under the object)."""
         if lift_m <= 0.0:
             return {"success": True, "reason": "lift_disabled"}
-        kp, kd, duration_s, speed_scale = lift_tuning_for_mass(mass_kg)
+        kp, kd, _duration_s, speed_scale = lift_tuning_for_mass(mass_kg)
         # The executor reads kp/kd/speed live at publish time.
         executor.kp, executor.kd = kp, kd
         executor.max_joint_speed_rad_s *= speed_scale
-        q_cur = self.read_current_arm_q(arm)
-        T_start = ArmFK(arm=arm, backend="urdf").compute_arm(q_cur)
+        fk = ArmFK(arm=arm, backend="urdf")
+        T_start = fk.compute_arm(self.read_current_arm_q(arm))
         T_lift = T_start.copy()
+        T_lift[:3, :3] = level_rotation(T_start[:3, :3])
         T_lift[2, 3] += float(lift_m)
-        q_solution, info = ArmIK(arm=arm, solver="dls", tol_pos_m=0.010, tol_rot_rad=0.20).solve(T_lift, q_init=q_cur)
-        if q_solution is None:
-            return {"success": False, "reason": "ik_failed", "ik_info": info}
-        # A confirmed grasp may start just inside the conservative table
-        # margin; for this vertical move only, keep >=1.5 cm below the start
-        # clearance and still check every later sample.
-        lift_obstacles = obstacles
-        if obstacles is not None and obstacles.table is not None:
-            start_clearance_m = float(T_start[2, 3] - obstacles.table.z_base_m)
-            margin = min(float(obstacles.table_margin_m), max(0.03, start_clearance_m - 0.015))
-            if margin < float(obstacles.table_margin_m):
-                lift_obstacles = replace(obstacles, table_margin_m=margin)
-                self.log(f"[grasp] vertical lift starts inside the table buffer; using {margin:.3f}m lift-path "
-                         f"margin from {start_clearance_m:.3f}m measured clearance.")
-        validation = executor.validate(q_solution, T_base_desired=T_lift, q_arm_start=q_cur, obstacles=lift_obstacles)
-        if not validation.get("safe"):
-            return {"success": False, "reason": validation.get("reason"), "violations": validation.get("violations"),
-                    "ik_info": info}
-        executor.submit_target(q_solution)
-        t0 = time.time()
-        while time.time() - t0 < duration_s:
-            if self.cancel.is_set():
-                return {"success": False, "reason": "stopped", "duration_s": time.time() - t0}
-            time.sleep(0.05)
-        return {"success": True, "controller": "continuous_executor", "duration_s": time.time() - t0,
-                "lift_m": float(lift_m), "mass_kg": float(mass_kg)}
+        result = self.move_hand_on_hold(arm, executor, T_lift, self._vertical_lift_obstacles(obstacles, T_start),
+                                        "vertical lift")
+        lifted = float(fk.compute_arm(self.read_current_arm_q(arm))[2, 3] - T_start[2, 3])
+        self.log(f"[grasp] vertical lift: {lifted * 100:.1f} of {lift_m * 100:.1f} cm, palm tilt "
+                 f"{math.degrees(result.get('tilt_rad', float('nan'))):.1f} deg (pos_err={result.get('pos_err_m', float('nan')):.3f}m, "
+                 f"sag correction {result.get('sag_bias_m', 0.0) * 100:.1f} cm).")
+        result.update({"controller": "continuous_executor", "lift_m": float(lift_m), "lifted_m": lifted,
+                       "mass_kg": float(mass_kg)})
+        return result
+
+    def _lift_to_stable_pose_on_hold(self, arm: str, cam: Dict[str, float], speed: float,
+                                     mass_kg: float) -> Dict[str, Any]:
+        """Rise vertically from a pose near the table, then go to the WBC
+        stable pose, all on the running hold executor (no authority gap and no
+        second publisher).  Hold arm_lock with hold_current_arm_pose() active."""
+        obstacles = self.estimate_obstacles(cam)
+        hold = self.hold_executor
+        if hold is None:
+            raise RuntimeError("could not establish continuous current-pose hold")
+        lift = self.lift_end_effector_z_with_continuous_executor(arm, hold, mass_kg=mass_kg, obstacles=obstacles)
+        if not lift.get("success"):
+            raise RuntimeError(f"vertical clearance lift failed: {lift}")
+        if arm != "right":
+            raise RuntimeError("WBC stable forward pose is currently defined for the right arm only")
+        # The WBC stable pose carries the hand low; moving there from a low
+        # grasp would set the object back down on the table.
+        fk = ArmFK(arm=arm, backend="urdf")
+        z_now = float(fk.compute_arm(self.read_current_arm_q(arm))[2, 3])
+        z_stable = float(fk.compute_arm(self.wbc_right_arm_forward_q())[2, 3])
+        if z_stable < z_now - 0.01:
+            self.log(f"[grasp] WBC stable pose is lower (hand z={z_stable:.3f}m) than the lifted hand ({z_now:.3f}m); "
+                     "holding the lifted pose instead.")
+            return {"success": True, "controller": "lifted pose hold", "reason": "stable pose lower than lift"}
+        return self.move_to_wbc_right_arm_forward_continuous(hold, speed, obstacles)
+
+    def run_release_and_retract(self, arm: str) -> bool:
+        """Open the hand at the grasp pose, rise clear of the table and return
+        to the WBC stable pose.  A direct retract from the grasp pose starts
+        inside the table margin, so the obstacle gate rejects it."""
+        try:
+            self.send_hand_action("open", arm)
+        except Exception as exc:
+            self.log(f"[grasp] Opening {arm} hand before retract failed: {exc}")
+        self.clear_hold_flags()
+        if not self.arm_lock.acquire(timeout=10.0):
+            self.log("[grasp] Release-and-retract skipped: arm controller is busy.")
+            return False
+        try:
+            with self.lock:
+                cam = dict(self.camera_extrinsic)
+                speed = self.max_joint_speed_rad_s
+            self._busy("release and retract")
+            with self.nav_lock:
+                nav = self.active_nav
+            self.hold_current_arm_pose(arm)
+            self.shutdown_nav(nav, "before release retract")
+            result = self._lift_to_stable_pose_on_hold(arm, cam, speed, 0.0)
+            self.log(f"[grasp] release retract to WBC stable pose: success={result.get('success')} "
+                     f"reason={result.get('reason', '')}")
+            return bool(result.get("success"))
+        except Exception as exc:
+            self.log(f"[grasp] release retract failed (holding the current pose): {exc}")
+            return False
+        finally:
+            self._idle()
+            self.arm_lock.release()
 
     def run_confirm_lift(self) -> None:
         """Lift vertically, then move from the held grasp to the WBC stable pose."""
@@ -1400,16 +1789,7 @@ class GraspPipeline:
             # there is no arm_sdk authority gap (the arm sagged toward the desk).
             self.hold_current_arm_pose(arm)
             self.shutdown_nav(nav, "before confirmed lift")
-            obstacles = self.estimate_obstacles(cam)
-            hold = self.hold_executor
-            if hold is None:
-                raise RuntimeError("could not establish continuous current-pose hold")
-            lift = self.lift_end_effector_z_with_continuous_executor(arm, hold, mass_kg=mass_kg, obstacles=obstacles)
-            if not lift.get("success"):
-                raise RuntimeError(f"vertical clearance lift failed: {lift}")
-            if arm != "right":
-                raise RuntimeError("WBC stable forward pose is currently defined for the right arm only")
-            result = self.move_to_wbc_right_arm_forward_continuous(hold, speed, obstacles)
+            result = self._lift_to_stable_pose_on_hold(arm, cam, speed, mass_kg)
             self.log(f"[grasp] lift to WBC right arm forward: success={result.get('success')} reason={result.get('reason', '')}")
             with self.lock:
                 if result.get("success"):
@@ -1584,10 +1964,32 @@ class GraspPipeline:
                        if name in stalled and abs(c - o) > 1e-3] or [0.0])
         if closure < DEX3_GRIP_CONTACT_MIN_CLOSURE:
             return None
-        squeeze = [cur + max(-DEX3_GRIP_SQUEEZE_RAD, min(DEX3_GRIP_SQUEEZE_RAD, closed - cur))
-                   for cur, closed in zip(actual, closed_t)]
+        # Only the index/middle fingers wrap fully: a free thumb joint driven
+        # to the closed pose curls into the object or the fingers and jams.
+        squeeze = [closed if name not in stalled and not name.startswith("thumb")
+                   else cur + max(-DEX3_GRIP_SQUEEZE_RAD, min(DEX3_GRIP_SQUEEZE_RAD, closed - cur))
+                   for name, cur, closed in zip(HAND_JOINT_NAMES, actual, closed_t)]
         self.stream_hand_pose(side, squeeze, DEX3_GRIP_SQUEEZE_HOLD_S)
         return closure, squeeze
+
+    def grip_contact_holds(self, side: str) -> Optional[bool]:
+        """After a stall-contact grasp has been lifted: True while a stalled
+        finger is still blocked short of its squeeze target (the object is in
+        the hand), False when they all reached it, None without feedback."""
+        with self.lock:
+            grip = dict(self.last_grip_result)
+        target, stalled = grip.get("hold_target"), set(grip.get("stalled_joints") or [])
+        snap = self.hand_snapshot(side)
+        if grip.get("method") != "stall_contact" or not target or not stalled or snap is None:
+            return None
+        try:
+            actual = [float(snap["positions"][n]) for n in HAND_JOINT_NAMES]
+        except (KeyError, TypeError, ValueError):
+            return None
+        errors = {name: abs(goal - cur) for name, goal, cur in zip(HAND_JOINT_NAMES, target, actual) if name in stalled}
+        self.log("[grasp] grip check after lift: " + ", ".join(f"{n}={e:.3f}rad" for n, e in errors.items())
+                 + f" short of the squeeze target (held >= {DEX3_GRIP_HELD_MIN_ERR_RAD:.3f}rad).")
+        return any(err >= DEX3_GRIP_HELD_MIN_ERR_RAD for err in errors.values())
 
     def run_hand_action(self, action: str, side: str = "right") -> None:
         try:
@@ -1675,11 +2077,11 @@ class GraspPipeline:
                 closure = hold[0]
                 self.log(f"[grasp] Fingers stopped on the object at fraction={fraction:.2f} closure={closure:.2f} "
                          f"(stalled joints: {', '.join(stalled)}); holding the contact with a "
-                         f"{DEX3_GRIP_SQUEEZE_RAD:.2f}rad squeeze (pressure={'n/a' if pressure is None else f'{pressure:.0f}'} raw, "
+                         f"{DEX3_GRIP_SQUEEZE_RAD:.2f}rad squeeze and wrapping the other fingers (pressure={'n/a' if pressure is None else f'{pressure:.0f}'} raw, "
                          "no tactile confirmation).")
                 result = {"success": True, "method": "stall_contact", "side": side, "stalled_joints": stalled,
                           "fraction": fraction, "closure": closure, "pressure": pressure, "target_pressure": target_pressure,
-                          "mass_kg": mass_kg}
+                          "mass_kg": mass_kg, "hold_target": hold[1]}
                 with self.lock:
                     self.last_grip_result = dict(result)
                 return result
@@ -1731,6 +2133,150 @@ class GraspPipeline:
             self._idle()
             self.arm_lock.release()
 
+    def grab_object_obstacles(self, arm: str, T_base_object: np.ndarray, since_ts: float) -> List[TableObject]:
+        """Table objects other than the target and the arm itself, segmented
+        from a depth frame taken after `since_ts` (the arm has stopped)."""
+        deadline = time.time() + TABLE_OBJECTS_WAIT_S
+        while True:
+            with self.lock:
+                depth, ts, cam = self.depth_m, self.last_frame_ts, dict(self.camera_extrinsic)
+            if ts > since_ts or time.time() >= deadline or self.cancel.is_set():
+                break
+            time.sleep(0.05)
+        if ts <= since_ts:
+            self.log("[grasp] no fresh depth frame for the obstacle snapshot; using the last one.")
+        objects = (self.table_objects_from_depth(depth, cam) if depth is not None else None) or []
+        with self.lock:
+            self.table_objects, self.table_objects_ts = list(objects), time.time()
+        target_xy = T_base_object[:2, 3]
+        q_arm = self.read_current_arm_q(arm)
+        fk = ArmFK(arm=arm, backend="urdf")
+        elbow = fk.compute_arm_partial(q_arm, 4)[:3, 3]
+        tip = hand_collision_points(fk.compute_arm(q_arm))[-1]
+        shoulder_xy = np.asarray(SHOULDER_IN_BASE[arm][:2], dtype=np.float64)
+        kept = []
+        for obj in objects:
+            if float(np.linalg.norm(obj.center_xy - shoulder_xy)) - obj.radius_m > OBJECT_OBSTACLE_MAX_REACH_M:
+                continue
+            if float(np.linalg.norm(obj.center_xy - target_xy)) < obj.radius_m + OBJECT_OBSTACLE_TARGET_GAP_M:
+                continue
+            centre = (obj.visible_centroid if obj.visible_centroid is not None else
+                      np.array([obj.center_xy[0], obj.center_xy[1], (obj.top_z_m + obj.table_z_m) / 2.0]))
+            seg = tip - elbow
+            t = float(np.clip(np.dot(centre - elbow, seg) / max(1e-9, float(np.dot(seg, seg))), 0.0, 1.0))
+            if float(np.linalg.norm(centre - (elbow + t * seg))) < OBJECT_OBSTACLE_ARM_GAP_M:
+                continue
+            kept.append(obj)
+        return kept
+
+    def hand_reach_m(self, arm: str, point: np.ndarray) -> float:
+        return float(np.linalg.norm(np.asarray(point, dtype=np.float64)[:3] - SHOULDER_IN_BASE[arm]))
+
+    def place_hand_targets(self, arm: str, centre: np.ndarray, normal: np.ndarray, release_height_m: float,
+                           approach_extra_m: float) -> Tuple[np.ndarray, np.ndarray, float]:
+        """Hand poses (palm level, current yaw) that put the held object over
+        `centre`: (approach, release, release height used).  The release is
+        raised so the object's bottom clears the spot by >= 2 cm.  With nothing
+        held the object is assumed a grasp standoff ahead of the wrist."""
+        T_now = ArmFK(arm=arm, backend="urdf").compute_arm(self.read_current_arm_q(arm))
+        with self.lock:
+            held = dict(self.held_object) if self.holding_object else {}
+        if "offset_hand" in held:
+            offset = T_now[:3, :3] @ np.asarray(held["offset_hand"], dtype=np.float64)
+        else:
+            offset = np.append(np.asarray(centre, dtype=np.float64)[:2] - SHOULDER_IN_BASE[arm][:2], 0.0)
+            offset *= DEFAULT_GRASP_STANDOFF_M / max(1e-9, float(np.linalg.norm(offset)))
+        offset[2] = 0.0
+        release_h = max(float(release_height_m), float(held.get("hang_m", 0.0)) + 0.02)
+        T_now[:3, :3] = level_rotation(T_now[:3, :3])
+        T_release, T_approach = T_now.copy(), T_now.copy()
+        T_release[:3, 3] = centre + normal * release_h - offset
+        T_approach[:3, 3] = centre + normal * (release_h + approach_extra_m) - offset
+        return T_approach, T_release, release_h
+
+    def plan_grasp_waypoints(self, arm: str, T_grasp: np.ndarray,
+                             objects: Sequence[TableObject]) -> Tuple[List[Tuple[str, np.ndarray]], str]:
+        """[hover ->] pre-grasp -> grasp, or ([], reason) when the object
+        cannot be reached without touching another one."""
+        T_pre = pregrasp_hand_pose(T_grasp)
+        reasons = object_collisions(T_grasp, objects) or path_collisions(T_pre, T_grasp, objects)
+        if reasons:
+            return [], f"moving in to the grasp: {reasons[0]}"
+        waypoints = [("pre-grasp", T_pre), ("approach", T_grasp)]
+        T_now = self.hand_T(arm)
+        if T_now is None or not objects:
+            return waypoints, ""
+        T_start = T_pre.copy()
+        T_start[:3, 3] = T_now[:3, 3]
+        if not path_collisions(T_start, T_pre, objects):
+            return waypoints, ""
+        T_hover = T_pre.copy()
+        T_hover[2, 3] = max(float(T_pre[2, 3]), max(obj.top_z_m for obj in objects)
+                            + GRASP_HOVER_CLEARANCE_M + HAND_COLLISION_RADIUS_M)
+        reasons = path_collisions(T_start, T_hover, objects) or path_collisions(T_hover, T_pre, objects)
+        if reasons:
+            return [], f"going around the other objects: {reasons[0]}"
+        return [("hover", T_hover)] + waypoints, ""
+
+    def set_grab_plan(self, arm: str, T_base_object: np.ndarray, T_grasp: np.ndarray,
+                      waypoints: List[Tuple[str, np.ndarray]], objects: Sequence[TableObject], blocked: str) -> None:
+        with self.lock:
+            self.grab_plan = {"ts": time.time(), "arm": arm, "target": T_base_object[:3, 3].copy(),
+                              "grasp": palm_visual_point(T_grasp), "objects": list(objects), "blocked": blocked,
+                              "waypoints": [(label, palm_visual_point(T)) for label, T in waypoints]}
+
+    def _wait_for_approach(self, nav: HandApproach, corrector: Optional["GrabTargetCorrector"], timeout_s: float,
+                           label: str) -> Tuple[bool, bool, Dict[str, Any]]:
+        """Follow one approach until it converges, stalls, stops or times
+        out; returns (converged, stalled, last status).  The approach keeps
+        holding its last command on convergence or stall."""
+        ok = stalled = False
+        last_status: Dict[str, Any] = {}
+        last_log_t = 0.0
+        deadline = time.time() + float(timeout_s) + 2.0
+        while time.time() < deadline:
+            if self.cancel.is_set():
+                self.log("[grasp] Direct grab cancelled by safety command.")
+                break
+            status = nav.status_snapshot()
+            last_status = status
+            if time.time() - last_log_t >= 1.0:
+                last_log_t = time.time()
+                loop_log = status.get("log") or []
+                self.log(f"[grasp] {label}: iter={status.get('iteration')} converged={status.get('converged')} "
+                         f"pos_err={status.get('last_error_pos_m')} ik_failures={status.get('ik_failures')} "
+                         f"safety_rejections={status.get('safety_rejections')} last={loop_log[-1] if loop_log else ''}")
+            if status.get("converged"):
+                ok = True
+                break
+            if status.get("stalled"):
+                stalled = True
+                self.log(f"[grasp] {label} stalled: target has not gotten closer over the last several "
+                         "EE-pose increments - checking whether the hand is close enough.")
+                break
+            if not status.get("running", True):
+                self.log(f"[grasp] {label} stopped: {(status.get('log') or [''])[-1]}")
+                break
+            if corrector is not None:
+                try:
+                    pos_err = status.get("last_error_pos_m")
+                    message = corrector.step(nav, None if pos_err is None else float(pos_err))
+                    if message:
+                        self.log(f"[grasp] {message}")
+                except Exception as exc:
+                    self.log(f"[grasp] dynamic target correction disabled after error: {exc}")
+                    corrector = None
+            time.sleep(0.2)
+        return ok, stalled, last_status
+
+    def _reset_after_failed_approach(self, arm: str, step: float, speed: float) -> None:
+        try:
+            reset = self.reset_to_extend_arm_reference(arm, step, speed)
+            self.log(f"[grasp] stall reset to saved extend-arm reference: success={reset.get('success')} "
+                     f"reason={reset.get('reason', '')}")
+        except Exception as exc:
+            self.log(f"[grasp] stall reset to saved extend-arm reference failed: {exc}")
+
     def run_direct_grab_inline(self, det: Detection, arm: str, cam: Dict[str, float], T_base_object: np.ndarray,
                                step: float, speed: float, mass_kg: float = 0.0) -> None:
         """Approach the object and close the hand; on success the approach
@@ -1751,6 +2297,9 @@ class GraspPipeline:
                 self.lift_unverified = False
                 self.holding_object = False
                 self.holding_arm = None
+                self.last_grab_blocked = ""
+                self.grab_plan = {}
+            grab_t0 = time.time()
             obstacles = self.estimate_obstacles(cam)
             _arm, reach, max_reach, excess = self.reach_preview(det, cam, arm, obstacles)
             T_base_camera = base_from_camera(cam)
@@ -1798,58 +2347,64 @@ class GraspPipeline:
                 self.ensure_arm_authority(duration_s=0.5)
             except Exception as exc:
                 self.log(f"[grasp] engage_arms() before grab failed: {exc}")
-            nav = HandApproach(self, T_base_hand, config, obstacles)
+            # Vision grasps may sit closer to the table than the general
+            # collision margin (short objects); the approach is checked
+            # against the grasp floor instead.
+            approach_obstacles = (replace(obstacles, table_margin_m=GRASP_APPROACH_TABLE_MARGIN_M)
+                                  if vision and obstacles.table is not None else obstacles)
+            objects: List[TableObject] = []
+            waypoints: List[Tuple[str, np.ndarray]] = []
+            if vision:
+                objects = self.grab_object_obstacles(arm, T_base_object, grab_t0)
+                waypoints, blocked = self.plan_grasp_waypoints(arm, T_base_hand, objects)
+                self.set_grab_plan(arm, T_base_object, T_base_hand, waypoints, objects, blocked)
+                if blocked:
+                    self.log(f"[grasp] no collision-free way to the object: {blocked}; not approaching it.")
+                    with self.lock:
+                        self.last_grab_blocked = blocked
+                    return
+                self.log(f"[grasp] {len(objects)} other object(s) on the table treated as obstacles; path: "
+                         + " -> ".join(label for label, _T in waypoints) + ".")
+            # Every waypoint but the last; the approach to the grasp pose
+            # follows with dynamic target correction.  Each next approach
+            # starts before the previous one stops so rt/arm_sdk is never silent.
+            prev_nav: Optional[HandApproach] = None
+            for label, T_waypoint in waypoints[:-1]:
+                p_way = T_waypoint[:3, 3]
+                self.log(f"[grasp] {label}: hand to ({p_way[0]:+.3f}, {p_way[1]:+.3f}, {p_way[2]:+.3f}) m.")
+                way_nav = HandApproach(self, T_waypoint, dict(config, timeout_s=GRASP_PREGRASP_TIMEOUT_S),
+                                       approach_obstacles, objects)
+                with self.nav_lock:
+                    self.active_nav = way_nav
+                if prev_nav is not None:
+                    self.shutdown_nav(prev_nav, f"{label} handover")
+                prev_nav = way_nav
+                way_ok, way_stalled, way_status = self._wait_for_approach(way_nav, None, GRASP_PREGRASP_TIMEOUT_S, label)
+                way_err = _status_pos_err(way_status)
+                if not way_ok and not (way_stalled and way_err <= DEFAULT_VISION_STALL_CLOSE_POS_M):
+                    self.log(f"[grasp] {label} pose not reached; not approaching the object.")
+                    self.shutdown_nav(way_nav, label)
+                    if way_stalled and not self.cancel.is_set():
+                        self._reset_after_failed_approach(arm, step, speed)
+                    return
+                self.log(f"[grasp] {label} reached (pos_err={way_err:.3f}m).")
+            nav = HandApproach(self, T_base_hand, config, approach_obstacles, objects)
             with self.nav_lock:
                 self.active_nav = nav
+            if prev_nav is not None:
+                self.shutdown_nav(prev_nav, "grasp approach handover")
             corrector = (GrabTargetCorrector(self, det, arm, T_base_camera, T_base_object, obstacles,
                                              candidates=self.correction_candidates) if dynamic else None)
             ok = stalled = False
             last_status: Dict[str, Any] = {}
-            last_log_t = 0.0
             try:
-                deadline = time.time() + float(config["timeout_s"]) + 2.0
-                while time.time() < deadline:
-                    if self.cancel.is_set():
-                        self.log("[grasp] Direct grab cancelled by safety command.")
-                        break
-                    status = nav.status_snapshot()
-                    last_status = status
-                    if time.time() - last_log_t >= 1.0:
-                        last_log_t = time.time()
-                        loop_log = status.get("log") or []
-                        self.log(f"[grasp] approach: iter={status.get('iteration')} converged={status.get('converged')} "
-                                 f"pos_err={status.get('last_error_pos_m')} ik_failures={status.get('ik_failures')} "
-                                 f"safety_rejections={status.get('safety_rejections')} last={loop_log[-1] if loop_log else ''}")
-                    if status.get("converged"):
-                        ok = True
-                        break
-                    if status.get("stalled"):
-                        stalled = True
-                        self.log("[grasp] Direct grab stalled: target has not gotten closer over the last several "
-                                 "EE-pose increments - checking whether the hand is close enough to grasp.")
-                        break
-                    if not status.get("running", True):
-                        self.log(f"[grasp] approach stopped: {(status.get('log') or [''])[-1]}")
-                        break
-                    if corrector is not None:
-                        try:
-                            pos_err = status.get("last_error_pos_m")
-                            message = corrector.step(nav, None if pos_err is None else float(pos_err))
-                            if message:
-                                self.log(f"[grasp] {message}")
-                        except Exception as exc:
-                            self.log(f"[grasp] dynamic target correction disabled after error: {exc}")
-                            corrector = None
-                    time.sleep(0.2)
+                ok, stalled, last_status = self._wait_for_approach(nav, corrector, float(config["timeout_s"]), "approach")
             finally:
                 nav_holding = bool(ok or stalled)
                 if not nav_holding:
                     self.shutdown_nav(nav, "direct grab")
             if stalled:
-                try:
-                    pos_err = float(last_status.get("last_error_pos_m"))
-                except (TypeError, ValueError):
-                    pos_err = float("inf")
+                pos_err = _status_pos_err(last_status)
                 if vision and pos_err <= DEFAULT_VISION_STALL_CLOSE_POS_M:
                     self.log(f"[grasp] Direct grab stalled at visually close target (pos_err={pos_err:.4f}m); "
                              "attempting tactile-verified close.")
@@ -1859,14 +2414,8 @@ class GraspPipeline:
                              "returning to the extend pose.")
             if stalled and not ok:
                 self.shutdown_nav(nav, "direct grab before stall reset")
-                if self.cancel.is_set():
-                    return
-                try:
-                    reset = self.reset_to_extend_arm_reference(arm, step, speed)
-                    self.log(f"[grasp] stall reset to saved extend-arm reference: success={reset.get('success')} "
-                             f"reason={reset.get('reason', '')}")
-                except Exception as exc:
-                    self.log(f"[grasp] stall reset to saved extend-arm reference failed: {exc}")
+                if not self.cancel.is_set():
+                    self._reset_after_failed_approach(arm, step, speed)
                 return
             if not ok:
                 self.log("[grasp] Direct grab did not converge; not closing hand.")
@@ -1890,9 +2439,16 @@ class GraspPipeline:
                 self.log("[grasp] Lift skipped because the grab was cancelled.")
                 self.shutdown_nav(nav, "direct grab")
                 return
+            # Where the object sits relative to the wrist, and how far it hangs
+            # below it, so placement can put the object (not the wrist) on a spot.
+            T_hand_now = ArmFK(arm=arm, backend="urdf").compute_arm(self.read_current_arm_q(arm))
+            held = {"offset_hand": T_hand_now[:3, :3].T @ (T_base_object[:3, 3] - T_hand_now[:3, 3]),
+                    "hang_m": (float(T_hand_now[2, 3] - obstacles.table.z_base_m)
+                               if obstacles.table is not None else DEFAULT_GRASP_STANDOFF_M)}
             # The approach loop's continuous executor keeps holding the grasp
             # pose until run_confirm_lift() takes over.
             with self.lock:
+                self.held_object = held
                 self.lift_confirmation_pending = True
                 self.lift_arm = arm
                 self.lift_unverified = unverified
@@ -2050,6 +2606,66 @@ class GraspPipeline:
         self._authority_engaged = False
 
     # -- views ---------------------------------------------------------------
+
+    def draw_grasp_overlay(self, image: np.ndarray, cam: Dict[str, float], arm: str = "right") -> None:
+        """Draw in place: the FK hand (wrist -> palm point), the obstacles and
+        target of the current grab, and its planned palm path."""
+        T_camera_base = np.linalg.inv(base_from_camera(cam))
+
+        def uv(point_base: np.ndarray) -> Optional[Tuple[int, int]]:
+            return self.project_camera_point((T_camera_base @ np.append(np.asarray(point_base, dtype=np.float64), 1.0))[:3])
+
+        with self.lock:
+            plan = dict(self.grab_plan)
+            active = self.grab_running or self.arm_motion_running or self.lift_confirmation_pending
+        if plan and (active or time.time() - plan["ts"] < GRAB_PLAN_SHOW_S):
+            for i, obj in enumerate(plan["objects"]):
+                angles = np.linspace(0.0, 2.0 * math.pi, 24, endpoint=False)
+                r = obj.radius_m + OBJECT_OBSTACLE_MARGIN_M
+                rings = []
+                for z in (obj.table_z_m, obj.top_z_m):
+                    ring = [uv(np.array([obj.center_xy[0] + r * math.cos(a), obj.center_xy[1] + r * math.sin(a), z]))
+                            for a in angles]
+                    if all(q is not None for q in ring):
+                        rings.append(np.array(ring, dtype=np.int32))
+                for ring in rings:
+                    cv2.polylines(image, [ring], True, OBSTACLE_COLOR_BGR, 2, cv2.LINE_AA)
+                if len(rings) == 2:
+                    for side in (np.argmin(rings[1][:, 0]), np.argmax(rings[1][:, 0])):
+                        cv2.line(image, tuple(int(v) for v in rings[0][side]), tuple(int(v) for v in rings[1][side]), OBSTACLE_COLOR_BGR, 1, cv2.LINE_AA)
+                    _draw_overlay_label(image, f"obstacle {i + 1}", tuple(int(v) for v in rings[1][np.argmin(rings[1][:, 1])]),
+                                        OBSTACLE_COLOR_BGR)
+            target_uv = uv(plan["target"])
+            if target_uv is not None:
+                cv2.drawMarker(image, target_uv, TARGET_COLOR_BGR, cv2.MARKER_CROSS, 18, 2, cv2.LINE_AA)
+            T_hand = self.hand_T(plan["arm"])
+            path = ([("", palm_visual_point(T_hand))] if T_hand is not None else []) + list(plan["waypoints"])
+            pts = [(label, uv(point)) for label, point in path]
+            pts = [(label, q) for label, q in pts if q is not None]
+            color = BLOCKED_COLOR_BGR if plan["blocked"] else PLAN_COLOR_BGR
+            for (_a, q0), (_b, q1) in zip(pts, pts[1:]):
+                cv2.line(image, q0, q1, color, 2, cv2.LINE_AA)
+            for label, q in pts:
+                if label:
+                    cv2.circle(image, q, 5, color, -1, cv2.LINE_AA)
+                    _draw_overlay_label(image, label, (q[0] + 7, q[1] + 4), color)
+            if plan["blocked"]:
+                grasp_uv = uv(plan["grasp"])
+                if grasp_uv is not None:
+                    cv2.drawMarker(image, grasp_uv, BLOCKED_COLOR_BGR, cv2.MARKER_TILTED_CROSS, 16, 2, cv2.LINE_AA)
+                    _draw_overlay_label(image, "blocked", (grasp_uv[0] + 9, grasp_uv[1] + 4), BLOCKED_COLOR_BGR)
+        T_hand = self.hand_T(arm)
+        if T_hand is None:
+            return
+        wrist_uv, palm_uv = uv(T_hand[:3, 3]), uv(palm_visual_point(T_hand))
+        if wrist_uv is not None and palm_uv is not None:
+            cv2.line(image, wrist_uv, palm_uv, EE_COLOR_BGR, 2, cv2.LINE_AA)
+            cv2.circle(image, wrist_uv, 4, EE_COLOR_BGR, 1, cv2.LINE_AA)
+        if palm_uv is not None:
+            cv2.circle(image, palm_uv, 7, EE_COLOR_BGR, -1, cv2.LINE_AA)
+            cv2.circle(image, palm_uv, 7, (255, 255, 255), 1, cv2.LINE_AA)
+            p = palm_visual_point(T_hand)
+            _draw_overlay_label(image, f"EE (FK palm) z={p[2]:.3f}m", (palm_uv[0] + 10, palm_uv[1] - 8), EE_COLOR_BGR)
 
     def draw_desk_obstacle_segmentation(self, rgb: np.ndarray, depth_m: Optional[np.ndarray], cam: Dict[str, float],
                                         object_masks: List[Tuple[str, str, np.ndarray]]) -> np.ndarray:

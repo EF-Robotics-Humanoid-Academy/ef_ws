@@ -104,7 +104,7 @@ SETTINGS_FIELDS = [
     ("ik_rotation_rad", "End-effector turn step (rad)", None, 0.02, 0.02, 0.3, "Arms & hands"),
     ("tactile_threshold", "Dex3 tactile alert threshold (raw)", None, 5000.0, 0.0, 200000.0, "Arms & hands"),
 ]
-THEMES = ["dark", "light", "ocean", "amber"]
+THEMES = ["ef", "dark", "light", "ocean", "amber"]
 MODE_NAMES = ["Zero torque", "Damp", "Sit", "Squat", "Prepare / stand", "Walk", "Run", "Climb",
               "Dev mode (disable ai_sport)"]
 MODE_HINTS = ["Motors limp; re-enables ai_sport first when in dev mode", "Passive damping",
@@ -1278,8 +1278,10 @@ class SortSession:
                     import grasp_pipeline
                 except ImportError as exc:
                     raise LiveRequired(f"The grab pipeline could not load its modules: {exc}") from exc
-                self._pipeline = grasp_pipeline.GraspPipeline(self.dash.robot, self.args.rgbd,
-                                                              vision_model=self.args.vision_model)
+                openai_vision = self.args.vision_backend == "openai"
+                self._pipeline = grasp_pipeline.GraspPipeline(
+                    self.dash.robot, self.args.rgbd, vision_backend=self.args.vision_backend,
+                    vision_model=self.args.openai_vision_model if openai_vision else self.args.vision_model)
         return self._pipeline
 
     def get(self) -> Any:
@@ -2355,7 +2357,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--wbc-pose-file", default=str(HERE.parent / "WBC" / "saved_ik_pose_cli_v4_poses.json"),
                         help="/wbc saved joint poses and replay sequence (shared with ik_pose_cli_v4.py)")
     parser.add_argument("--vision-model", default=os.environ.get("G1_VISION_MODEL", "yolov8s-world.pt"),
-                        help="/sort open-vocabulary YOLO-World checkpoint")
+                        help="/sort open-vocabulary YOLO-World checkpoint (--vision-backend yolo)")
+    parser.add_argument("--vision-backend", choices=("openai", "yolo"), default=os.environ.get("G1_VISION_BACKEND", "openai"),
+                        help="/sort object detector: OpenAI vision API (no model load) or local YOLO-World")
+    parser.add_argument("--openai-vision-model", default=os.environ.get("G1_OPENAI_VISION_MODEL", "gpt-4.1"),
+                        help="/sort OpenAI vision model (--vision-backend openai); gpt-4.1 gave the tightest boxes at ~1.5 s/frame")
     return parser.parse_args()
 
 
@@ -2427,7 +2433,7 @@ def _serve(dash: Dashboard, args: argparse.Namespace, robot: Any) -> int:
 
 
 PAGE = r"""<!doctype html>
-<html lang="en" data-theme="amber">
+<html lang="en" data-theme="ef">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -2450,6 +2456,11 @@ PAGE = r"""<!doctype html>
   --glass:rgba(255,255,255,.55);--glass2:rgba(255,255,255,.75);--border:rgba(255,255,255,.85);
   --text:#151a2d;--muted:#56607a;--accent:#4f46e5;--accent2:#0891b2;--ok:#16a34a;--warn:#d97706;--err:#dc2626;
   --shadow:0 10px 30px rgba(60,70,110,.15);--grid:rgba(30,40,80,.09);--input:rgba(255,255,255,.7)}
+/* EF Robotics (ef-robotics.de) brand pink #fa1960 / #ff4982 / #d80749 in amber's dark glass style */
+[data-theme=ef]{--bg:#0c0a0b;--bg2:#1f0a12;--b1:#fa1960;--b2:#d80749;--b3:#7a0c2e;
+  --glass:rgba(255,225,235,.07);--glass2:rgba(255,225,235,.12);--border:rgba(255,200,220,.16);
+  --text:#fff2f6;--muted:rgba(255,242,246,.58);--accent:#ff4982;--accent2:#fa1960;--grid:rgba(255,225,235,.08)}
+[data-theme=ef] body{font-family:Roboto,system-ui,-apple-system,"Segoe UI",Ubuntu,sans-serif}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%}
 body{background:radial-gradient(1200px 800px at 10% -10%,var(--bg2),transparent 60%),var(--bg);color:var(--text);
@@ -2463,8 +2474,8 @@ body{background:radial-gradient(1200px 800px at 10% -10%,var(--bg2),transparent 
   backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%)}
 .topbar{position:sticky;top:10px;z-index:20;margin:10px 16px 0;padding:10px 16px;display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .brand{display:flex;gap:12px;align-items:center}
-.logo{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-weight:800;letter-spacing:.5px;
-  background:linear-gradient(135deg,var(--accent),var(--accent2));color:#111}
+.logo{width:44px;height:40px;display:grid;place-items:center;color:var(--text)}
+.logo svg{width:100%;height:100%}
 .brand b{display:block;font-size:15px}.brand small{color:var(--muted)}
 .pills{display:flex;gap:8px;flex-wrap:wrap}
 .pill{padding:5px 11px;border-radius:999px;background:var(--glass2);border:1px solid var(--border);font-size:12.5px;white-space:nowrap}
@@ -2627,7 +2638,7 @@ table.t th{color:var(--muted);font-weight:600}
 <body>
 <div class="blobs"><i></i><i></i><i></i></div>
 <header class="topbar glass">
-  <div class="brand"><div class="logo">G1</div><div><b>G1 Dashboard</b><small id="sub">connecting…</small></div></div>
+  <div class="brand"><div class="logo"><svg aria-label="EF Robotics" role="img" viewBox="0 0 321 290" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M151.345 44.549L49.199 44.251V93.429H135.496V133.33H49.199V185.603H151.34V228.596H1.875V1.255L151.345 1.554V44.549Z" fill="currentColor"/><path d="M319.533 44.549L170.062 44.554V1.255L319.533 1.554V44.549Z" fill="currentColor"/><path d="M171.539 96.554L297.329 96.523V136.733H218.459V228.596H171.573L171.539 96.554Z" fill="currentColor"/><path d="M37.214 257.528C37.214 263.629 34.042 268.082 29.589 270.461L39.471 287.359H25.99L17.388 272.474H13.178V287.359H1.58701V242.52H21.231C29.589 242.52 37.214 248.011 37.214 257.528ZM13.178 252.465V262.53H20.133C23.244 262.53 25.441 260.7 25.441 257.528C25.441 254.356 23.245 252.465 20.133 252.465H13.178Z" fill="currentColor"/><path d="M87.905 265.031C87.905 278.391 77.839 288.152 64.54 288.152C51.241 288.152 41.176 278.391 41.176 265.031C41.176 251.55 51.181 241.727 64.54 241.727C77.899 241.727 87.905 251.549 87.905 265.031ZM52.949 265.031C52.949 272.413 57.708 277.598 64.54 277.598C71.372 277.598 76.131 272.413 76.131 265.031C76.131 257.528 71.373 252.281 64.54 252.281C57.707 252.281 52.949 257.528 52.949 265.031Z" fill="currentColor"/><path d="M126.456 254.905C126.456 258.87 124.686 261.554 122.856 263.079C127.004 264.91 129.994 268.02 129.994 273.938C129.994 282.6 123.039 287.359 114.986 287.359H93.634V242.52H112.058C120.721 242.52 126.456 247.096 126.456 254.905ZM105.226 253.075V260.151H110.473C112.913 260.151 114.682 258.87 114.682 256.613C114.682 254.356 112.913 253.075 110.473 253.075H105.226ZM105.226 268.875V276.806H113.523C116.268 276.806 118.22 275.403 118.22 272.84C118.22 270.277 116.268 268.875 113.523 268.875H105.226Z" fill="currentColor"/><path d="M179.71 265.031C179.71 278.391 169.644 288.152 156.345 288.152C143.046 288.152 132.981 278.391 132.981 265.031C132.981 251.55 142.986 241.727 156.345 241.727C169.704 241.727 179.71 251.549 179.71 265.031ZM144.754 265.031C144.754 272.413 149.513 277.598 156.345 277.598C163.177 277.598 167.936 272.413 167.936 265.031C167.936 257.528 163.178 252.281 156.345 252.281C149.512 252.281 144.754 257.528 144.754 265.031Z" fill="currentColor"/><path d="M220.701 252.709H207.036V287.359H195.445V252.709H181.78V242.521H220.701V252.709Z" fill="currentColor"/><path d="M237.413 287.359H225.822V242.52H237.413V287.359Z" fill="currentColor"/><path d="M282.982 248.621L275.722 257.04C273.708 254.478 270.72 252.281 266.51 252.281C259.372 252.281 254.919 257.528 254.919 264.91C254.919 272.292 259.372 277.598 266.51 277.598C270.72 277.598 273.708 275.402 275.722 272.839L282.92 281.258C278.345 286.321 273.099 288.151 266.51 288.151C252.845 288.151 243.146 278.146 243.146 264.909C243.146 251.672 252.845 241.726 266.51 241.726C273.83 241.726 278.529 243.984 282.982 248.62V248.621Z" fill="currentColor"/><path d="M318.301 246.425L312.322 256.003C309.76 253.929 306.527 252.281 301.768 252.281C298.474 252.281 296.887 253.38 296.887 255.514C296.887 257.039 297.986 258.137 304.025 259.174C316.166 261.676 319.52 266.312 319.52 273.145C319.52 282.173 312.932 288.152 301.829 288.152C294.814 288.152 288.286 286.017 283.711 281.991L289.934 272.352C292.801 275.524 297.803 277.598 302.196 277.598C306.162 277.598 307.93 276.439 307.93 274.243C307.93 272.657 306.649 271.559 300.61 270.461C288.531 267.899 285.237 262.592 285.237 256.125C285.237 247.95 291.642 241.728 301.83 241.728C308.48 241.728 314.519 243.498 318.302 246.425H318.301Z" fill="currentColor"/></svg></div><div><b>G1 Dashboard</b><small id="sub">connecting…</small></div></div>
   <div class="pills">
     <span class="pill" id="pill-link"><span class="dot"></span>link</span>
     <span class="pill" id="pill-batt">battery —</span>
@@ -2930,7 +2941,7 @@ table.t th{color:var(--muted);font-weight:600}
     <div class="glass panel"><h3>Configuration</h3><div id="sort-config-status" class="small"></div></div>
     <div class="glass panel"><h3>Motion options</h3><div id="sort-options"></div>
       <p class="muted small">Sorting uses the right arm and never steps the base: keep all objects and both patterns within reach and in camera view.</p></div>
-    <div class="glass panel span-all"><div class="panel-head"><h3>Log</h3><span class="muted small" id="sort-log-note"></span></div><pre id="sort-log" class="console" style="max-height:420px"></pre></div>
+    <div class="glass panel span-all"><div class="panel-head"><h3>Log</h3><span class="muted small" id="sort-log-note"></span><button class="btn sm" id="sort-log-copy" onclick="copyText($('#sort-log').textContent,'Log copied')">Copy log</button></div><pre id="sort-log" class="console" style="max-height:420px"></pre></div>
   </div>
 </section>
 
@@ -2978,6 +2989,10 @@ function h(tag,attrs,...kids){const e=document.createElement(tag);for(const[k,v]
   for(const c of kids.flat()){if(c==null||c===false)continue;e.append(c instanceof Node?c:document.createTextNode(String(c)));}return e;}
 async function api(path,body){const opt=body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)};
   const r=await fetch(path,opt);let j={};try{j=await r.json();}catch(e){}if(!r.ok)throw new Error(j.error||`${r.status} ${r.statusText}`);return j;}
+/* navigator.clipboard needs https or localhost; the dashboard is usually opened over plain http */
+async function copyText(text,okMsg){try{if(navigator.clipboard&&window.isSecureContext){await navigator.clipboard.writeText(text);}
+  else{const ta=h('textarea',{style:'position:fixed;opacity:0'});ta.value=text;document.body.append(ta);ta.select();const done=document.execCommand('copy');ta.remove();if(!done)throw new Error('copy blocked by the browser');}
+  toast(okMsg||'Copied');}catch(e){toast('Copy failed: '+e.message,'err');}}
 function toast(msg,kind){const t=h('div',{class:'toast glass '+(kind||'')},msg);$('#toasts').append(t);setTimeout(()=>t.remove(),kind==='err'?6000:3200);}
 const fmt=(v,d=2)=>v==null||!isFinite(v)?'—':Number(v).toFixed(d);
 const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -3174,7 +3189,7 @@ async function selectMode(i){if(!await confirmDialog(`Switch to ${META.modes[i]}
 $('#mode-refresh').onclick=loadMode;hooks.mode={enter:loadMode};
 
 /* ---------- theme ---------- */
-const THEME_PREVIEW={dark:['#0a0c14','#7c4dff','#00bcd4'],light:['#e6ebf5','#a5b4fc','#67e8f9'],ocean:['#02121f','#00e5ff','#2979ff'],amber:['#0d0b07','#ffb300','#ff6d00']};
+const THEME_PREVIEW={ef:['#0c0a0b','#fa1960','#d80749'],dark:['#0a0c14','#7c4dff','#00bcd4'],light:['#e6ebf5','#a5b4fc','#67e8f9'],ocean:['#02121f','#00e5ff','#2979ff'],amber:['#0d0b07','#ffb300','#ff6d00']};
 function applyTheme(t){document.documentElement.dataset.theme=t;}
 function renderThemes(){const g=$('#theme-grid');g.innerHTML='';for(const t of META.themes){const p=THEME_PREVIEW[t]||['#111','#888','#555'];
   g.append(h('button',{class:'glass swatch'+(META.theme===t?' on':''),onclick:async()=>{try{await api('/api/theme',{theme:t});META.theme=t;applyTheme(t);renderThemes();}catch(e){toast(e.message,'err');}}},
