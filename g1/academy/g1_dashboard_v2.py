@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""G1 Dashboard V2: the original dashboard with the V2 /sort pipeline.
+
+Run from academy/:
+
+    python3 g1_dashboard_v2.py                 # live robot (same flags as g1_dashboard.py)
+    python3 g1_dashboard_v2.py --off-robot     # UI test: simulated robot, arm, hand and sort scene
+
+Every tab, route and flag of g1_dashboard.py is reused unchanged (that module
+is imported, not edited); only /sort is replaced:
+
+  * sorting_v2.SorterV2       explicit state machine with per-state recovery
+  * grasp_pipeline_v2         one arm controller, validated straight-line
+                              moves, whole-hand table geometry, Dex3 grip
+                              with per-element tactile baselines
+  * sort_v2_config            hardware limits / safety thresholds / tuning
+  * sim_sort_v2               off-robot simulation (also used by the tests)
+
+Root causes fixed relative to V1 (details in grasp_pipeline_v2's docstring):
+joint-space partial steps dipping into the table margin with an endless
+retry loop; gain halving (kp 60 -> 30) at every controller handover that let
+the arm sag and the lift stop half way; a global-maximum tactile test that
+could not see contacts; a 3 Hz approach whose convergence/stall rules
+delayed finger closure by many seconds.
+
+The Stop button is a software cancellation.  It is not an emergency stop:
+use the robot's physical e-stop or damping for that.
+"""
+from __future__ import annotations
+
+import sys
+from typing import Any
+
+import g1_dashboard as base  # handles --off-robot stubbing before robot modules load
+from g1_dashboard import LiveRequired, np, cv2
+
+SORT_V2_TITLE = "G1 Dashboard V2"
+
+# Dex3 pose constants the V2 grasp code imports from sdk_wrapper.  The
+# --off-robot stub module does not define them, so they are evaluated from
+# sdk_wrapper.py's own source (single source of truth for the mirrored-hand
+# limits) without importing its DDS dependencies.
+_HAND_CONSTANTS = ("HAND_JOINT_NAMES", "HAND_MAX", "HAND_MIN", "HAND_THUMB0", "HAND_CLOSED", "HAND_OPEN",
+                   "DEX3_THUMB_PROXIMAL_IDX", "DEX3_THUMB_OPEN_MARGIN_RAD", "HAND_SAFE_OPEN")
+
+
+def _ensure_stub_hand_constants() -> None:
+    import ast
+    import math
+    from pathlib import Path
+
+    stub = sys.modules.get("sdk_wrapper")
+    if stub is None or all(hasattr(stub, name) for name in _HAND_CONSTANTS):
+        return
+    tree = ast.parse((Path(__file__).resolve().parent / "sdk_wrapper.py").read_text(encoding="utf-8"))
+    namespace: dict = {"math": math}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id in _HAND_CONSTANTS for t in node.targets):
+            exec(compile(ast.Module(body=[node], type_ignores=[]), "sdk_wrapper.py", "exec"), namespace)
+    for name in _HAND_CONSTANTS:
+        if name not in namespace:
+            raise RuntimeError(f"sdk_wrapper.py no longer defines {name}")
+        setattr(stub, name, namespace[name])
+
+
+class SortSessionV2(base.SortSession):
+    """SortSession with the V2 pipeline; --off-robot builds the simulator."""
+
+    def __init__(self, dash: Any, args: Any) -> None:
+        super().__init__(dash, args)
+        self.sim: Any = None
+
+    def pipeline(self) -> Any:
+        self.dash._require_live()
+        with self._lock:
+            if self._pipeline is not None:
+                return self._pipeline
+            if np is None or cv2 is None:
+                raise LiveRequired("The V2 sort pipeline needs numpy and opencv-contrib-python.")
+            try:
+                if self.dash.off_robot:
+                    _ensure_stub_hand_constants()
+                import sort_v2_config
+                if self.dash.off_robot:
+                    import sim_sort_v2
+                    robot, scene, pipeline, sorter = sim_sort_v2.build_sim(sort_v2_config.default_config())
+                    self.sim = (robot, scene)
+                    self.sorter = sorter
+                    self._pipeline = pipeline
+                    return pipeline
+                import grasp_pipeline_v2
+            except ImportError as exc:
+                raise LiveRequired(f"The V2 sort pipeline could not load its modules: {exc}") from exc
+            openai_vision = self.args.vision_backend == "openai"
+            self._pipeline = grasp_pipeline_v2.GraspPipelineV2(
+                self.dash.robot, self.args.rgbd, cfg=sort_v2_config.default_config(),
+                vision_backend=self.args.vision_backend,
+                vision_model=self.args.openai_vision_model if openai_vision else self.args.vision_model)
+        return self._pipeline
+
+    def get(self) -> Any:
+        pipeline = self.pipeline()
+        with self._lock:
+            if self.sorter is None:
+                try:
+                    import sorting_v2
+                except ImportError as exc:
+                    raise LiveRequired(f"/sort V2 could not load its modules: {exc}") from exc
+                self.sorter = sorting_v2.SorterV2(pipeline)
+        return self.sorter
+
+    def close(self) -> None:
+        super().close()
+        if self.sim is not None:
+            robot, scene = self.sim
+            scene.close()
+            robot.close()
+
+
+# ---------------------------------------------------------------------------
+# Page: the V1 page plus a V2 diagnostics panel in /sort
+# ---------------------------------------------------------------------------
+
+_V2_PANEL = r"""
+    <div class="glass panel span-all" id="sort-v2">
+      <div class="panel-head"><h2>Sort V2 · state &amp; diagnostics</h2><span class="muted small">Stop is a software cancellation, not an emergency stop.</span></div>
+      <div id="v2-headline" style="font-size:20px;font-weight:700;margin:2px 0 10px"></div>
+      <div class="grid cols-3">
+        <div><div class="section-title">Target &amp; motion</div><div class="kv small" id="v2-motion"></div></div>
+        <div><div class="section-title">Hand &amp; grasp</div><div class="kv small" id="v2-hand"></div></div>
+        <div><div class="section-title">Progress</div><div class="kv small" id="v2-progress"></div></div>
+      </div>
+      <div class="section-title">Tuning <span class="muted small">(clamped to safety limits; hardware limits and safety thresholds are not adjustable)</span></div>
+      <div id="v2-tuning" class="row" style="flex-wrap:wrap;gap:10px"></div>
+    </div>
+"""
+
+_V2_JS = r"""
+<script>
+const v2mm=v=>v==null||!isFinite(v)?'—':(v*1000).toFixed(0)+' mm';
+const v2xyz=a=>a?'('+a.map(x=>fmtq(x,3)).join(', ')+') m':'—';
+const v2deg=v=>v==null||!isFinite(v)?'—':(v*180/Math.PI).toFixed(1)+'°';
+let v2TuningBuilt=false;
+function v2kv(id,rows){const el=document.getElementById(id);if(!el)return;el.innerHTML='';rows.forEach(([a,b,c])=>el.append(h('div',{},a),h('div',{class:'mono',style:c?`color:${c}`:''},b==null?'—':String(b))));}
+function renderSortV2(s){const v=s.v2;if(!v)return;const d=v.diag||{},m=v.machine||{},c=d.controller||{};
+  const st=m.state||'IDLE',bad=['ERROR','ABORTED'].includes(st),warn=st==='RECOVERING';
+  const hl=document.getElementById('v2-headline');hl.textContent=v.headline||st;hl.style.color=bad?'var(--err)':warn?'var(--warn)':st==='COMPLETED'?'var(--ok)':'var(--text)';
+  const t=d.target||{};
+  v2kv('v2-motion',[['state',`${st} · ${fmt(m.since_s,1)} s`],['target',t.object?`${t.object} (${t.label}, ${fmt(t.score,2)}, ${t.consistent} passes)`:'—'],['object xyz',v2xyz(t.xyz)],
+    ['waypoint',d.waypoint],['measured EE',v2xyz(d.measured_ee)],['desired EE',v2xyz(d.desired_ee)],['EE error',v2mm(d.ee_error_m)],['palm tilt',v2deg(d.palm_tilt_rad)],
+    ['collision check',d.collision,d.collision&&d.collision!=='ok'?'var(--warn)':''],
+    ['controller',c.running?`tracking ${fmt(c.tracking_error_rad,3)} rad · sag comp ${fmt(c.sag_compensation_rad,3)} rad${c.sag_saturated?' (SATURATED)':''}`:'not running']]);
+  const fp=d.finger_positions,ft=d.finger_targets,td=d.tactile_deltas;
+  v2kv('v2-hand',[['grasp',d.grasp_status],['evidence',d.grasp_evidence],['fingers',fp?fp.map(x=>fmt(x,2)).join(' '):'—'],['finger targets',ft?ft.map(x=>fmt(x,2)).join(' '):'—'],
+    ['tactile Δ (raw)',td?td.map(x=>Math.round(x)).join(' '):'— (no baseline)'],['lift',d.lift_target_m!=null?`${v2mm(d.lift_actual_m)} / ${v2mm(d.lift_target_m)}`:'—']]);
+  const counts=(v.counts||[]).map(o=>`${o.name} ${o.confirmed}/${o.count}${o.unconfirmed?` (+${o.unconfirmed}?)`:''}${o.attempts?` · ${o.attempts} fail`:''}`).join(' · ');
+  v2kv('v2-progress',[['progress',d.move_progress!=null?`${Math.round(d.move_progress*100)}% · ${fmt(d.move_elapsed_s,1)} / ${fmt(d.move_timeout_s,0)} s`:'—'],
+    ['sorted',counts||'—'],['last failure',m.last_failure?`${m.last_failure}: ${m.last_failure_detail}`:'—',m.last_failure?'var(--err)':''],['recovery',m.recovery_reason||'—'],
+    ['preparation pose',v.prep?v2xyz(v.prep):'not recorded yet'],['notes',(v.notes||[]).join('; ')||'—'],
+    ['reach map',v.reach?(v.reach.state==='computing'?`computing ${Math.round(v.reach.progress*100)}%`:v.reach.state==='ready'?`ready (table z ${fmt(v.reach.table_z,2)} m, computed in ${fmt(v.reach.computed_s,0)} s)`:v.reach.state+(v.reach.error?': '+v.reach.error:'')):'—']]);
+  if(!v2TuningBuilt&&s.options&&s.options.tuning){v2TuningBuilt=true;const root=document.getElementById('v2-tuning');
+    Object.entries(s.options.tuning).forEach(([k,val])=>{const b=s.options.tuning_bounds[k];const inp=typeof val==='boolean'?h('input',{type:'checkbox',checked:val}):h('input',{type:'number',step:'any',min:b[0],max:b[1],value:val,style:'width:90px'});
+      inp.onchange=async()=>{try{const j=await api('/api/sort/options',{tuning:{[k]:inp.type==='checkbox'?inp.checked:Number(inp.value)}});const nv=j.options.tuning[k];if(inp.type==='checkbox')inp.checked=nv;else inp.value=nv;toast(`${k} = ${nv}`,'ok');}catch(e){toast(e.message,'err');}};
+      root.append(h('label',{class:'small',style:'display:flex;gap:6px;align-items:center'},k,inp));});}}
+</script>
+"""
+
+
+def build_page(page: str) -> str:
+    """V1 page with the V2 title, wording and /sort diagnostics panel."""
+    edits = [
+        ("<title>G1 Dashboard</title>", f"<title>{SORT_V2_TITLE}</title>"),
+        ("<b>G1 Dashboard</b>", f"<b>{SORT_V2_TITLE}</b>"),
+        ('<button class="btn sm" data-sort="retract">Retract to stable pose</button>',
+         '<button class="btn sm" data-sort="retract">Return to preparation pose</button>'),
+        ("The right arm picks each configured object, lifts it to the WBC stable pose and places it on its ArUco spot.",
+         "Sort V2: preparation pose, then for each object: validated approach, verified grasp, measured lift, "
+         "transport, placement and return. Stop holds the arm where it is; it is not an emergency stop."),
+        ("const lg=$('#sort-log'),atBottom", "renderSortV2(s);const lg=$('#sort-log'),atBottom"),
+        ('<button data-v="desk-obstacles">Desk</button></div>',
+         '<button data-v="desk-obstacles">Desk</button><button data-v="reach">Reach</button></div>'),
+        ("</body>", _V2_JS + "</body>"),
+    ]
+    for old, new in edits:
+        if page.count(old) != 1:
+            raise RuntimeError(f"g1_dashboard.PAGE changed; V2 patch anchor not found: {old[:60]!r}")
+        page = page.replace(old, new)
+    anchor = '<div class="glass panel span-all"><div class="panel-head"><h3>Log</h3>'
+    if page.count(anchor) != 1:
+        raise RuntimeError("g1_dashboard.PAGE changed; /sort log panel anchor not found")
+    return page.replace(anchor, _V2_PANEL + anchor)
+
+
+def _install() -> None:
+    base.PAGE = build_page(base.PAGE)
+    base.Handler.server_version = "G1DashboardV2/1.0"
+
+
+def main() -> int:
+    _install()
+    args = base.parse_args()
+    if args.off_robot:
+        return _main_off_robot(args)
+    import g1_agent  # the agent's sdk_wrapper.G1 backend (not imported by --off-robot)
+
+    try:
+        robot = None if args.offline else base.sdk_wrapper.G1(iface=args.iface, domain_id=args.domain_id)
+        host = None if robot is None else g1_agent.AgentHost(robot, args.rgbd)
+        agent = g1_agent.build_agent(args, robot, host)
+    except Exception as exc:
+        print(f"Could not start g1_dashboard_v2: {exc}", file=sys.stderr)
+        return 2
+    dash = base.Dashboard(robot, agent, offline=args.offline, args=args)
+    dash.sort = SortSessionV2(dash, args)
+    if host is not None:
+        host.bind(arm_conflict=lambda: dash.arm_conflict("agent"), grasp_pipeline=dash.sort.pipeline)
+    return base._serve(dash, args, robot)
+
+
+def _main_off_robot(args: Any) -> int:
+    import shutil
+    import tempfile
+    from pathlib import Path
+
+    sim_settings = Path(tempfile.gettempdir()) / "g1_dashboard_off_robot_settings.json"
+    if not sim_settings.exists() and base.g1_cli.SETTINGS_PATH.exists():
+        shutil.copyfile(base.g1_cli.SETTINGS_PATH, sim_settings)
+    base.g1_cli.SETTINGS_PATH = sim_settings
+    robot = base.g1_dashboard_sim.SimRobot()
+    agent = base.g1_dashboard_sim.SimAgent(robot)
+    dash = base.Dashboard(robot, agent, offline=False, args=args)
+    dash.vision.sim = base.g1_dashboard_sim.SimCamera(robot)
+    dash.slam.points_path = Path(tempfile.gettempdir()) / "g1_dashboard_off_robot_points.json"
+    dash.sort = SortSessionV2(dash, args)
+    dash.say("system", "Off-robot simulator (V2): robot, SLAM, camera, agent and the /sort scene are simulated. "
+                       "Simulated sorting exercises the sequence and recovery logic only, not real-robot safety.")
+    return base._serve(dash, args, robot)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
