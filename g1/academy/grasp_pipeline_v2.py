@@ -30,6 +30,7 @@ g1_dashboard_v2.py for the evidence):
 """
 from __future__ import annotations
 
+import functools
 import math
 import threading
 import time
@@ -53,6 +54,9 @@ from sdk_wrapper import HAND_CLOSED, HAND_JOINT_NAMES, HAND_SAFE_OPEN
 from sort_v2_config import SortV2Config, default_config
 from sorting_state_machine import Failure
 
+# Touch-down: the carried object's (estimated) bottom may go at most this far
+# below the table plane before the descent must have met resistance.
+PLACE_MAX_BELOW_TABLE_M = 0.02
 THUMB_JOINTS = ("thumb_1", "thumb_2")
 FINGER_JOINTS = ("middle_0", "middle_1", "index_0", "index_1")
 
@@ -121,6 +125,9 @@ class MotionContext:
     # The target object while the hand is not yet allowed to enclose it
     # (clearance, descent to the pre-grasp): fingers must stay off it.
     keep_clear: Sequence[TableObject] = ()
+    # Setting the carried object down on the drop spot: its bottom may reach
+    # the table and the hand may use its table clearance band (touch-down).
+    placing: bool = False
     label: str = ""
 
 
@@ -167,7 +174,9 @@ class MotionValidator:
                 out.append(f"elbow z={elbow[2]:.3f}m below table {table.z_base_m:.3f}+{s.table_margin_m:.3f}m")
             if ctx.hand_mode == "grasp":
                 down = T[:3, 2] if T[2, 2] > 0.0 else np.array([0.0, 0.0, 1.0])
-                floor = table.z_base_m + s.grasp_hand_table_clearance_m - clearance_slack_m
+                # Setting an object down may use the clearance band: the slow
+                # descent stops at the first resistance (object or hand).
+                floor = table.z_base_m + (0.0 if ctx.placing else s.grasp_hand_table_clearance_m) - clearance_slack_m
                 for i, p in enumerate(self.hand_points(T)):
                     low = p - down * h.low_extent_m
                     if self._over_table(table, low) and low[2] < floor:
@@ -198,8 +207,9 @@ class MotionValidator:
         if carried is not None:
             centre = T[:3, 3] + T[:3, :3] @ carried.offset_hand
             bottom = float(T[2, 3] - carried.hang_m)
-            if table is not None and self._over_table(table, centre) and \
-                    bottom < table.z_base_m + s.carried_object_clearance_m - clearance_slack_m:
+            floor = (table.z_base_m - PLACE_MAX_BELOW_TABLE_M if ctx.placing else
+                     table.z_base_m + s.carried_object_clearance_m) if table is not None else 0.0
+            if table is not None and self._over_table(table, centre) and bottom < floor - clearance_slack_m:
                 out.append(f"carried object bottom z={bottom:.3f}m too close to the table")
             for i, obj in enumerate(ctx.objects):
                 if float(np.linalg.norm(centre[:2] - obj.center_xy)) < obj.radius_m + carried.radius_m + 0.02 and \
@@ -229,8 +239,10 @@ class MotionValidator:
             reasons = self.check_q(q, ctx, T_desired if i == samples else None) if i == samples else \
                 self.pose_violations(self.fk.compute_arm(q), self.fk.compute_arm_partial(q, 4)[:3, 3], ctx)
             # An arm hanging below ReachabilityChecker's minimum wrist height
-            # (released arms) may still rise out of it.
-            if reasons and float(self.fk.compute_arm(q)[2, 3]) >= z_start - 1e-3:
+            # (released arms) may still rise out of it, and may go back down to
+            # an explicit floor (parking at the recorded hanging pose).
+            z = float(self.fk.compute_arm(q)[2, 3])
+            if reasons and (z >= z_start - 1e-3 or (ctx.min_wrist_z_m is not None and z >= ctx.min_wrist_z_m)):
                 reasons = [r for r in reasons if not r.startswith("workspace: Wrist z=")]
             if reasons:
                 return [f"[alpha={a:.2f}] {r}" for r in reasons]
@@ -400,6 +412,17 @@ class GripResult:
     max_delta_raw: float = 0.0
     hold_target: List[float] = field(default_factory=list)
     detail: str = ""
+    # Joints that never moved while closing (stale motor suspected).
+    suspects: List[str] = field(default_factory=list)
+
+
+def _hand_serialized(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Dex3Grip command sequences run one at a time (Dex3Grip.cmd_lock)."""
+    @functools.wraps(method)
+    def wrapper(self: "Dex3Grip", *args: Any, **kwargs: Any) -> Any:
+        with self.cmd_lock:
+            return method(self, *args, **kwargs)
+    return wrapper
 
 
 class Dex3Grip:
@@ -419,6 +442,11 @@ class Dex3Grip:
         self._hold_cmd: Optional[List[float]] = None
         self._hold_thread: Optional[threading.Thread] = None
         self._hold_stop = threading.Event()
+        # Structured event sink (kind, message); the pipeline forwards it to the sort log.
+        self.event: Callable[[str, str], None] = lambda kind, message: None
+        # One hand command sequence at a time (sort, manual buttons, recovery):
+        # two threads streaming different targets make the fingers stutter.
+        self.cmd_lock = threading.RLock()
 
     # -- sensing ----------------------------------------------------------
     def snapshot(self, max_age_s: float = 0.5) -> Optional[Dict[str, Any]]:
@@ -540,40 +568,165 @@ class Dex3Grip:
         return self.robot.hand_pose(target, hand=self.side, hold_s=half + 0.3, rate_hz=50.0, kp=kp, kd=kd, tau=0.0,
                                     ramp_s=half)
 
-    def open(self, duration_s: float) -> Tuple[bool, str]:
-        """Open to the safe open pose, fingers before the thumb, and verify."""
-        self.stop_hold()
-        result = self._staged(list(FINGER_JOINTS), list(self.open_t), duration_s, kp=1.0, kd=0.1)
-        snap = self.snapshot()
+    # -- health / stale fingers ------------------------------------------------
+    def motor_health(self, snap: Optional[Dict[str, Any]]) -> Tuple[List[str], List[str]]:
+        """(faults, warnings): motors at the temperature limit are faults;
+        warm motors, non-zero motor status words and hand errors are
+        warnings (reported with every finger failure).  Empty when the
+        state carries no health fields."""
+        hw = self.cfg.hardware
+        faults: List[str] = []
+        warns: List[str] = []
         if snap is None:
-            return False, "no Dex3 feedback after opening"
-        err = max(abs(a - b) for a, b in zip(snap["q"], self.open_t))
-        self.diag(finger_positions=snap["q"], finger_targets=list(self.open_t))
-        if isinstance(result, dict) and result.get("reason") == "collision_or_stall":
-            return False, f"fingers stalled while opening at {result.get('joint')} (max error {err:.2f} rad)"
-        if err > self.cfg.tuning.final_hand_tolerance_rad:
-            worst = HAND_JOINT_NAMES[int(np.argmax([abs(a - b) for a, b in zip(snap['q'], self.open_t)]))]
-            return False, f"fingers did not open ({worst} {err:.2f} rad from open)"
-        return True, f"open (max error {err:.2f} rad)"
+            return faults, warns
+        if any(snap.get("hand_error") or []):
+            warns.append(f"hand error {snap['hand_error']}")
+        temps = snap.get("motor_temperatures") or {}
+        states = snap.get("motor_states") or {}
+        for name in HAND_JOINT_NAMES:
+            temp = temps.get(name)
+            if temp is not None and temp >= hw.dex3_temp_limit_c:
+                faults.append(f"{name} {temp:.0f} C")
+            elif temp is not None and temp >= hw.dex3_temp_warn_c:
+                warns.append(f"{name} {temp:.0f} C")
+            if states.get(name):
+                warns.append(f"{name} motor state {states[name]}")
+        hottest = max([v for v in temps.values() if v is not None], default=None)
+        if hottest is not None:
+            self.diag(finger_max_temperature_c=hottest)
+        return faults, warns
+
+    def stale_joints(self, q_before: Sequence[float], target: Sequence[float], q_after: Sequence[float]) -> List[int]:
+        """Joints commanded a clear distance that did not move at all."""
+        t = self.cfg.tuning
+        return [j for j in self.movable if abs(target[j] - q_before[j]) >= t.finger_stale_min_command_rad
+                and abs(q_after[j] - q_before[j]) < t.finger_stale_max_motion_rad]
+
+    def _reengage(self, duration_s: float = 0.3) -> None:
+        """Position control at the measured pose (clears a release/timeout mode)."""
+        snap = self.snapshot()
+        if snap is not None:
+            self._stream(list(snap["q"]), duration_s)
+
+    def _unstick(self, step: str, joints: List[int], target: Sequence[float]) -> None:
+        if step == "re-engaged":
+            self._reengage()
+        elif step == "released and re-engaged":
+            self.release()
+            time.sleep(0.5)
+            self._reengage()
+        elif step == "wiggled":
+            snap = self.snapshot()
+            if snap is None:
+                return
+            cmd = list(snap["q"])
+            for j in joints:
+                cmd[j] = snap["q"][j] - math.copysign(0.15, target[j] - snap["q"][j])
+            self._stream(cmd, 0.4)
+            self._reengage()
+
+    @_hand_serialized
+    def _move_verified(self, target: List[float], orders: Tuple[Tuple[str, ...], Tuple[str, ...]], duration_s: float,
+                       what: str, before_retry: Optional[Callable[[], Any]] = None) -> Tuple[bool, str]:
+        """Staged move to `target`, verified joint by joint.  A stalled or
+        stale finger (a motor that does not follow at all) is recovered step
+        by step: re-engaged and moved in the other order, released (limp) and
+        re-engaged and moved slowly, wiggled away from the target and back.
+        Fails, naming the joints and the motor health, only when none helps."""
+        self.stop_hold()
+        tol = self.cfg.tuning.final_hand_tolerance_rad
+        steps = (("", orders[0], duration_s), ("re-engaged", orders[1], duration_s),
+                 ("released and re-engaged", orders[0], 2.0 * duration_s), ("wiggled", orders[1], 2.0 * duration_s))
+        tries: List[str] = []
+        problem: List[int] = []
+        for k, (step, first, dur) in enumerate(steps):
+            if k:
+                self._unstick(step, problem, target)
+                if before_retry is not None:
+                    before_retry()
+            before = self.snapshot()
+            if before is None:
+                return False, f"{what}: no Dex3 feedback"
+            result = self._staged(list(first), list(target), dur, kp=1.0, kd=0.1)
+            after = self.snapshot()
+            if after is None:
+                return False, f"{what}: no Dex3 feedback after the move"
+            errors = [abs(a - b) for a, b in zip(after["q"], target)]
+            self.diag(finger_positions=after["q"], finger_targets=list(target))
+            stalled = isinstance(result, dict) and result.get("reason") == "collision_or_stall"
+            stale = self.stale_joints(before["q"], target, after["q"])
+            if stalled:
+                # A stall can end the move in its first stage, before the other
+                # joints were commanded: judge only the joints that were.
+                stale = [j for j in stale if HAND_JOINT_NAMES[j] in first]
+            off = [j for j in self.movable if errors[j] > tol]
+            label = f"after {step} " if step else ""
+            if not stalled and not off and not stale:
+                if tries:
+                    self.event("warn", f"{what}: fingers recovered {label.strip()} ({'; '.join(tries)})")
+                return True, f"{what} ok (max error {max(errors):.2f} rad)" + (f" {label.strip()}" if tries else "")
+            problem = stale or off or ([HAND_JOINT_NAMES.index(result["joint"])]
+                                       if stalled and result.get("joint") in HAND_JOINT_NAMES else [])
+            names = ", ".join(HAND_JOINT_NAMES[j] for j in problem) or "?"
+            kind = "stale (did not move)" if stale else "stalled" if stalled else "off target"
+            tries.append(f"{label}{names} {kind}, max error {max(errors):.2f} rad")
+            self.event("warn", f"{what}: {names} {kind}" + (f" {label.strip()}" if step else "")
+                       + ("; recovering" if k + 1 < len(steps) else ""))
+        faults, warns = self.motor_health(self.snapshot())
+        health = "; motor health: " + ", ".join(faults + warns) if faults or warns else "; motor health reports no fault"
+        return False, f"{what} failed after recovery ({'; '.join(tries)}){health}"
+
+    def open(self, duration_s: float) -> Tuple[bool, str]:
+        """Open to the safe open pose, fingers before the thumb, verified,
+        with the stale-finger recovery."""
+        return self._move_verified(list(self.open_t), (FINGER_JOINTS, THUMB_JOINTS), duration_s, "opening")
 
     def close_neutral(self) -> Tuple[bool, str]:
-        """Neutral closed pose, thumb before the fingers, and verify."""
-        self.stop_hold()
-        result = self._staged(list(THUMB_JOINTS), list(self.closed_t), 1.0, kp=1.0, kd=0.1)
-        if isinstance(result, dict) and result.get("reason") == "collision_or_stall":
-            # Thumb-first blocked a finger: open (fingers first), then close
-            # fingers first instead.
-            self._staged(list(FINGER_JOINTS), list(self.open_t), 1.0, kp=1.0, kd=0.1)
-            result = self._staged(list(FINGER_JOINTS), list(self.closed_t), 1.0, kp=1.0, kd=0.1)
-        snap = self.snapshot()
-        if snap is None:
-            return False, "no Dex3 feedback after closing"
-        err = max(abs(a - b) for a, b in zip(snap["q"], self.closed_t))
-        if isinstance(result, dict) and result.get("reason") == "collision_or_stall":
-            return False, f"neutral close stalled at {result.get('joint')}"
-        if err > self.cfg.tuning.final_hand_tolerance_rad:
-            return False, f"neutral close off target (max error {err:.2f} rad)"
-        return True, f"closed (max error {err:.2f} rad)"
+        """Neutral closed pose, thumb before the fingers, verified.  Retries
+        open the fingers first (thumb-first can block a finger under it)."""
+        return self._move_verified(
+            list(self.closed_t), (THUMB_JOINTS, FINGER_JOINTS), 1.0, "neutral close",
+            before_retry=lambda: self._staged(list(FINGER_JOINTS), list(self.open_t), 1.0, kp=1.0, kd=0.1))
+
+    @_hand_serialized
+    def cool_down(self, cancel: threading.Event) -> Tuple[bool, str]:
+        """Motors at the temperature limit: fingers limp (open) until all are
+        below the warning temperature, at most finger_cooldown_max_s."""
+        hw, t = self.cfg.hardware, self.cfg.tuning
+        faults, _w = self.motor_health(self.snapshot())
+        if not faults:
+            return True, ""
+        self.event("warn", f"Dex3 motors hot ({', '.join(faults)}): fingers limp to cool down "
+                           f"(up to {t.finger_cooldown_max_s:.0f} s)")
+        self.release()
+        deadline = time.time() + t.finger_cooldown_max_s
+        while time.time() < deadline and not cancel.is_set():
+            cancel.wait(2.0)
+            snap = self.snapshot()
+            temps = [v for v in ((snap or {}).get("motor_temperatures") or {}).values() if v is not None]
+            if temps and max(temps) < hw.dex3_temp_warn_c:
+                self.event("info", f"Dex3 motors cooled to {max(temps):.0f} C")
+                return True, ""
+        faults, _w = self.motor_health(self.snapshot())
+        return (not faults), ("" if not faults else f"Dex3 motors still hot after cooling: {', '.join(faults)}")
+
+    @_hand_serialized
+    def finger_check(self, cancel: threading.Event) -> Tuple[bool, str]:
+        """Free-space check before a grasp: cool down if hot, close part way
+        and open again, every joint verified (stale-finger recovery
+        included)."""
+        ok, detail = self.cool_down(cancel)
+        if not ok:
+            return False, detail
+        frac = self.cfg.tuning.finger_check_closure
+        partial = [o + frac * (c - o) for o, c in zip(self.open_t, self.closed_t)]
+        ok, detail = self._move_verified(partial, (THUMB_JOINTS, FINGER_JOINTS), 0.8, "finger check close")
+        if not ok:
+            return False, detail
+        ok, detail = self.open(0.8)
+        if not ok:
+            return False, detail
+        return True, "fingers ok"
 
     def release(self) -> None:
         self.stop_hold()
@@ -583,8 +736,10 @@ class Dex3Grip:
             pass
 
     # -- grasp ------------------------------------------------------------
-    def _evidence(self, snap: Dict[str, Any], frozen: Dict[int, float]) -> Tuple[bool, bool, List[int], float]:
-        """(tactile ok, kinematic ok, contact sensors, max delta)."""
+    def _evidence(self, snap: Dict[str, Any], frozen: Dict[int, float],
+                  exclude: Sequence[int] = ()) -> Tuple[bool, bool, List[int], float]:
+        """(tactile ok, kinematic ok, contact sensors, max delta); `exclude`:
+        joints that never moved (stale suspects), no kinematic evidence."""
         t = self.cfg.tuning
         deltas = self.tactile_deltas(snap)
         contacts = [] if deltas is None else [i for i, d in enumerate(deltas) if d >= t.tactile_contact_delta_raw]
@@ -592,10 +747,11 @@ class Dex3Grip:
         tactile = deltas is not None and (len(contacts) >= t.tactile_min_contact_sensors
                                           or max_delta >= t.tactile_firm_delta_raw)
         blocked_names = {HAND_JOINT_NAMES[j] for j, hold in frozen.items()
-                         if abs(hold - snap["q"][j]) >= t.held_min_block_rad}
+                         if abs(hold - snap["q"][j]) >= t.held_min_block_rad and j not in exclude}
         kinematic = any(n in blocked_names for n in THUMB_JOINTS) and any(n in blocked_names for n in FINGER_JOINTS)
         return tactile, kinematic, contacts, max_delta
 
+    @_hand_serialized
     def close(self, cancel: threading.Event) -> GripResult:
         t, hw, s = self.cfg.tuning, self.cfg.hardware, self.cfg.safety
         snap = self.snapshot()
@@ -659,6 +815,13 @@ class Dex3Grip:
                 break
             if fraction >= 1.0 and all(abs(cmd[j] - snap["q"][j]) < hw.dex3_stall_error_rad for j in free):
                 break
+        # A joint frozen without having moved at all may be a stale motor, not
+        # a finger on the object: it is no kinematic evidence.
+        snap_now = self.snapshot() or snap
+        suspects = [j for j in frozen if abs(snap_now["q"][j] - q0[j]) < t.finger_stale_max_motion_rad]
+        if suspects:
+            self.event("warn", f"closing: {', '.join(HAND_JOINT_NAMES[j] for j in suspects)} did not move at all "
+                               "(stale motor or touching at the open pose): not counted as grip evidence")
         # Confirmation: the evidence has to persist while the grip is held.
         self.start_hold(cmd)
         confirm_deadline = time.time() + t.grip_confirm_s
@@ -669,7 +832,7 @@ class Dex3Grip:
             if snap is None:
                 return GripResult("no_feedback", False, closure=fraction, hold_target=cmd,
                                   detail="Dex3 state lost while confirming the grip")
-            tac, kin, contacts, max_delta = self._evidence(snap, frozen)
+            tac, kin, contacts, max_delta = self._evidence(snap, frozen, suspects)
             held_tactile &= tac
             held_kinematic &= kin
         blocked = [HAND_JOINT_NAMES[j] for j in frozen]
@@ -688,9 +851,11 @@ class Dex3Grip:
                   f"{contacts or 'none'} (max delta {max_delta:.0f} raw"
                   + ("" if tactile_available else ", tactile unavailable") + ")")
         result = GripResult(evidence, evidence in ("tactile", "kinematic"), closure=fraction, blocked=blocked,
-                            contact_sensors=contacts, max_delta_raw=max_delta, hold_target=list(cmd), detail=detail)
+                            contact_sensors=contacts, max_delta_raw=max_delta, hold_target=list(cmd), detail=detail,
+                            suspects=[HAND_JOINT_NAMES[j] for j in suspects])
         self.last_grip = result
         self._frozen = dict(frozen)
+        self._suspects = list(suspects)
         self.diag(grasp_status=detail)
         return result
 
@@ -700,7 +865,7 @@ class Dex3Grip:
         snap = self.snapshot()
         if grip is None or snap is None:
             return None, "no grip / no Dex3 feedback"
-        tac, kin, contacts, max_delta = self._evidence(snap, getattr(self, "_frozen", {}))
+        tac, kin, contacts, max_delta = self._evidence(snap, getattr(self, "_frozen", {}), getattr(self, "_suspects", ()))
         self.diag(finger_positions=snap["q"], tactile_deltas=self.tactile_deltas(snap))
         if grip.evidence == "tactile":
             if tac or kin:
@@ -750,6 +915,8 @@ class GraspPipelineV2(GraspPipeline):
         self.last_ik_detail = ""
         # Structured event sink (kind, message); SorterV2 points it at its log.
         self.event: Callable[[str, str], None] = lambda kind, message: self.log(f"[sort-v2] {kind}: {message}")
+        # Looked up at call time: SorterV2 re-points self.event at its log.
+        self.grip.event = lambda kind, message: self.event(kind, message)
 
     # -- diagnostics -----------------------------------------------------------
     def diag(self, **values: Any) -> None:
@@ -878,7 +1045,8 @@ class GraspPipelineV2(GraspPipeline):
                     gate: Optional[Callable[[np.ndarray], bool]] = None,
                     monitor: Optional[Callable[[], Optional[Tuple[Failure, str]]]] = None,
                     level: bool = True, timeout_s: Optional[float] = None,
-                    gate_reason: Optional[Callable[[np.ndarray], str]] = None, yaw_free: bool = False) -> MoveResult:
+                    gate_reason: Optional[Callable[[np.ndarray], str]] = None, yaw_free: bool = False,
+                    accept_short_m: Optional[float] = None) -> MoveResult:
         """Straight-line hand move from the current reference to T_goal.
 
         Each planner tick advances the reference one step along the line,
@@ -889,7 +1057,10 @@ class GraspPipelineV2(GraspPipeline):
         improving, or on timeout.  `gate` (measured hand pose -> bool) may end
         the move early once it holds for grasp_gate_ticks ticks.  With
         `yaw_free` (carrying, retracting) the palm stays level but the finger
-        direction may turn; grasp moves keep the planned yaw.
+        direction may turn; grasp moves keep the planned yaw.  With
+        `accept_short_m` (transport, release, retreat: no precision needed) a
+        move whose whole reference was sent but that settles that close to
+        the goal (the loaded arm sagging beyond compensation) counts as reached.
         """
         t = self.cfg.tuning
         tol = t.move_tolerance_m if tolerance_m is None else tolerance_m
@@ -1029,6 +1200,11 @@ class GraspPipelineV2(GraspPipeline):
                             Failure.IK_FAILURE if ik_failures else Failure.NOT_REACHED)
                 else:
                     sat = " (sag compensation saturated)" if status["sag_saturated"] else ""
+                    if accept_short_m is not None and err <= accept_short_m and tilt_ok:
+                        self.event("warn", f"{label}: settled {err * 1000:.0f} mm short{sat}; accepted "
+                                           f"(within {accept_short_m * 1000:.0f} mm)")
+                        return finish(MoveResult(True, None, f"{label}: reached within {err * 1000:.0f} mm{sat}",
+                                                 err, tilt))
                     why = f"stopped {err * 1000:.0f} mm short{sat}"
                     kind = Failure.TRACKING_FAILURE if status["sag_saturated"] else Failure.NOT_REACHED
                 return finish(MoveResult(False, kind, f"{label}: no progress for {t.progress_window_s:.0f} s, {why}", err, tilt))
@@ -1039,20 +1215,104 @@ class GraspPipelineV2(GraspPipeline):
             if remaining > 0:
                 cancel.wait(remaining)
 
+    def touch_down(self, z_goal: float, ctx: MotionContext, speed_m_s: float, label: str,
+                   cancel: threading.Event) -> MoveResult:
+        """Lower straight down toward z_goal and stop at the first resistance:
+        once the reference is descending steadily, a measured descent below
+        touchdown_stall_ratio of the commanded one over touchdown_window_s
+        means the carried object rests on the table.  The reference is then
+        frozen at the measured pose, so the arm does not keep pressing (the
+        sag integral would otherwise wind up against the table).  Reaching
+        z_goal without resistance also ends it (ok, noted)."""
+        t = self.cfg.tuning
+        T_goal = self.reference_hand_T()
+        z_start = float(T_goal[2, 3])
+        T_goal[2, 3] = z_goal
+        hist: List[Tuple[float, float, float]] = []      # (time, measured z, reference z)
+        t0 = time.time()
+        contact = {"why": ""}
+
+        def gate(T_meas: np.ndarray) -> bool:
+            now = time.time()
+            z_ref = float(self.reference_hand_T()[2, 3])
+            hist.append((now, float(T_meas[2, 3]), z_ref))
+            while len(hist) > 2 and now - hist[1][0] >= t.touchdown_window_s:
+                hist.pop(0)
+            span = hist[-1][0] - hist[0][0]
+            if now - t0 < 1.0 or z_start - z_ref < 0.01 or span < 0.8 * t.touchdown_window_s:
+                return False
+            descent = hist[0][1] - hist[-1][1]
+            # What the reference actually did in the window (not the nominal
+            # speed): a reference held back by the validator or at its goal is
+            # no resistance.
+            expected = hist[0][2] - hist[-1][2]
+            if expected >= 0.5 * speed_m_s * span and descent < t.touchdown_stall_ratio * expected:
+                contact["why"] = (f"resistance at z={T_meas[2, 3]:.3f} m: descended {descent * 1000:.1f} mm in "
+                                  f"{span:.1f} s for {expected * 1000:.1f} mm commanded")
+                return True
+            return False
+
+        r = self.move_linear(T_goal, ctx, speed_m_s, label, cancel, gate=gate,
+                             gate_reason=lambda _T: "no resistance yet", timeout_s=30.0)
+        if r.ok and contact["why"]:
+            r = MoveResult(True, None, f"{label}: {contact['why']}", r.error_m, r.tilt_rad)
+        elif not r.ok and r.failure == Failure.NOT_REACHED and "arrived" in r.detail:
+            r = MoveResult(True, None, f"{label}: reached z={z_goal:.3f} m without resistance", r.error_m, r.tilt_rad)
+        if r.ok:
+            try:
+                self.controller.set_reference(self.read_current_arm_q(self.sort_arm))
+            except Exception:
+                pass
+            self.event("info", r.detail)
+        return r
+
     def move_joint(self, q_goal: np.ndarray, ctx: MotionContext, label: str, cancel: threading.Event,
                    tolerance_rad: Optional[float] = None, speed_rad_s: Optional[float] = None) -> MoveResult:
         """Joint-space move (validated per step) to a recorded configuration."""
+        return self.move_joint_path([q_goal], ctx, label, cancel, tolerance_rad, speed_rad_s)
+
+    def plan_vertical_path(self, q_from: np.ndarray, z_to: float, step_m: float = 0.01) -> Optional[List[np.ndarray]]:
+        """Joint waypoints for a straight vertical hand move from FK(q_from)
+        to height z_to, orientation free: position-only IK every step_m, each
+        seeded from the previous one (one consistent branch, solved before
+        moving).  None if a point has no solution."""
+        T = self.fk.compute_arm(q_from)
+        z0 = float(T[2, 3])
+        n = max(1, int(math.ceil(abs(z_to - z0) / step_m)))
+        path: List[np.ndarray] = []
+        q = np.asarray(q_from, dtype=np.float64)
+        for k in range(1, n + 1):
+            T_k = T.copy()
+            T_k[2, 3] = z0 + (z_to - z0) * (k / n)
+            q_k, _info = self.ik_position.solve(T_k, q_init=q)
+            if q_k is None or float(np.linalg.norm(self.fk.compute_arm(q_k)[:3, 3] - T_k[:3, 3])) > 0.006:
+                return None
+            path.append(q_k)
+            q = q_k
+        return path
+
+    def move_joint_path(self, path: Sequence[np.ndarray], ctx: MotionContext, label: str, cancel: threading.Event,
+                        tolerance_rad: Optional[float] = None, speed_rad_s: Optional[float] = None) -> MoveResult:
+        """Joint-space move through `path` without stopping at its waypoints:
+        every segment is validated first, then the reference is streamed at a
+        constant joint speed (no IK while moving)."""
         t = self.cfg.tuning
         tol = t.prep_tolerance_rad if tolerance_rad is None else tolerance_rad
         speed = min(speed_rad_s or t.max_joint_speed_rad_s, self.cfg.safety.max_joint_speed_rad_s)
         dt = 1.0 / max(2.0, t.planner_rate_hz)
-        q_start = self.controller.reference()
-        q_goal = np.asarray(q_goal, dtype=np.float64)
-        steps = max(1, int(math.ceil(float(np.max(np.abs(q_goal - q_start))) / max(1e-3, speed * dt))))
-        reasons = self.validator.check_segment(q_start, q_goal, ctx, samples=max(4, min(20, steps)))
-        if reasons:
-            return MoveResult(False, Failure.COLLISION_REJECTED, f"{label}: path rejected: {reasons[0]}",
-                              data={"violations": reasons})
+        q_prev = self.controller.reference()
+        refs: List[np.ndarray] = []
+        for q_next in path:
+            q_next = np.asarray(q_next, dtype=np.float64)
+            n = max(1, int(math.ceil(float(np.max(np.abs(q_next - q_prev))) / max(1e-3, speed * dt))))
+            reasons = self.validator.check_segment(q_prev, q_next, ctx, samples=max(4, min(20, n)))
+            if reasons:
+                return MoveResult(False, Failure.COLLISION_REJECTED, f"{label}: path rejected: {reasons[0]}",
+                                  data={"violations": reasons})
+            refs.extend(q_prev + (q_next - q_prev) * (k / n) for k in range(1, n + 1))
+            q_prev = q_next
+        q_goal = q_prev
+        steps = len(refs)
         self.diag(waypoint=label, desired_ee=[float(v) for v in self.fk.compute_arm(q_goal)[:3, 3]], collision="ok")
         t0 = time.time()
         best, best_t = float("inf"), t0
@@ -1063,8 +1323,8 @@ class GraspPipelineV2(GraspPipeline):
             if cancel.is_set():
                 return MoveResult(False, Failure.OPERATOR_STOP, f"{label}: operator stop")
             if index < steps:
+                self.controller.set_reference(refs[index])
                 index += 1
-                self.controller.set_reference(q_start + (q_goal - q_start) * (index / steps))
             q_meas = self.read_current_arm_q(self.sort_arm)
             err = float(np.max(np.abs(q_goal - q_meas)))
             T_meas = self.fk.compute_arm(q_meas)

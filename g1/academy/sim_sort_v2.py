@@ -86,6 +86,12 @@ class SimHandV2:
         self.contact_sensors = (2, 5, 7)
         self.raw_per_rad = 25000.0
         self.jammed: Dict[int, float] = {}          # joint -> stuck position
+        # Stale motors: ignore commands until released (limp) and re-engaged,
+        # as a Dex3 motor that dropped out of position control.
+        self.stale: set = set()
+        self._released_since_stale = False
+        self.temps = np.full(7, 40.0)
+        self.motor_states = np.zeros(7, dtype=int)
         self.contact_closure = {1: 0.45, 2: 0.45, 3: 0.5, 4: 0.5, 5: 0.5, 6: 0.5}
         self.in_contact = False
 
@@ -99,6 +105,8 @@ class SimHandV2:
             for j in range(7):
                 if j in self.jammed:
                     self.q[j] = self.jammed[j]
+                    continue
+                if j in self.stale:
                     continue
                 target = self.cmd[j]
                 if self.in_contact and j in self.contact_closure and \
@@ -216,11 +224,17 @@ class SimRobotV2:
                     "positions": {n: float(h.q[i]) for i, n in enumerate(HAND_JOINT_NAMES)},
                     "velocities": {n: float(h.dq[i]) for i, n in enumerate(HAND_JOINT_NAMES)},
                     "torques": {n: 0.0 for n in HAND_JOINT_NAMES}, "tactile_pressures": h.pressures(),
-                    "tactile_temperatures": [], "tactile_lost": [0] * 9}
+                    "tactile_temperatures": [], "tactile_lost": [0] * 9,
+                    "motor_temperatures": {n: float(h.temps[i]) for i, n in enumerate(HAND_JOINT_NAMES)},
+                    "motor_states": {n: int(h.motor_states[i]) for i, n in enumerate(HAND_JOINT_NAMES)},
+                    "motor_modes": {n: 1 for n in HAND_JOINT_NAMES}, "hand_error": [0, 0]}
 
     def write_dex3_pose(self, hand: str, targets, kp: float = 1.2, kd: float = 0.05, tau: float = 0.05) -> None:
         with self.lock:
             h = self.hands[hand]
+            if h.limp and h._released_since_stale:
+                h.stale.clear()                      # re-engaged after a release
+                h._released_since_stale = False
             h.limp = False
             h.cmd = np.asarray(targets, dtype=np.float64).copy()
 
@@ -250,6 +264,7 @@ class SimRobotV2:
             h = self.hands[hand]
             h.cmd = h.q.copy()
             h.limp = True
+            h._released_since_stale = bool(h.stale)
 
 
 class SimSceneV2:

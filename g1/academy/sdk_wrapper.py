@@ -799,13 +799,20 @@ class _Dex3:
         msg, ts = self.state.get()
         if msg is None:
             return None
-        out = {"hand": self.side, "timestamp": ts, "positions": {}, "velocities": {}, "torques": {}, "tactile_pressures": [], "tactile_temperatures": [], "tactile_lost": []}
+        out = {"hand": self.side, "timestamp": ts, "positions": {}, "velocities": {}, "torques": {}, "tactile_pressures": [], "tactile_temperatures": [], "tactile_lost": [],
+               "motor_temperatures": {}, "motor_states": {}, "motor_modes": {}, "hand_error": [int(v) for v in list(getattr(msg, "error", []) or [])]}
         motors = list(getattr(msg, "motor_state", []) or [])
         for i, name in enumerate(HAND_JOINT_NAMES):
             motor = motors[i] if i < len(motors) else None
             out["positions"][name] = None if motor is None else float(getattr(motor, "q"))
             out["velocities"][name] = None if motor is None else float(getattr(motor, "dq"))
             out["torques"][name] = None if motor is None else float(getattr(motor, "tau_est"))
+            # Health: hottest of the motor's two temperature readings, its
+            # status/error word and the active mode.
+            temps = [] if motor is None else [float(v) for v in list(getattr(motor, "temperature", []) or [])]
+            out["motor_temperatures"][name] = max(temps) if temps else None
+            out["motor_states"][name] = None if motor is None else int(getattr(motor, "motorstate", 0))
+            out["motor_modes"][name] = None if motor is None else int(getattr(motor, "mode", 0))
         for sensor in list(getattr(msg, "press_sensor_state", []) or []):
             out["tactile_pressures"].append([float(x) for x in list(getattr(sensor, "pressure", []) or [])])
             out["tactile_temperatures"].append([float(x) for x in list(getattr(sensor, "temperature", []) or [])])

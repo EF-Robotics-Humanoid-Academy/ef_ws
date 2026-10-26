@@ -34,6 +34,10 @@ class HardwareLimits:
     # sdk_wrapper: Dex3 stall detection (error / speed / confirmation time).
     dex3_stall_error_rad: float = 0.16
     dex3_stall_speed_rad_s: float = 0.12
+    # Dex3 motor temperatures (hottest of the two readings): warn, and cool
+    # down limp before the next grasp.  Measured 42-50 C after three picks.
+    dex3_temp_warn_c: float = 60.0
+    dex3_temp_limit_c: float = 70.0
     # sdk_wrapper.MAX_KD applies to every arm command.
     arm_max_kd: float = 10.0
     # Dex3 tactile sentinel for "no reading" (grasp_pipeline.TACTILE_INVALID_VALUE).
@@ -59,8 +63,9 @@ class SafetyThresholds:
     # defaults to 0.45 rad/s; grasp_pipeline ABSOLUTE_MAX_JOINT_SPEED_RAD_S 0.60).
     max_joint_speed_rad_s: float = 0.60
     # Per-joint bound of the gravity-sag integral (command minus reference).
-    # At kp=60 this is at most 60 * 0.15 = 9 Nm of extra effort per joint.
-    max_sag_compensation_rad: float = 0.15
+    # At kp=60 this is at most 60 * 0.20 = 12 Nm of extra effort per joint
+    # (0.15 saturated carrying the bottle at the far end of the transport).
+    max_sag_compensation_rad: float = 0.20
     # Reference-vs-measured joint error that means the arm cannot follow
     # (blocked, in contact, or sagging beyond compensation).
     max_tracking_error_rad: float = 0.25
@@ -144,6 +149,11 @@ class SortTuning:
     grasp_yaw_tolerance_rad: float = math.radians(8.0)
     grasp_gate_ticks: int = 2
     pregrasp_backoff_m: float = 0.06
+    # Side approach: the hand comes down beside the object on the side away
+    # from the palm (the robot's right for the right hand), then moves along
+    # the palm normal onto the grasp.  The object edge stays this far clear of
+    # the hand body (collision_radius_m) while the hand comes down.
+    side_approach_margin_m: float = 0.02
     # Last IK tier: a level-palm solution whose wrist misses the target by at
     # most this much (the edge of the arm's level-palm workspace, e.g. a cup
     # straight ahead at x~0.41 m).  Every solution is still validated on its
@@ -153,6 +163,9 @@ class SortTuning:
     # Progress / blocking detection for every Cartesian or joint move.
     progress_window_s: float = 3.0
     progress_min_m: float = 0.005
+    # Transport / release / retreat / recovery moves that settle this close
+    # to the goal (loaded arm sagging) count as reached.
+    short_move_accept_m: float = 0.03
     max_consecutive_rejections: int = 8
     max_consecutive_ik_failures: int = 8
     move_timeout_s: float = 30.0
@@ -178,6 +191,15 @@ class SortTuning:
     tactile_min_contact_sensors: int = 2
     grip_confirm_s: float = 0.3
     held_min_block_rad: float = 0.035          # finger still short of its squeeze target = blocked by object
+    # Stale finger: commanded at least this far but moved less than this (the
+    # motor did not follow at all, unlike a finger stopped by an object).
+    finger_stale_min_command_rad: float = 0.30
+    finger_stale_max_motion_rad: float = 0.05
+    # Free-space finger check before every grasp (partial close and open),
+    # with the stale-finger recovery; the closure fraction it closes to.
+    finger_check_before_grasp: bool = True
+    finger_check_closure: float = 0.35
+    finger_cooldown_max_s: float = 120.0
     # Lift (phase 4) and transport (phase 5).
     lift_m: float = 0.08
     lift_tolerance_m: float = 0.015
@@ -186,6 +208,20 @@ class SortTuning:
     # per drop-off pattern in the /sort UI; V2 raises it when the carried
     # object hangs lower (SafetyThresholds.carried_object_clearance_m).
     release_open_s: float = 1.0
+    # Gentle placing: below the release pose, lower slowly toward where the
+    # object's bottom meets the spot (its hang below the wrist at the grasp)
+    # and up to touchdown_overshoot_m further, stopping as soon as the descent
+    # stalls (the object rests on the table), then open.
+    place_touchdown: bool = True
+    touchdown_speed_m_s: float = 0.01
+    touchdown_overshoot_m: float = 0.015
+    touchdown_window_s: float = 0.5
+    touchdown_stall_ratio: float = 0.3        # measured descent < this x commanded = resistance
+    # After opening on the spot (and after a recovery set-down): move the
+    # palm away from the object along the palm normal before lifting, so the
+    # open fingers do not catch a lid or rim.  The approach's side offset is
+    # used when larger.  0 disables.
+    release_slide_m: float = 0.05
     retreat_m: float = 0.06
     prep_tolerance_rad: float = 0.06
     # From a hanging arm, the first motion swings the hand out to the side
@@ -193,6 +229,9 @@ class SortTuning:
     # anything rises.  The extend recipe itself uses 0.50 rad.
     prep_abduction_rad: float = 0.45
     prep_abduction_speed_rad_s: float = 0.3
+    # Joint speed of the rise beside the body after swinging out (and of the
+    # descent back down when parking): one smooth joint move each way.
+    prep_rise_speed_rad_s: float = 0.35
     placement_confirm_timeout_s: float = 6.0
     # Finish (phase 8).
     release_arms_at_end: bool = True
@@ -206,11 +245,17 @@ class SortTuning:
         "retract_speed_m_s": (0.01, 0.08),
         "max_joint_speed_rad_s": (0.05, 0.60),
         "grasp_position_tolerance_m": (0.008, 0.03),
+        "side_approach_margin_m": (0.01, 0.06),
         "tactile_contact_delta_raw": (300.0, 20000.0),
         "tactile_firm_delta_raw": (500.0, 50000.0),
         "lift_m": (0.04, 0.15),
         "max_attempts_per_object": (1, 5),
         "release_arms_at_end": (False, True),
+        "finger_check_before_grasp": (False, True),
+        "place_touchdown": (False, True),
+        "touchdown_speed_m_s": (0.005, 0.02),
+        "touchdown_overshoot_m": (0.0, 0.02),
+        "release_slide_m": (0.0, 0.10),
     }
 
     def update(self, values: Dict[str, Any], safety: SafetyThresholds) -> Dict[str, Any]:
