@@ -47,6 +47,10 @@ STATUS_COLOR = {OK: (80, 200, 80), NOT_LEVEL: (0, 215, 255), SAFETY: (0, 140, 25
                 TOO_FAR: (150, 50, 150), UNKNOWN: (120, 120, 120)}
 JOINT_NAMES = ("shoulder pitch", "shoulder roll", "shoulder yaw", "elbow", "wrist roll", "wrist pitch", "wrist yaw")
 TABLE_TOLERANCE_M = 0.02
+# Largest palm-link distance from the shoulder the URDF arm model can reach
+# (measured: 20000 random joint samples within the joint limits, then local
+# refinement -> 0.4318 m; the wrist frame reaches 0.4101 m).
+MODEL_MAX_PALM_REACH_M = 0.4318
 CACHE_DIR = Path(__file__).resolve().parent / ".reach_cache"
 LAYERS = ("pick", "place")
 
@@ -61,7 +65,9 @@ class ReachSpec:
     pick_height: float = 0.10       # palm above the table when grasping (lowest grasp)
     place_height: float = 0.13      # palm above the table when releasing / carrying
     standoffs: Tuple[float, ...] = (0.08, 0.10)
-    max_dist_m: float = 0.47        # palm farther than this from the shoulder: no IK needed
+    # Palm farther than this from the shoulder: out of reach without running IK
+    # (model maximum + 5 mm so rounding never hides a reachable cell).
+    max_dist_m: float = MODEL_MAX_PALM_REACH_M + 0.005
     level_tol_rad: float = math.radians(6.0)
     workspace_max_reach_m: float = 0.52   # ReachabilityChecker radius V2 uses (DEFAULT_DIRECT_MAX_REACH_M)
 
@@ -128,7 +134,7 @@ def compute_row(spec_dict: Dict[str, Any], x: float, seeds: List[List[float]]) -
                 palm = np.array([x - toward[0] * standoff, y - toward[1] * standoff, spec.table_z + height])
                 dist = float(np.linalg.norm(palm - shoulder))
                 if dist > spec.max_dist_m:
-                    cand = (TOO_FAR, dist - spec.max_dist_m, 0, standoff)
+                    cand = (TOO_FAR, dist - MODEL_MAX_PALM_REACH_M, 0, standoff)
                 else:
                     seeds_here = ([prev] if prev is not None else []) + seed_list
                     q_best, err_best, ok = None, float("inf"), False

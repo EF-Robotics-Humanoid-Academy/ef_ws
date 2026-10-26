@@ -19,13 +19,17 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass, field, fields, replace
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 
 @dataclass(frozen=True)
 class HardwareLimits:
-    # ReachabilityChecker / grasp_pipeline: the URDF wrist reaches ~0.432 m
-    # from the shoulder; 0.46 m includes the 3 cm vision tolerance V1 used.
+    # Quick distance gate before IK.  The URDF palm link reaches at most
+    # 0.4318 m from the shoulder (measured over the joint space, see
+    # reach_map_v2.MODEL_MAX_PALM_REACH_M); 0.46 m adds the 3 cm vision
+    # tolerance V1 used.  Points that pass still need IK to be reachable.
     arm_reach_m: float = 0.46
     # sdk_wrapper: Dex3 stall detection (error / speed / confirmation time).
     dex3_stall_error_rad: float = 0.16
@@ -87,6 +91,10 @@ class HandGeometry:
     """
     collision_offsets_m: Tuple[float, ...] = (0.0, 0.045, 0.09, 0.13)
     collision_radius_m: float = 0.04
+    # Slim model of the open fingers, used to keep them off the target object
+    # while the hand comes down behind it (the body model above is too coarse
+    # for that: it would push the pre-grasp ~15 cm behind every object).
+    finger_radius_m: float = 0.02
     low_extent_m: float = 0.065
     palm_offset_m: float = 0.045
     # Object centre relative to the wrist that the fingers can enclose: along
@@ -252,6 +260,53 @@ class SortV2Config:
 
 def default_config() -> SortV2Config:
     return SortV2Config()
+
+
+# Corrections ik_calibration.py may propose, with the bounds this loader enforces.
+CALIBRATION_BOUNDS = {
+    "hand.max_grasp_standoff_m": (0.06, 0.12),          # capture zone ends at 0.12 m
+    "tuning.grasp_tilt_tolerance_rad": (math.radians(2.0), math.radians(12.0)),
+    "tuning.lift_m": SortTuning.ADJUSTABLE["lift_m"],
+    "camera_correction_m": 0.08,                         # largest accepted camera translation fix
+}
+
+
+def load_calibration(cfg: SortV2Config, path: Any) -> Tuple[Optional[Dict[str, float]], List[str]]:
+    """Apply a sort_v2_calibration.json (from ik_calibration.py analyze --apply)
+    to `cfg` in place.  Returns (camera extrinsic override or None, notes).
+    Only the bounded fields above are read; safety thresholds never change."""
+    import json
+    from pathlib import Path as _Path
+    notes: List[str] = []
+    path = _Path(path)
+    if not path.exists():
+        return None, notes
+    data = json.loads(path.read_text())
+    camera = data.get("camera_extrinsic")
+    correction = float(np.linalg.norm(data.get("camera_correction_m", [0.0, 0.0, 0.0]))) if camera else 0.0
+    if camera and correction > CALIBRATION_BOUNDS["camera_correction_m"]:
+        notes.append(f"camera correction {correction:.3f} m exceeds the bound; ignored")
+        camera = None
+    if camera:
+        camera = {k: float(camera[k]) for k in ("x", "y", "z", "roll", "pitch", "yaw")}
+        notes.append(f"camera extrinsic from {path.name} (correction {correction * 100:.1f} cm)")
+    standoff = (data.get("hand") or {}).get("max_grasp_standoff_m")
+    if standoff is not None:
+        lo, hi = CALIBRATION_BOUNDS["hand.max_grasp_standoff_m"]
+        value = float(min(hi, max(lo, float(standoff))))
+        cfg.hand = replace(cfg.hand, max_grasp_standoff_m=value)
+        notes.append(f"max_grasp_standoff_m = {value:.3f}")
+    lift = (data.get("tuning") or {}).get("lift_m")
+    if lift is not None:
+        lo, hi = SortTuning.ADJUSTABLE["lift_m"]
+        cfg.tuning.lift_m = float(min(hi, max(lo, float(lift))))
+        notes.append(f"lift_m = {cfg.tuning.lift_m:.3f}")
+    tilt = (data.get("tuning") or {}).get("grasp_tilt_tolerance_rad")
+    if tilt is not None:
+        lo, hi = CALIBRATION_BOUNDS["tuning.grasp_tilt_tolerance_rad"]
+        cfg.tuning.grasp_tilt_tolerance_rad = float(min(hi, max(lo, float(tilt))))
+        notes.append(f"grasp_tilt_tolerance_rad = {cfg.tuning.grasp_tilt_tolerance_rad:.3f}")
+    return camera, notes
 
 
 __all__ = ["HardwareLimits", "SafetyThresholds", "HandGeometry", "SortTuning", "SortV2Config", "default_config"]

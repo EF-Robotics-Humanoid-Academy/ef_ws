@@ -29,6 +29,7 @@ use the robot's physical e-stop or damping for that.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from typing import Any
 
 import g1_dashboard as base  # handles --off-robot stubbing before robot modules load
@@ -92,10 +93,17 @@ class SortSessionV2(base.SortSession):
             except ImportError as exc:
                 raise LiveRequired(f"The V2 sort pipeline could not load its modules: {exc}") from exc
             openai_vision = self.args.vision_backend == "openai"
+            cfg = sort_v2_config.default_config()
+            # ik_calibration.py analyze --apply writes this (bounded corrections only).
+            camera, notes = sort_v2_config.load_calibration(cfg, Path(__file__).resolve().parent / "sort_v2_calibration.json")
             self._pipeline = grasp_pipeline_v2.GraspPipelineV2(
-                self.dash.robot, self.args.rgbd, cfg=sort_v2_config.default_config(),
-                vision_backend=self.args.vision_backend,
+                self.dash.robot, self.args.rgbd, cfg=cfg, vision_backend=self.args.vision_backend,
                 vision_model=self.args.openai_vision_model if openai_vision else self.args.vision_model)
+            if camera is not None:
+                with self._pipeline.lock:
+                    self._pipeline.camera_extrinsic = camera
+            if notes:
+                self.dash.say("system", "/sort V2 calibration loaded: " + "; ".join(notes))
         return self._pipeline
 
     def get(self) -> Any:

@@ -118,6 +118,9 @@ class MotionContext:
     # grasp height): the wrist may not drop below this instead.
     min_wrist_z_m: Optional[float] = None
     carried: Optional[CarriedObject] = None
+    # The target object while the hand is not yet allowed to enclose it
+    # (clearance, descent to the pre-grasp): fingers must stay off it.
+    keep_clear: Sequence[TableObject] = ()
     label: str = ""
 
 
@@ -177,10 +180,19 @@ class MotionValidator:
                     out.append(f"wrist z={T[2, 3]:.3f}m below {wrist_floor:.3f}m")
         for p in self.hand_points(T):
             for i, obj in enumerate(ctx.objects):
-                reach = obj.radius_m + h.collision_radius_m + gp1.OBJECT_OBSTACLE_MARGIN_M
+                reach = obj.radius_m + h.collision_radius_m + gp1.OBJECT_OBSTACLE_MARGIN_M - clearance_slack_m
                 if (float(np.linalg.norm(p[:2] - obj.center_xy)) < reach
                         and p[2] - h.collision_radius_m < obj.top_z_m + gp1.OBJECT_OBSTACLE_MARGIN_M - clearance_slack_m):
                     out.append(f"hand would hit obstacle {i + 1} at ({obj.center_xy[0]:+.2f}, {obj.center_xy[1]:+.2f})")
+                    break
+        for obj in ctx.keep_clear:
+            # The slack (measured poses only) also applies sideways: the plan is
+            # checked without it, so execution tolerates small tracking deviations.
+            reach = obj.radius_m + h.finger_radius_m + 0.01 - clearance_slack_m
+            for i, p in enumerate(self.hand_points(T)):
+                if float(np.linalg.norm(p[:2] - obj.center_xy)) < reach and \
+                        p[2] - h.finger_radius_m < obj.top_z_m + 0.01 - clearance_slack_m:
+                    out.append(f"hand point {i} would come down on the target object (top z={obj.top_z_m:.3f}m)")
                     break
         carried = ctx.carried
         if carried is not None:
@@ -512,11 +524,26 @@ class Dex3Grip:
     def holding(self) -> bool:
         return self._hold_thread is not None and self._hold_thread.is_alive()
 
+    def _staged(self, first: List[str], target: List[float], duration_s: float, kp: float, kd: float):
+        """Move the `first` joints to `target` while the others hold, then
+        everything: from a closed fist the thumb otherwise swings into the
+        curled fingers (and, closing, folds under fingers already closed) and
+        stalls (thumb_1 jams seen on the robot).  SDK stall protection stays on."""
+        snap = self.snapshot()
+        current = list(snap["q"]) if snap is not None else list(target)
+        stage = [target[i] if HAND_JOINT_NAMES[i] in first else current[i] for i in range(len(target))]
+        half = max(0.2, duration_s / 2.0)
+        result = self.robot.hand_pose(stage, hand=self.side, hold_s=half + 0.2, rate_hz=50.0, kp=kp, kd=kd, tau=0.0,
+                                      ramp_s=half)
+        if isinstance(result, dict) and result.get("reason") == "collision_or_stall":
+            return result
+        return self.robot.hand_pose(target, hand=self.side, hold_s=half + 0.3, rate_hz=50.0, kp=kp, kd=kd, tau=0.0,
+                                    ramp_s=half)
+
     def open(self, duration_s: float) -> Tuple[bool, str]:
-        """Ramp to the safe open pose (SDK stall protection on) and verify."""
+        """Open to the safe open pose, fingers before the thumb, and verify."""
         self.stop_hold()
-        result = self.robot.hand_pose(self.open_t, hand=self.side, hold_s=duration_s + 0.3, rate_hz=50.0,
-                                      kp=1.0, kd=0.1, tau=0.0, ramp_s=duration_s)
+        result = self._staged(list(FINGER_JOINTS), list(self.open_t), duration_s, kp=1.0, kd=0.1)
         snap = self.snapshot()
         if snap is None:
             return False, "no Dex3 feedback after opening"
@@ -530,8 +557,14 @@ class Dex3Grip:
         return True, f"open (max error {err:.2f} rad)"
 
     def close_neutral(self) -> Tuple[bool, str]:
+        """Neutral closed pose, thumb before the fingers, and verify."""
         self.stop_hold()
-        result = self.robot.close_dex3_hand(hand=self.side, hold_s=1.0, ramp_s=0.5)
+        result = self._staged(list(THUMB_JOINTS), list(self.closed_t), 1.0, kp=1.0, kd=0.1)
+        if isinstance(result, dict) and result.get("reason") == "collision_or_stall":
+            # Thumb-first blocked a finger: open (fingers first), then close
+            # fingers first instead.
+            self._staged(list(FINGER_JOINTS), list(self.open_t), 1.0, kp=1.0, kd=0.1)
+            result = self._staged(list(FINGER_JOINTS), list(self.closed_t), 1.0, kp=1.0, kd=0.1)
         snap = self.snapshot()
         if snap is None:
             return False, "no Dex3 feedback after closing"
@@ -573,6 +606,7 @@ class Dex3Grip:
         q0 = list(snap["q"])
         cmd = list(q0)
         frozen: Dict[int, float] = {}
+        near_open: List[str] = []
         blocked_ticks: Dict[int, int] = defaultdict(int)
         fraction = max(0.0, min(1.0, max(self.closure_of(j, q0[j]) for j in self.movable)))
         tactile = kinematic = False
@@ -599,9 +633,10 @@ class Dex3Grip:
                 blocked_ticks[j] = blocked_ticks[j] + 1 if stalled else 0
                 if blocked_ticks[j] >= 2:
                     if self.closure_of(j, snap["q"][j]) < t.finger_min_contact_closure:
-                        self.release()
-                        return GripResult("jam", False, closure=fraction, blocked=[HAND_JOINT_NAMES[j]],
-                                          detail=f"{HAND_JOINT_NAMES[j]} blocked near the open pose (jam); fingers released")
+                        # Blocked right at the open pose: the object touches this
+                        # finger first, or it is jammed.  Hold it and keep closing
+                        # the others; it is a jam only if no grip results.
+                        near_open.append(HAND_JOINT_NAMES[j])
                     squeeze = max(-s.max_finger_squeeze_rad, min(s.max_finger_squeeze_rad,
                                                                  min(t.finger_squeeze_rad, abs(self.closed_t[j] - snap["q"][j]))
                                                                  * math.copysign(1.0, self.closed_t[j] - snap["q"][j])))
@@ -642,6 +677,11 @@ class Dex3Grip:
             evidence = "tactile"
         elif held_kinematic:
             evidence = "kinematic"
+        elif near_open:
+            self.release()
+            return GripResult("jam", False, closure=fraction, blocked=near_open,
+                              detail=f"{', '.join(near_open)} blocked near the open pose and no grip formed (jam); "
+                                     "fingers released")
         else:
             evidence = "none"
         detail = (f"{evidence} evidence; blocked: {', '.join(blocked) or 'none'}; contact sensors: "
