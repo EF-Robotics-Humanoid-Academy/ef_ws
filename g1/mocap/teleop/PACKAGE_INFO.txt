@@ -1,0 +1,5 @@
+﻿Teleop Studio Windows
+source_revision=525939f4409be72c07a403a8fc900fb6d7485593
+preview_defaults_ms=default:400,low_latency:100
+history_window_frames=2
+SMPL-X body models are not bundled; Moretion teleoperation does not need them.
