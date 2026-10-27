@@ -4,7 +4,7 @@
   "rotation_speed": 0.25999999999999995,
   "rotation_duration": 1.0,
   "voice_reply": true,
-  "robot_volume": 50,
+  "robot_volume": 80,
   "voice_language": "en",
   "ai_language": "en",
   "theme": "ef",

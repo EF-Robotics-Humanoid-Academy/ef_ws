@@ -66,6 +66,9 @@ class SafetyThresholds:
     # At kp=60 this is at most 60 * 0.20 = 12 Nm of extra effort per joint
     # (0.15 saturated carrying the bottle at the far end of the transport).
     max_sag_compensation_rad: float = 0.20
+    # Waist yaw the sorter may turn to (torso turned toward a pick or drop
+    # spot the right arm cannot reach otherwise); V1's centring used 0.25.
+    max_waist_yaw_rad: float = 0.45
     # Reference-vs-measured joint error that means the arm cannot follow
     # (blocked, in contact, or sagging beyond compensation).
     max_tracking_error_rad: float = 0.25
@@ -147,7 +150,17 @@ class SortTuning:
     # Finger direction (hand x, horizontal) vs the plan: a level-palm IK leaves
     # yaw free, and 20 deg of yaw put the object 5 cm beside the fingers.
     grasp_yaw_tolerance_rad: float = math.radians(8.0)
+    # While the hand is still beside the object (clearance, descent to the
+    # pre-grasp) the finger direction may deviate more; the measured-pose
+    # check keeps the fingers off the object.  Carrying moves: yaw free.
+    path_yaw_tolerance_rad: float = math.radians(12.0)
     grasp_gate_ticks: int = 2
+    # Grip height relative to the hand-model floor (wrist low_extent +
+    # clearance above the table): negative grips lower on the object, e.g. on
+    # a low table.  Bounded so the modelled hand stays above the table.  The
+    # set-down's expected contact follows automatically (it uses the hang
+    # measured at the grasp).
+    grip_height_offset_m: float = -0.01
     pregrasp_backoff_m: float = 0.06
     # Side approach: the hand comes down beside the object on the side away
     # from the palm (the robot's right for the right hand), then moves along
@@ -159,6 +172,10 @@ class SortTuning:
     # straight ahead at x~0.41 m).  Every solution is still validated on its
     # own FK, and closing still requires the measured grasp gate.
     ik_reach_tolerance_m: float = 0.015
+    # Joint motion allowed per metre of hand motion on the planned paths next
+    # to the object (0.4 rad/cm; normal ~0.03, a stretched arm 0.2-0.3).  The
+    # path is executed as planned, so only a configuration change is refused.
+    path_max_joint_rate_rad_per_m: float = 40.0
     hover_clearance_m: float = 0.05
     # Progress / blocking detection for every Cartesian or joint move.
     progress_window_s: float = 3.0
@@ -186,8 +203,8 @@ class SortTuning:
     finger_squeeze_rad: float = 0.12
     finger_min_contact_closure: float = 0.10  # blocked nearer open than this = jam
     tactile_baseline_s: float = 0.3
-    tactile_contact_delta_raw: float = 1000.0  # idle per-element noise measured <= 8 raw (std)
-    tactile_firm_delta_raw: float = 3000.0
+    tactile_contact_delta_raw: float = 850.0   # idle per-element noise measured <= 8 raw (std)
+    tactile_firm_delta_raw: float = 2500.0
     tactile_min_contact_sensors: int = 2
     grip_confirm_s: float = 0.3
     held_min_block_rad: float = 0.035          # finger still short of its squeeze target = blocked by object
@@ -195,6 +212,9 @@ class SortTuning:
     # motor did not follow at all, unlike a finger stopped by an object).
     finger_stale_min_command_rad: float = 0.30
     finger_stale_max_motion_rad: float = 0.05
+    # Liveness probe of a finger that did not move while closing: commanded
+    # this far back toward open, a live motor follows (touching), a stale one not.
+    finger_probe_rad: float = 0.12
     # Free-space finger check before every grasp (partial close and open),
     # with the stale-finger recovery; the closure fraction it closes to.
     finger_check_before_grasp: bool = True
@@ -203,7 +223,16 @@ class SortTuning:
     # Lift (phase 4) and transport (phase 5).
     lift_m: float = 0.08
     lift_tolerance_m: float = 0.015
-    transport_extra_clearance_m: float = 0.03
+    # Extra height over obstacles while carrying (5 cm: the loaded arm sagged
+    # 1.8 cm under its transport height and the cup came too close to the
+    # bottle, log 18:23).
+    transport_extra_clearance_m: float = 0.05
+    # Waist assist: when a pick or its drop-off is out of the arm's reach,
+    # turn the torso (at the preparation pose, hand empty) by these angles in
+    # turn, re-detect and plan again; back to the start yaw after the object.
+    waist_assist: bool = True
+    waist_assist_yaws_deg: Tuple[float, ...] = (15.0, 25.0)
+    waist_yaw_speed_rad_s: float = 0.20
     # Place / retract (phases 6-7).  The release height itself is configured
     # per drop-off pattern in the /sort UI; V2 raises it when the carried
     # object hangs lower (SafetyThresholds.carried_object_clearance_m).
@@ -217,6 +246,16 @@ class SortTuning:
     touchdown_overshoot_m: float = 0.015
     touchdown_window_s: float = 0.5
     touchdown_stall_ratio: float = 0.3        # measured descent < this x commanded = resistance
+    # Grip load change while setting down = the table carries the object.
+    touchdown_finger_shift_rad: float = 0.06
+    touchdown_tactile_change_raw: float = 500.0
+    # Hand held this far above its command (beyond its free-motion sag) = it
+    # rests on something.
+    touchdown_push_m: float = 0.012
+    # Approach: close as soon as a touch sensor feels the object (it would
+    # otherwise be pushed until the EE is within grasp_position_tolerance_m of
+    # the planned grasp), once the EE is within this of the grasp.
+    approach_contact_window_m: float = 0.04
     # After opening on the spot (and after a recovery set-down): move the
     # palm away from the object along the palm normal before lifting, so the
     # open fingers do not catch a lid or rim.  The approach's side offset is
@@ -245,6 +284,7 @@ class SortTuning:
         "retract_speed_m_s": (0.01, 0.08),
         "max_joint_speed_rad_s": (0.05, 0.60),
         "grasp_position_tolerance_m": (0.008, 0.03),
+        "grip_height_offset_m": (-0.015, 0.03),
         "side_approach_margin_m": (0.01, 0.06),
         "tactile_contact_delta_raw": (300.0, 20000.0),
         "tactile_firm_delta_raw": (500.0, 50000.0),
@@ -256,6 +296,7 @@ class SortTuning:
         "touchdown_speed_m_s": (0.005, 0.02),
         "touchdown_overshoot_m": (0.0, 0.02),
         "release_slide_m": (0.0, 0.10),
+        "waist_assist": (False, True),
     }
 
     def update(self, values: Dict[str, Any], safety: SafetyThresholds) -> Dict[str, Any]:
@@ -295,7 +336,19 @@ class SortV2Config:
         hand's low extent, its required clearance, and the fingertip drop at
         the allowed palm tilt."""
         tilt_drop = max(self.hand.collision_offsets_m) * math.sin(self.tuning.grasp_tilt_tolerance_rad)
-        return self.hand.low_extent_m + self.safety.grasp_hand_table_clearance_m + tilt_drop
+        return self.hand.low_extent_m + self.grasp_hand_clearance_m() + tilt_drop
+
+    def grasp_hand_clearance_m(self) -> float:
+        """Hand-to-table clearance at the grasp: the safety value moved by the
+        operator's grip height offset (a lower table: grip lower), never below
+        the table in the hand model."""
+        return max(0.0, self.safety.grasp_hand_table_clearance_m + self.tuning.grip_height_offset_m)
+
+    def place_hand_clearance_m(self) -> float:
+        """Hand-to-table clearance allowed while setting an object down: the
+        slow set-down may use the grasp clearance band (0 = the modelled hand
+        at the table surface)."""
+        return 0.0
 
     def describe(self) -> Dict[str, Any]:
         return {"hardware": asdict(self.hardware), "safety": asdict(self.safety), "hand": asdict(self.hand),

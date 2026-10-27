@@ -54,9 +54,17 @@ from sdk_wrapper import HAND_CLOSED, HAND_JOINT_NAMES, HAND_SAFE_OPEN
 from sort_v2_config import SortV2Config, default_config
 from sorting_state_machine import Failure
 
-# Touch-down: the carried object's (estimated) bottom may go at most this far
-# below the table plane before the descent must have met resistance.
-PLACE_MAX_BELOW_TABLE_M = 0.02
+# Violation texts of a pose that is too low (table / floor / minimum height,
+# or a carried object too close to an obstacle under it): a rising move that
+# does not go lower may still run.
+LOW_POSE_MARKERS = ("below", "too close to the table", "carried object would hit obstacle")
+# Waist yaw joint and the gains sdk_wrapper.engage_arms holds the waist with.
+WAIST_YAW_JOINT = 12
+WAIST_KP = 480.0
+WAIST_KD = 10.0
+# A tactile baseline younger than this (taken at the pre-grasp, hand clear of
+# the object) is kept when closing.
+GRIP_BASELINE_MAX_AGE_S = 15.0
 THUMB_JOINTS = ("thumb_1", "thumb_2")
 FINGER_JOINTS = ("middle_0", "middle_1", "index_0", "index_1")
 
@@ -176,12 +184,13 @@ class MotionValidator:
                 down = T[:3, 2] if T[2, 2] > 0.0 else np.array([0.0, 0.0, 1.0])
                 # Setting an object down may use the clearance band: the slow
                 # descent stops at the first resistance (object or hand).
-                floor = table.z_base_m + (0.0 if ctx.placing else s.grasp_hand_table_clearance_m) - clearance_slack_m
+                clearance = self.cfg.place_hand_clearance_m() if ctx.placing else self.cfg.grasp_hand_clearance_m()
+                floor = table.z_base_m + clearance - clearance_slack_m
                 for i, p in enumerate(self.hand_points(T)):
                     low = p - down * h.low_extent_m
                     if self._over_table(table, low) and low[2] < floor:
                         out.append(f"hand point {i} lowest z={low[2]:.3f}m below table {table.z_base_m:.3f}"
-                                   f"+{s.grasp_hand_table_clearance_m:.3f}m")
+                                   f"+{clearance:.3f}m")
                         break
             else:
                 wrist_floor = general_floor if ctx.min_wrist_z_m is None else min(general_floor, ctx.min_wrist_z_m)
@@ -207,9 +216,13 @@ class MotionValidator:
         if carried is not None:
             centre = T[:3, 3] + T[:3, :3] @ carried.offset_hand
             bottom = float(T[2, 3] - carried.hang_m)
-            floor = (table.z_base_m - PLACE_MAX_BELOW_TABLE_M if ctx.placing else
-                     table.z_base_m + s.carried_object_clearance_m) if table is not None else 0.0
-            if table is not None and self._over_table(table, centre) and bottom < floor - clearance_slack_m:
+            # Placing: the bottom is computed from the hang at the grasp, which
+            # is wrong once the object slides in the hand on touching the table
+            # (seen: "bottom z=-0.057" while the cup stood on the table).  The
+            # set-down's own floor and the hand's table check apply instead.
+            floor = table.z_base_m + s.carried_object_clearance_m if table is not None else 0.0
+            if table is not None and not ctx.placing and self._over_table(table, centre) and \
+                    bottom < floor - clearance_slack_m:
                 out.append(f"carried object bottom z={bottom:.3f}m too close to the table")
             for i, obj in enumerate(ctx.objects):
                 if float(np.linalg.norm(centre[:2] - obj.center_xy)) < obj.radius_m + carried.radius_m + 0.02 and \
@@ -281,12 +294,32 @@ class ArmController:
         self._q_cmd = np.zeros(7)
         self._integral = np.zeros(7)
         self._q_meas = np.zeros(7)
+        # False freezes the sag integral at its current value (holding against
+        # the table or in an error hold: no windup); every V2 move resets it.
         self.integrate = True
         self._ref_changed_ts = 0.0
         self.last_error = ""
         self.loop_errors = 0
         self.read_failures = 0
         self.last_read_ts = 0.0
+        # Waist yaw (joint 12): None = not commanded by this controller (the
+        # arm_sdk message keeps what engage wrote).  Once set, the command is
+        # ramped at waist_yaw_speed_rad_s and published with the arm joints.
+        self._waist_target: Optional[float] = None
+        self._waist_cmd: Optional[float] = None
+
+    def set_waist_yaw(self, target: float, current: float) -> None:
+        """Ramp the waist yaw command from `current` (measured) to `target`,
+        bounded by SafetyThresholds.max_waist_yaw_rad."""
+        lim = self.cfg.safety.max_waist_yaw_rad
+        with self._lock:
+            if self._waist_cmd is None:
+                self._waist_cmd = float(current)
+            self._waist_target = float(max(-lim, min(lim, target)))
+
+    def waist_command(self) -> Optional[float]:
+        with self._lock:
+            return self._waist_cmd
 
     @property
     def running(self) -> bool:
@@ -321,6 +354,30 @@ class ArmController:
     def reference(self) -> np.ndarray:
         with self._lock:
             return self._q_ref.copy()
+
+    def mark_free(self) -> None:
+        """Remember the free-arm state (command-minus-measured gap and the
+        sag integral) while nothing touches the hand: relax() restores it."""
+        with self._lock:
+            self._free = (self._q_ref - self._q_meas, self._integral.copy())
+
+    def relax(self) -> bool:
+        """Hold the arm where it measures now without pressing on whatever
+        stopped it: integral back to the last free value (a wound-up integral
+        kept pushing into the table: "arm not following" on every move after),
+        reference = measured + the free gap (the measured pose alone drops a
+        sagging arm by that gap), integral frozen until the next move.  False
+        if no free state was marked."""
+        with self._lock:
+            free = getattr(self, "_free", None)
+            self.integrate = False
+            if free is None:
+                return False
+            gap, integral = free
+            self._integral = integral.copy()
+            self._q_ref = self._q_meas + gap
+            self._ref_changed_ts = time.time()
+            return True
 
     def measured(self) -> np.ndarray:
         with self._lock:
@@ -391,8 +448,18 @@ class ArmController:
                     delta *= cap / biggest
                 self._q_cmd = self._q_cmd + delta
                 q_cmd = self._q_cmd.copy()
-            self.robot._arm_sdk_client().write({int(j): float(q_cmd[i]) for i, j in enumerate(self.joints)},
-                                               kp=float(t.arm_kp), kd=float(kd))
+                if self._waist_target is not None and self._waist_cmd is not None:
+                    step = t.waist_yaw_speed_rad_s * step_dt
+                    self._waist_cmd += max(-step, min(step, self._waist_target - self._waist_cmd))
+                waist = self._waist_cmd
+            targets = {int(j): float(q_cmd[i]) for i, j in enumerate(self.joints)}
+            if waist is None:
+                self.robot._arm_sdk_client().write(targets, kp=float(t.arm_kp), kd=float(kd))
+            else:
+                # Waist gains as sdk_wrapper.engage_arms holds the waist.
+                targets[WAIST_YAW_JOINT] = float(waist)
+                self.robot._arm_sdk_client().write(targets, kp=float(t.arm_kp), kd=float(kd),
+                                                   waist_kp={WAIST_YAW_JOINT: WAIST_KP}, waist_kd={WAIST_YAW_JOINT: WAIST_KD})
             remaining = dt - (time.time() - t0)
             if remaining > 0:
                 self._stop.wait(remaining)
@@ -438,6 +505,7 @@ class Dex3Grip:
         self.closed_t = list(HAND_CLOSED[side])
         self.movable = [i for i in range(len(HAND_JOINT_NAMES)) if abs(self.closed_t[i] - self.open_t[i]) > 1e-3]
         self.baseline: Optional[List[Optional[np.ndarray]]] = None
+        self.baseline_ts = 0.0
         self.last_grip: Optional[GripResult] = None
         self._hold_cmd: Optional[List[float]] = None
         self._hold_thread: Optional[threading.Thread] = None
@@ -493,6 +561,7 @@ class Dex3Grip:
             mean[np.any(np.abs(stack - invalid) < 0.5, axis=0)] = np.nan
             baseline.append(mean)
         self.baseline = baseline if any(b is not None and np.isfinite(b).any() for b in baseline) else None
+        self.baseline_ts = time.time() if self.baseline is not None else 0.0
         return self.baseline
 
     def tactile_deltas(self, snap: Optional[Dict[str, Any]]) -> Optional[List[float]]:
@@ -757,7 +826,10 @@ class Dex3Grip:
         snap = self.snapshot()
         if snap is None:
             return GripResult("no_feedback", False, detail="no fresh Dex3 state")
-        self.record_baseline(t.tactile_baseline_s)
+        # Keep a baseline taken moments ago with the open hand clear of the
+        # object (at the pre-grasp): here a sensor may already touch it.
+        if self.baseline is None or time.time() - self.baseline_ts > GRIP_BASELINE_MAX_AGE_S:
+            self.record_baseline(t.tactile_baseline_s)
         tactile_available = self.baseline is not None
         q0 = list(snap["q"])
         cmd = list(q0)
@@ -820,8 +892,17 @@ class Dex3Grip:
         snap_now = self.snapshot() or snap
         suspects = [j for j in frozen if abs(snap_now["q"][j] - q0[j]) < t.finger_stale_max_motion_rad]
         if suspects:
-            self.event("warn", f"closing: {', '.join(HAND_JOINT_NAMES[j] for j in suspects)} did not move at all "
-                               "(stale motor or touching at the open pose): not counted as grip evidence")
+            # Stale motor or a finger touching the object right at the open
+            # pose (the bottle against the fingers as the palm arrives)?  A
+            # live motor follows a small command back toward open.
+            alive = self._probe_alive(cmd, suspects)
+            if alive:
+                self.event("info", f"closing: {', '.join(HAND_JOINT_NAMES[j] for j in alive)} did not move but "
+                                   "respond: touching the object at the open pose")
+            suspects = [j for j in suspects if j not in alive]
+        if suspects:
+            self.event("warn", f"closing: {', '.join(HAND_JOINT_NAMES[j] for j in suspects)} did not move and do not "
+                               "respond (stale motor): not counted as grip evidence")
         # Confirmation: the evidence has to persist while the grip is held.
         self.start_hold(cmd)
         confirm_deadline = time.time() + t.grip_confirm_s
@@ -858,6 +939,51 @@ class Dex3Grip:
         self._suspects = list(suspects)
         self.diag(grasp_status=detail)
         return result
+
+    def load_reference(self) -> Optional[Dict[str, Any]]:
+        """Finger positions and tactile deltas now, to tell later whether the
+        load on the grip changed (the table taking the object's weight)."""
+        snap = self.snapshot()
+        if snap is None:
+            return None
+        return {"q": list(snap["q"]), "tactile": self.tactile_deltas(snap)}
+
+    def load_change(self, ref: Optional[Dict[str, Any]]) -> str:
+        """Why the grip load changed since `ref` ("" if not): a held finger
+        moved (the object slipping or pushed up in the hand) or a contact
+        sensor's reading changed clearly."""
+        snap = self.snapshot()
+        if ref is None or snap is None:
+            return ""
+        t = self.cfg.tuning
+        for j in getattr(self, "_frozen", {}):
+            moved = abs(snap["q"][j] - ref["q"][j])
+            if moved >= t.touchdown_finger_shift_rad:
+                return f"{HAND_JOINT_NAMES[j]} shifted {moved:.2f} rad (object pushed in the hand)"
+        now, before = self.tactile_deltas(snap), ref.get("tactile")
+        if now and before:
+            for i, (a, b) in enumerate(zip(now, before)):
+                if max(a, b) >= t.tactile_contact_delta_raw and \
+                        abs(a - b) >= max(t.touchdown_tactile_change_raw, 0.4 * max(a, b)):
+                    return f"contact sensor {i} changed {b:.0f} -> {a:.0f} raw"
+        return ""
+
+    def _probe_alive(self, cmd: List[float], joints: List[int]) -> List[int]:
+        """Of `joints`, those whose motor follows a small command back toward
+        open (then the grip command is restored)."""
+        t = self.cfg.tuning
+        before = self.snapshot()
+        if before is None:
+            return []
+        probe = list(cmd)
+        for j in joints:
+            probe[j] = before["q"][j] - math.copysign(t.finger_probe_rad, self.closed_t[j] - self.open_t[j])
+        self._stream(probe, 0.3)
+        after = self.snapshot()
+        self._stream(list(cmd), 0.3)
+        if after is None:
+            return []
+        return [j for j in joints if abs(after["q"][j] - before["q"][j]) >= t.finger_stale_max_motion_rad * 0.8]
 
     def retained(self) -> Tuple[Optional[bool], str]:
         """Is the object still in the hand?  None when it cannot be told."""
@@ -1002,7 +1128,8 @@ class GraspPipelineV2(GraspPipeline):
         q, info = self.ik_position.solve(T, q_init=q_seed)
         return 0.0 if q is not None else float(info["error_pos_m"])
 
-    def solve_step(self, T: np.ndarray, q_prev: np.ndarray, level: bool, yaw_free: bool) -> Optional[np.ndarray]:
+    def solve_step(self, T: np.ndarray, q_prev: np.ndarray, level: bool, yaw_free: bool,
+                   yaw_tol: Optional[float] = None) -> Optional[np.ndarray]:
         """IK for one planner step; None also when the solution would jump
         configuration (SafetyThresholds.max_ik_step_jump_rad)."""
         if not level:
@@ -1010,7 +1137,7 @@ class GraspPipelineV2(GraspPipeline):
         elif yaw_free:
             q = self.solve_level(T, q_prev)
         else:
-            q = self.solve_pose(T, q_prev)
+            q = self.solve_pose(T, q_prev, yaw_tol)
         if q is None:
             if not level:
                 self.last_ik_detail = "no position-only solution"
@@ -1022,9 +1149,11 @@ class GraspPipelineV2(GraspPipeline):
             return None
         return q
 
-    def solve_pose(self, T: np.ndarray, q_init: np.ndarray) -> Optional[np.ndarray]:
+    def solve_pose(self, T: np.ndarray, q_init: np.ndarray, yaw_tol: Optional[float] = None) -> Optional[np.ndarray]:
         """The full 6D target: 6D IK first; at the reach edge, a level-palm
-        solution whose finger direction is within grasp_yaw_tolerance_rad."""
+        solution whose finger direction is within yaw_tol (default
+        grasp_yaw_tolerance_rad)."""
+        tol = self.cfg.tuning.grasp_yaw_tolerance_rad if yaw_tol is None else yaw_tol
         q, info = self.ik_6d.solve(T, q_init=q_init)
         if q is not None and not info.get("fallback"):
             self.last_ik_detail = "6D"
@@ -1033,9 +1162,9 @@ class GraspPipelineV2(GraspPipeline):
         if q is None:
             return None
         yaw = yaw_error(self.fk.compute_arm(q), T)
-        if yaw > self.cfg.tuning.grasp_yaw_tolerance_rad:
+        if yaw > tol:
             self.last_ik_detail = (f"finger direction {math.degrees(yaw):.1f} deg off the planned yaw "
-                                   f"(max {math.degrees(self.cfg.tuning.grasp_yaw_tolerance_rad):.0f})")
+                                   f"(max {math.degrees(tol):.0f})")
             return None
         return q
 
@@ -1046,7 +1175,8 @@ class GraspPipelineV2(GraspPipeline):
                     monitor: Optional[Callable[[], Optional[Tuple[Failure, str]]]] = None,
                     level: bool = True, timeout_s: Optional[float] = None,
                     gate_reason: Optional[Callable[[np.ndarray], str]] = None, yaw_free: bool = False,
-                    accept_short_m: Optional[float] = None) -> MoveResult:
+                    accept_short_m: Optional[float] = None, integrate: bool = True,
+                    q_path: Optional[Sequence[np.ndarray]] = None, yaw_tol: Optional[float] = None) -> MoveResult:
         """Straight-line hand move from the current reference to T_goal.
 
         Each planner tick advances the reference one step along the line,
@@ -1061,17 +1191,56 @@ class GraspPipelineV2(GraspPipeline):
         `accept_short_m` (transport, release, retreat: no precision needed) a
         move whose whole reference was sent but that settles that close to
         the goal (the loaded arm sagging beyond compensation) counts as reached.
+        `integrate=False` keeps the sag integral frozen for the move (moves
+        that end in contact: it would wind up pressing).  `q_path`: the joint
+        path planned for this move (one configuration per step, ending at
+        T_goal); its steps are followed instead of solving IK every tick (a
+        stretched arm's per-tick IK wandered and the descent crawled to a
+        stop).  Every step is still validated, the measured pose checked.
         """
         t = self.cfg.tuning
         tol = t.move_tolerance_m if tolerance_m is None else tolerance_m
         timeout = t.move_timeout_s if timeout_s is None else timeout_s
         rate = max(2.0, t.planner_rate_hz)
         dt = 1.0 / rate
+        self.controller.integrate = integrate
         q_ref = self.controller.reference()
         T_start = self.fk.compute_arm(q_ref)
         distance = float(np.linalg.norm(T_goal[:3, 3] - T_start[:3, 3]))
         angle = palm_tilt(T_start, T_goal) if level else 0.0
         steps = max(1, int(math.ceil(max(distance / max(1e-3, speed_m_s * dt), angle / math.radians(3.0)))))
+        path: Optional[List[np.ndarray]] = None
+        if q_path:
+            path = [np.asarray(q, dtype=np.float64) for q in q_path]
+            end_err = float(np.linalg.norm(self.fk.compute_arm(path[-1])[:3, 3] - T_goal[:3, 3]))
+            if end_err > 0.01:
+                path = None            # not this move's path: solve per step
+            else:
+                # Planned at 5 mm; executed at the move's speed by streaming
+                # interpolated references between the planned configurations.
+                dense: List[np.ndarray] = []
+                q_prev_p = q_ref
+                per = max(1, int(round(steps / len(path))))
+                for q_p in path:
+                    dense.extend(q_prev_p + (q_p - q_prev_p) * (k / per) for k in range(1, per + 1))
+                    q_prev_p = q_p
+                path = dense
+                steps = len(path)
+        # A move that rises out of a pose already too low (hand sagged onto the
+        # table, wrist under its floor) may run as long as it does not go lower
+        # than where it started: the height checks would otherwise refuse
+        # every step and the measured pose, trapping the hand there.
+        rising = float(T_goal[2, 3]) > float(T_start[2, 3]) + 0.005
+        try:
+            z_low = min(float(T_start[2, 3]), float(self.fk.compute_arm(self.read_current_arm_q(self.sort_arm))[2, 3]))
+        except Exception:
+            z_low = float(T_start[2, 3])
+
+        def escape(reasons: List[str], z: float) -> List[str]:
+            if not rising or z < z_low - 0.005:
+                return reasons
+            return [r for r in reasons if not any(m in r for m in LOW_POSE_MARKERS)]
+
         index = 0
         rejections = ik_failures = 0
         last_reject = ""
@@ -1102,8 +1271,12 @@ class GraspPipelineV2(GraspPipeline):
             # reached the previous one, so the command never cuts across
             # unvalidated joint space.
             if index < steps and self.controller.lag_rad() <= 0.02:
-                T_next = interpolate_pose(T_start, T_goal, (index + 1) / steps)
-                q_next = self.solve_step(T_next, q_ref, level, yaw_free)
+                if path is not None:
+                    q_next = path[index]
+                    T_next = self.fk.compute_arm(q_next)
+                else:
+                    T_next = interpolate_pose(T_start, T_goal, (index + 1) / steps)
+                    q_next = self.solve_step(T_next, q_ref, level, yaw_free, yaw_tol)
                 if q_next is None:
                     ik_failures += 1
                     self.diag(collision=f"IK failure x{ik_failures}")
@@ -1115,7 +1288,7 @@ class GraspPipelineV2(GraspPipeline):
                         return finish(MoveResult(False, Failure.IK_FAILURE, f"{label}: no level-palm IK for "
                                           f"({p[0]:+.3f}, {p[1]:+.3f}, {p[2]:+.3f}) m after {ik_failures} tries", err, tilt))
                 else:
-                    reasons = self.validator.check_segment(q_ref, q_next, ctx, T_next)
+                    reasons = escape(self.validator.check_segment(q_ref, q_next, ctx, T_next), float(T_next[2, 3]))
                     if reasons:
                         rejections += 1
                         last_reject = reasons[0]
@@ -1141,8 +1314,8 @@ class GraspPipelineV2(GraspPipeline):
             tilt = palm_tilt(T_meas, T_goal)
             self.diag(measured_ee=[float(v) for v in T_meas[:3, 3]], ee_error_m=err, palm_tilt_rad=tilt,
                       move_progress=index / steps, move_elapsed_s=tick - t0)
-            unsafe = self.validator.pose_violations(T_meas, self.fk.compute_arm_partial(q_meas, 4)[:3, 3], ctx,
-                                                    clearance_slack_m=0.01)
+            unsafe = escape(self.validator.pose_violations(T_meas, self.fk.compute_arm_partial(q_meas, 4)[:3, 3], ctx,
+                                                    clearance_slack_m=0.01), float(T_meas[2, 3]))
             if unsafe:
                 return finish(MoveResult(False, Failure.COLLISION_REJECTED, f"{label}: measured pose unsafe: {unsafe[0]}",
                                   err, tilt, {"violations": unsafe}))
@@ -1168,7 +1341,9 @@ class GraspPipelineV2(GraspPipeline):
                                    f"{status['sag_compensation_rad']:.3f} rad, rejections {rejections}, "
                                    f"IK failures {ik_failures}")
                 if gate is not None and gate_reason is not None and index >= steps:
-                    self.event("info", f"{label}: grasp gate not yet satisfied: {gate_reason(T_meas)}")
+                    why = gate_reason(T_meas)
+                    if why:       # empty = satisfied, waiting for the confirming tick
+                        self.event("info", f"{label}: grasp gate not yet satisfied: {why}")
             if gate is not None:
                 gate_ticks = gate_ticks + 1 if gate(T_meas) else 0
                 if gate_ticks >= t.grasp_gate_ticks:
@@ -1216,11 +1391,15 @@ class GraspPipelineV2(GraspPipeline):
                 cancel.wait(remaining)
 
     def touch_down(self, z_goal: float, ctx: MotionContext, speed_m_s: float, label: str,
-                   cancel: threading.Event) -> MoveResult:
+                   cancel: threading.Event, load_cue: Optional[Callable[[], str]] = None) -> MoveResult:
         """Lower straight down toward z_goal and stop at the first resistance:
         once the reference is descending steadily, a measured descent below
         touchdown_stall_ratio of the commanded one over touchdown_window_s
-        means the carried object rests on the table.  The reference is then
+        means the carried object rests on the table.  So does a change of the
+        grip load (`load_cue`: a finger shifting or a tactile change, also
+        when the object slides up in the hand instead of stopping it), and
+        the measured wrist reaching z_goal ends it in any case (the object
+        slid in the hand: seen on the cup).  The reference is then
         frozen at the measured pose, so the arm does not keep pressing (the
         sag integral would otherwise wind up against the table).  Reaching
         z_goal without resistance also ends it (ok, noted)."""
@@ -1231,6 +1410,11 @@ class GraspPipelineV2(GraspPipeline):
         hist: List[Tuple[float, float, float]] = []      # (time, measured z, reference z)
         t0 = time.time()
         contact = {"why": ""}
+        # Free-arm state before anything touches (relax() returns to it).
+        self.controller.mark_free()
+        # How far the hand trails above its command while descending freely,
+        # taken once the descent is steady (first second).
+        lag_free: Dict[str, Optional[float]] = {"lag": None}
 
         def gate(T_meas: np.ndarray) -> bool:
             now = time.time()
@@ -1238,33 +1422,111 @@ class GraspPipelineV2(GraspPipeline):
             hist.append((now, float(T_meas[2, 3]), z_ref))
             while len(hist) > 2 and now - hist[1][0] >= t.touchdown_window_s:
                 hist.pop(0)
+            # Held up: the hand stays above its command by more than it trails
+            # in free descent, also while the command itself is not moving (an
+            # IK stall kept the stall test below from firing while the hand
+            # was already pressed onto the cup).
+            lag = float(T_meas[2, 3]) - z_ref
+            if now - t0 < 1.0:
+                lag_free["lag"] = lag
+                return False
+            held_up = lag - (lag_free["lag"] or 0.0)
+            if z_start - z_ref >= 0.005 and held_up >= t.touchdown_push_m:
+                contact["why"] = f"hand held {held_up * 1000:.0f} mm above its command at z={T_meas[2, 3]:.3f} m"
+                return True
             span = hist[-1][0] - hist[0][0]
             if now - t0 < 1.0 or z_start - z_ref < 0.01 or span < 0.8 * t.touchdown_window_s:
                 return False
+            if float(T_meas[2, 3]) <= z_goal + 0.002:
+                contact["why"] = f"measured wrist reached the set-down floor z={z_goal:.3f} m"
+                return True
+            if load_cue is not None and z_start - z_ref >= 0.005:
+                why = load_cue()
+                if why:
+                    contact["why"] = f"grip load changed at z={T_meas[2, 3]:.3f} m: {why}"
+                    return True
             descent = hist[0][1] - hist[-1][1]
             # What the reference actually did in the window (not the nominal
             # speed): a reference held back by the validator or at its goal is
             # no resistance.
             expected = hist[0][2] - hist[-1][2]
+            # The command itself no longer descends although the target does:
+            # the arm reaches no lower here (the reach-edge IK tier accepts the
+            # residual).  Release here instead of failing on "no progress".
+            if now - t0 >= 1.5 and z_ref > z_goal + 0.005 and expected < 0.2 * speed_m_s * span:
+                contact["why"] = (f"the arm reaches no lower here (edge of its reach) at z={T_meas[2, 3]:.3f} m, "
+                                  f"{(z_ref - z_goal) * 1000:.0f} mm above the set-down floor")
+                return True
             if expected >= 0.5 * speed_m_s * span and descent < t.touchdown_stall_ratio * expected:
                 contact["why"] = (f"resistance at z={T_meas[2, 3]:.3f} m: descended {descent * 1000:.1f} mm in "
                                   f"{span:.1f} s for {expected * 1000:.1f} mm commanded")
                 return True
             return False
 
+        # Sag integral frozen for the whole descent (it wound up to its cap
+        # against the cup while IK stalled), finger direction free within the
+        # level palm (a fixed yaw stalled the IK near the reach edge).
         r = self.move_linear(T_goal, ctx, speed_m_s, label, cancel, gate=gate,
-                             gate_reason=lambda _T: "no resistance yet", timeout_s=30.0)
+                             gate_reason=lambda _T: "no resistance yet", timeout_s=30.0, yaw_free=True,
+                             integrate=False)
         if r.ok and contact["why"]:
             r = MoveResult(True, None, f"{label}: {contact['why']}", r.error_m, r.tilt_rad)
         elif not r.ok and r.failure == Failure.NOT_REACHED and "arrived" in r.detail:
             r = MoveResult(True, None, f"{label}: reached z={z_goal:.3f} m without resistance", r.error_m, r.tilt_rad)
+        elif not r.ok and r.failure in (Failure.NOT_REACHED, Failure.TRACKING_FAILURE) and "no progress" in r.detail:
+            # The hand stopped going down (reach edge, or resting on something
+            # the other cues missed): release here, the object is over the spot.
+            z_now = float(self.measured_hand_T()[2, 3])
+            r = MoveResult(True, None, f"{label}: the arm goes no lower at z={z_now:.3f} m "
+                                       f"({(z_now - z_goal) * 1000:.0f} mm above the set-down floor); releasing here",
+                           r.error_m, r.tilt_rad)
+        # Hold where the hand is without pressing (also after a failure: the
+        # recovery starts from a relaxed arm).
+        self.controller.relax()
         if r.ok:
-            try:
-                self.controller.set_reference(self.read_current_arm_q(self.sort_arm))
-            except Exception:
-                pass
             self.event("info", r.detail)
         return r
+
+    def waist_yaw(self) -> float:
+        return self.read_joint_position(WAIST_YAW_JOINT)
+
+    def turn_waist(self, target: float, cancel: threading.Event, label: str = "waist") -> MoveResult:
+        """Turn the torso (waist yaw) to `target` through the arm controller
+        (the only rt/arm_sdk publisher); the arm joints hold.  The camera
+        turns with the torso, so everything measured before is stale."""
+        t = self.cfg.tuning
+        try:
+            start = self.waist_yaw()
+        except Exception as exc:
+            return MoveResult(False, Failure.SENSOR_UNAVAILABLE, f"{label}: waist yaw not readable ({exc})")
+        lim = self.cfg.safety.max_waist_yaw_rad
+        target = max(-lim, min(lim, float(target)))
+        self.controller.set_waist_yaw(target, start)
+        self.event("info", f"{label}: waist yaw {math.degrees(start):+.1f} -> {math.degrees(target):+.1f} deg")
+        deadline = time.time() + abs(target - start) / max(0.05, t.waist_yaw_speed_rad_s) + 4.0
+        settled_since: Optional[float] = None
+        while True:
+            if cancel.is_set():
+                try:
+                    self.controller.set_waist_yaw(self.waist_yaw(), start)
+                except Exception:
+                    pass
+                return MoveResult(False, Failure.OPERATOR_STOP, f"{label}: operator stop")
+            try:
+                yaw = self.waist_yaw()
+            except Exception as exc:
+                return MoveResult(False, Failure.SENSOR_UNAVAILABLE, f"{label}: waist yaw not readable ({exc})")
+            cmd = self.controller.waist_command()
+            if abs(yaw - target) <= 0.02 and cmd is not None and abs(cmd - target) < 1e-3:
+                settled_since = settled_since or time.time()
+                if time.time() - settled_since >= 0.3:
+                    return MoveResult(True, None, f"{label}: waist at {math.degrees(yaw):+.1f} deg")
+            else:
+                settled_since = None
+            if time.time() > deadline:
+                return MoveResult(False, Failure.NOT_REACHED, f"{label}: waist stopped at {math.degrees(yaw):+.1f} deg "
+                                  f"(target {math.degrees(target):+.1f})")
+            cancel.wait(0.05)
 
     def move_joint(self, q_goal: np.ndarray, ctx: MotionContext, label: str, cancel: threading.Event,
                    tolerance_rad: Optional[float] = None, speed_rad_s: Optional[float] = None) -> MoveResult:
@@ -1300,6 +1562,7 @@ class GraspPipelineV2(GraspPipeline):
         tol = t.prep_tolerance_rad if tolerance_rad is None else tolerance_rad
         speed = min(speed_rad_s or t.max_joint_speed_rad_s, self.cfg.safety.max_joint_speed_rad_s)
         dt = 1.0 / max(2.0, t.planner_rate_hz)
+        self.controller.integrate = True
         q_prev = self.controller.reference()
         refs: List[np.ndarray] = []
         for q_next in path:

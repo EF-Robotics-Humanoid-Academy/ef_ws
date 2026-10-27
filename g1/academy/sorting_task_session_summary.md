@@ -115,6 +115,97 @@ After these fixes the first real runs worked, with remaining bugs.
   - Visible staged retries in the log ("recovering", "recovered after …") are the recovery ladder at work.
 - Backup: `backups/sort_v2_20261027_012655/`.
 
+### 4.10 Cup set-down: fingers did not open, arm moved back and forth
+- **Chain of events (log 16:16):**
+  1. The cup was gripped at the lowest allowed height. During the set-down its bottom reached the table, but the hand slid down along the cup, so the descent never stalled and no resistance was detected. The measured wrist ended about 3 cm below the expected contact.
+  2. The carried-object check computed the cup bottom from the grasp-time hang, got "z=-0.057 m" (inside the table), and aborted.
+  3. The recovery tried to carry the cup back; its "up" move was refused below the normal wrist floor. ERROR, with the hand still closed.
+  4. In ERROR the reference stayed about 1.5 cm above the real hand, so the sag compensation kept pushing against the hand wedged on the cup and table: the back-and-forth motion.
+- **Steps:**
+  - The set-down also stops when the *measured* wrist reaches its floor, or when the grip load changes (a held finger shifting ≥ 0.06 rad, or a contact sensor changing clearly).
+  - In set-down mode the carried-object-bottom check is off; the hand's own table check stays.
+  - Failure during a set-down: open at the spot (the object stands on the table), move away, rise above the object, and count the placement.
+  - The recovery rise may start from below the normal wrist floor.
+  - ERROR holds the arm at its measured pose.
+- Backup: `backups/sort_v2_20261027_162158/`.
+
+### 4.11 Hand stayed down after placing the cup; bottle closing failed twice
+- **Hand stayed down (log 16:36):**
+  - **Cause:** while carrying the cup the sag compensation was saturated (0.200 rad), with the hand about 2 cm below its command. At the set-down stop, the command was moved to the measured pose (the 4.10 change). That lowered it by the gap, and the hand sank onto the table (wrist 0.059 → 0.029 m). Every later move, including upward ones, was refused, because the measured pose was already below its floor → ERROR.
+  - **Steps:**
+    - The stop holds the hand where it is: the measured pose plus the command-to-hand gap measured while moving freely, with the integral frozen (`ArmController.integrate = False`). Every new move re-enables the integral.
+    - ERROR freezes the integral and no longer moves the command.
+    - A move that rises out of a too-low pose may run as long as the hand does not go lower than where it started (`LOW_POSE_MARKERS`).
+- **Bottle closing failed twice:**
+  - **Cause:** the bottle touched the fingers as soon as the palm arrived. Fingers that "did not move at all" were treated as stale motors (4.6) and not counted as grip evidence → jam, twice.
+  - **Step:** a liveness probe. Each finger that did not move is commanded 0.12 rad back toward open. A live motor follows, so the finger counts as touching the object; a stale one does not.
+- Backup: `backups/sort_v2_20261027_164021/`.
+
+### 4.12 Bottle pushed before closing; cup set-down pressed into the table
+- **Bottle pushed:** the hand only closed within 20 mm of the planned grasp, so a bottle sitting closer than detected was pushed. Now the touch baseline is recorded at the pre-grasp. Within 4 cm of the grasp (palm level, finger direction ok), the hand closes as soon as any touch sensor feels the object (`approach_contact_window_m`). `close()` keeps that baseline (up to 15 s old) instead of re-recording it while already touching.
+- **Cup, transport 48 mm short (17:03):** Spot A's centre was at y = +0.070, at the edge of the right arm's reach; blocked, not sagging. Recovery returned the cup correctly. Keep spots at y ≤ 0.
+- **Cup, set-down pressed into the table (17:06):**
+  - **Cause:** IK stalled the command (fixed finger direction), so the stall test, which needs a descending command, never fired. Meanwhile the sag integral wound up to its 0.200 cap and pressed the hand into the cup and table (tracking error 0.45 rad). The ERROR state then froze that wound-up integral, so every later move, including the manual retract, failed with "arm not following".
+  - **Steps:**
+    - `ArmController.mark_free()` / `relax()`: relax restores the last free-arm state (integral, and command = measured + free gap), so the arm holds where it is without pressing.
+    - The set-down marks free first, runs with the integral frozen (`move_linear(integrate=False)`), lets the finger direction turn (`yaw_free`), and also detects contact when the hand stays 12 mm (`touchdown_push_m`) above its command beyond its steady free-descent lag.
+    - It relaxes at the end, even after a failure.
+    - Recovery and ERROR relax when tracking error is above 0.08 rad (`PRESSING_TRACKING_ERROR_RAD`), otherwise they freeze the integral.
+- **Tested in simulation:** two objects, cup close to the robot, resume, stale finger, set-down with resistance; no false contact. Written but not yet run (shell permission check was unavailable): `scratchpad/stall.py`, the blocked set-down with an IK stall.
+- Backup: `backups/sort_v2_20261027_170916/`.
+
+### 4.13 Descent to the pre-grasp crawled and stopped short (cup far ahead)
+- **Log 17:26:**
+  - The cup was at x = 0.345 and Spot A at y = +0.113, with the table at z ≈ −0.025 m.
+  - Planning took 66 s, because two finger directions failed on the drop-off at the left.
+  - The chosen +15° plan put the side-approach pre-grasp at (0.331, −0.126, 0.074), about 0.40 m from the shoulder at a low height, near the 0.43 m maximum.
+  - There the IK solution wandered by tenths of a radian per 3 mm step. Each step waited for the command to catch up (lag ≤ 0.02 rad), so the descent crawled (steps 37→42 took 10 s) and failed with "no progress, blocked at step 42/45".
+- **Steps:**
+  - Planning solves the descent to the pre-grasp and the approach in 5 mm steps with the execution IK, and rejects a finger direction whose joints would move more than 0.15 rad/cm (`path_max_joint_rate_rad_per_m`; normal ≈ 0.03 rad/cm). In simulation with the robot's table height, every direction for that cup was rejected (0.11–0.14 rad per 5 mm), with a message to move the object.
+  - Set-down: when the command itself no longer descends (reach edge), it ends with a release there instead of a "no progress" failure.
+- **Layout guidance at this table height:** cup about x 0.27–0.32, y −0.05 to −0.15; spots x ≤ 0.36, y ≤ 0. A slightly higher table enlarges the reachable area.
+- Backup: `backups/sort_v2_20261027_172946/`.
+
+### 4.14 Same layout (cup (0.344, 0.001), Spot A y = +0.113): every finger direction rejected
+- The new check (4.13) rejected all approaches correctly, and 0° / −15° failed on the drop-off at the left.
+- **Tried in simulation and reverted:**
+  - a "compact side approach" second pass: the joints also jump on the final approach to the grasp itself, so the grasp point, not the approach start, is at the reach edge;
+  - gripping 3 cm higher: the route passed, but the cup centre then sat 7.4 cm below the wrist, outside the 6 cm capture range.
+- **Layout probe at the robot's table height (−0.025 m):** Spot A at y = +0.113 is never feasible (drop-off), even with the cup at x = 0.31. Cup (0.29, −0.05) with Spot A (0.36, +0.02) works.
+- No code change kept; backup of that attempt in `backups/sort_v2_20261027_174445/`.
+
+### 4.15 Long planning and refusal although the cup is reachable
+- **Log 17:53:**
+  - Planning took 60 s, then every direction was refused. The arm can reach the cup: at 17:26 it got to step 42/45.
+  - **Causes:**
+    1. Execution solved the IK fresh at every 3 mm step. Near the stretched arm the solutions drifted, and the descent crawled to a stop. The 4.13 limit then refused those routes outright.
+    2. Every pose had to keep the finger direction within 8°, including the transport and the drop-off. Those checks failed for Spot A on the left (9.5–13°) and cost about 20 s each on the Jetson.
+- **Steps:**
+  - **Planned paths are executed:** the descent to the pre-grasp and the approach are solved in 5 mm steps during planning, stored in `plan.data["paths"]` and followed by `move_linear(q_path=…)`, interpolated to the move's speed and validated per step, with no per-tick IK. The joint-rate limit was relaxed to 0.4 rad/cm (`path_max_joint_rate_rad_per_m` = 40), so only real configuration changes are refused.
+  - **Finger direction per phase:** carrying and drop-off are checked and lowered with a level palm and free finger direction (`yaw_free`). The clearance and pre-grasp poses use 12° (`path_yaw_tolerance_rad`). The final approach keeps 8°.
+  - **Set-down:** "no progress" during the set-down ends it with a release there (reach edge).
+- **Simulation, robot table height, cup (0.344, 0.001), Spot A (0.344, +0.113):** planned on the first direction in about 4.5 s (previously refused after a minute); cup picked and placed on Spot A. Regression set and stall scenario pass.
+- Backup: `backups/sort_v2_20261027_175730/`.
+
+### 4.16 Lower table: grip height offset
+- The table used now is lower than yesterday's desk (z ≈ −0.025 m in the robot frame).
+- **New `grip_height_offset_m`** (dashboard tuning, −1.5 … +3 cm, default −1 cm): shifts the grasp height relative to the hand-model floor. The effective hand-to-table clearance at the grasp is 1.5 cm plus the offset (never below 0), via `SortV2Config.grasp_hand_clearance_m()`. The set-down's expected contact follows automatically (measured hang); its lowest point lets the hand model reach the table surface (`place_hand_clearance_m()` = 0).
+- Simulation on the low table: grasp at z = 0.065 m (1 cm lower).
+
+### 4.17 Waist assist (torso yaw) for out-of-reach pick / drop-off spots
+- **Log 18:23:** Spot A at y = +0.093. While carrying, the arm sagged 1.8 cm below its transport height, the cup came too close to the other object ("carried object would hit obstacle"), and the recovery's "up" move was refused → ERROR.
+  - Fixes: transport 2 cm higher above obstacles (`transport_extra_clearance_m` 0.05); a rising move may leave a "carried object would hit obstacle" pose (`LOW_POSE_MARKERS`).
+- **Waist assist:**
+  - `ArmController.set_waist_yaw()` ramps joint 12 at `waist_yaw_speed_rad_s` (0.2) with the engage waist gains (kp 480, kd 10) in the same `rt/arm_sdk` message as the arm, capped at `max_waist_yaw_rad` 0.45.
+  - `GraspPipelineV2.turn_waist()` turns and waits for the joint to arrive.
+  - When planning fails for reach (UNREACHABLE / IK failure), or the drop-off plan cannot lower the object onto the spot (`_set_down_shortfall`), the sorter turns the torso at the preparation pose, hand empty, to `waist_assist_yaws_deg` (15°, then 25°; left for the right arm, right for targets far to the right).
+  - It then invalidates the view (`view_epoch`, settle 1.5 s), re-detects and plans again. The camera rides on the torso, so the whole planner works unchanged in the turned torso frame.
+  - After each object (placed or recovered) and before the park at the end, the waist turns back to 0°.
+  - Dashboard toggle: `waist_assist`.
+- Retreat after release at the reach edge: falls back to an orientation-free rise when the level palm has no IK. A release followed by a failure is now checked and counted as a placement.
+- **Simulation (waist joint, camera and objects in the turned torso frame):** the 18:23 layout turns to +15° and sets the cup down 9 mm above its floor (previously 5 cm). The 17:53 layout turns to +15° then +25° and sets the cup down fully, 1 cm from Spot A's centre. Regression unchanged.
+- Backups: `backups/sort_v2_20261027_182918/`, `backups/sort_v2_20261027_183619/` (sim).
+
 ## 5. Open points / next checks on the robot
 - Confirm the palm side assumption of the side approach: the hand should move toward the object palm first.
 - Check that the set-down detects resistance on the real arm. If it releases early or presses too long, tune `touchdown_stall_ratio` / `touchdown_window_s`.

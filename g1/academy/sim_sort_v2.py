@@ -31,6 +31,7 @@ from sort_v2_config import SortV2Config
 from sorting_v2 import SorterV2
 
 N_JOINTS = 29
+WAIST_YAW = 12
 # Gravity torque per right-arm joint (Nm) for the sag model: sag = tau / kp.
 DEFAULT_GRAVITY_NM = np.array([3.0, 0.4, 0.0, 1.5, 0.0, 0.3, 0.0])
 HAND_SPEED_RAD_S = 6.0
@@ -186,6 +187,10 @@ class SimRobotV2:
                     else:
                         goal = self.q[j] - 0.002 * np.sign(self.q[j])  # limp: drifting, unpowered
                     self.q[j] += (goal - self.q[j]) * min(1.0, self._dt / 0.05)
+                # Waist yaw follows its command (arm_sdk engaged), rate-limited.
+                if weight > 0.5:
+                    dw = self.q_cmd[WAIST_YAW] - self.q[WAIST_YAW]
+                    self.q[WAIST_YAW] += max(-0.5 * self._dt, min(0.5 * self._dt, dw))
                 for hand in self.hands.values():
                     hand.step(self._dt)
             if self.scene is not None:
@@ -292,9 +297,19 @@ class SimSceneV2:
         self.objects.append(obj)
         return obj
 
-    def hand_T(self) -> np.ndarray:
+    def torso_T(self) -> np.ndarray:
+        """World (= base at zero waist yaw) from the turned torso."""
         with self.robot.lock:
-            return self.fk.compute_arm(self.robot.q[RIGHT_ARM_JOINTS])
+            yaw = float(self.robot.q[WAIST_YAW])
+        T = np.eye(4)
+        T[:2, :2] = [[math.cos(yaw), -math.sin(yaw)], [math.sin(yaw), math.cos(yaw)]]
+        return T
+
+    def hand_T(self) -> np.ndarray:
+        """Hand in the world frame (the arm hangs off the turned torso)."""
+        with self.robot.lock:
+            q = self.robot.q[RIGHT_ARM_JOINTS].copy()
+        return self.torso_T() @ self.fk.compute_arm(q)
 
     # -- physics (robot thread) ------------------------------------------------
     def physics(self) -> None:
@@ -345,10 +360,12 @@ class SimSceneV2:
         self._stop.set()
 
     def table_objects(self) -> List[TableObject]:
+        """As the head camera sees them: in the (turned) torso frame."""
         out = []
+        T_torso_world = np.linalg.inv(self.torso_T())
         with self.lock:
             for obj in self.objects:
-                c = obj.centre()
+                c = (T_torso_world @ np.append(obj.centre(), 1.0))[:3]
                 bottom = c[2] - obj.height / 2.0
                 out.append(TableObject(box=(0, 0, 1, 1), center_xy=c[:2].copy(), radius_m=obj.radius,
                                        top_z_m=float(bottom + obj.height), table_z_m=self.table.z_base_m,
@@ -358,9 +375,11 @@ class SimSceneV2:
     def _perception_loop(self) -> None:
         import cv2
         p = self.pipeline
-        T_cam_base = np.linalg.inv(base_from_camera(DEFAULT_CAMERA_EXTRINSIC))
+        T_cam_torso = np.linalg.inv(base_from_camera(DEFAULT_CAMERA_EXTRINSIC))
         while not self._stop.is_set():
             now = time.time()
+            # The camera rides on the torso: world points seen through the turn.
+            T_cam_base = T_cam_torso @ np.linalg.inv(self.torso_T())
             image = np.full((480, 640, 3), 40, dtype=np.uint8)
             detections: Dict[str, Detection] = {}
             with self.lock:

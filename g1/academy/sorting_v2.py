@@ -22,7 +22,7 @@ import math
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -43,6 +43,20 @@ S = State
 # the torso keep-out (objects close to the robot need ~10 cm of pull-back).
 GRASP_YAW_CANDIDATES_DEG = (0, 15, -15, 30, -30, 45, -45, 60, -60)
 DROP_OUT_OF_REACH = "drop-off out of reach"
+# Waist assist: how long a turned view needs before detections count again,
+# and the yaw counted as straight ahead.
+WAIST_VIEW_SETTLE_S = 1.5
+WAIST_HOME_TOLERANCE_RAD = 0.03
+# Key poses whose path is IK-solved finely (FINE_PATH_STEP_M) with the
+# joint-smoothness check (SortTuning.path_max_joint_rate_rad_per_m).
+FINE_PATH_POSES = ("pre-grasp", "grasp")
+# Key poses with the hand beside the object (fingers still clear of it):
+# planned and executed with SortTuning.path_yaw_tolerance_rad.
+PATH_YAW_POSES = ("clearance", "pre-grasp")
+FINE_PATH_STEP_M = 0.005
+# Tracking error (rad) above which a stopped arm is taken as pressed against
+# something (free motion stays below ~0.07 rad in the logs; pressed: 0.45).
+PRESSING_TRACKING_ERROR_RAD = 0.08
 # Drop points tried on a spot: object centre at least this far inside the
 # marker area, on this grid, nearest to the centre first.
 DROP_EDGE_MARGIN_M = 0.015
@@ -101,6 +115,8 @@ class SorterV2(Sorter):
         self.sm = SortStateMachine()
         self.prep: Optional[Dict[str, Any]] = None
         self._manual_hand_busy = False
+        # Waist assist: candidate index tried per object (this run).
+        self.waist_tried: Dict[int, int] = {}
         # The start-up chain from the hanging arm (q_start -> q_away -> q_up ->
         # recipe): played in reverse before the arms are released.
         self.home: Optional[Dict[str, np.ndarray]] = None
@@ -272,6 +288,7 @@ class SorterV2(Sorter):
             self.finished = [obj.count <= 0 for obj in objects]
             self.notes = []
             self.blacklist = []
+            self.waist_tried = {}
             self.current = None
             self.pick_record = {}
             p.clear_diag()
@@ -327,7 +344,10 @@ class SorterV2(Sorter):
                 planned = self._validate(target, objects[target.obj_index])
                 if not planned.ok:
                     self.sm.fail(planned)
+                    if self._waist_assist(target, objects[target.obj_index], planned):
+                        continue
                     self._note_target_failure(target, planned)
+                    self._waist_back()
                     if planned.failure == Failure.OPERATOR_STOP:
                         self._recover(S.VALIDATING_TARGET, planned)
                         return
@@ -336,6 +356,8 @@ class SorterV2(Sorter):
                 self.current = planned.data["plan"]
                 state, result = self._pick_and_place(self.current, objects[target.obj_index])
                 if result.ok:
+                    self.waist_tried.pop(target.obj_index, None)
+                    self._waist_back()
                     if self._remaining(objects):
                         self._enter(S.DETECTING)
                         continue
@@ -353,6 +375,7 @@ class SorterV2(Sorter):
                                       f"{self.attempts[target.obj_index]} attempts ({result.failure.value})")
                 if not self._recover(state, result):
                     return
+                self._waist_back()
                 if self._remaining(objects):
                     self._enter(S.DETECTING)
                     continue
@@ -374,6 +397,78 @@ class SorterV2(Sorter):
                 self.active_object = None
             p.keep_alive -= 1
             self.run_lock.release()
+
+    # -- waist assist ------------------------------------------------------------
+    def _set_down_shortfall(self, T_release: np.ndarray, carried: CarriedObject, table: Any) -> Optional[float]:
+        """How far above its set-down height (object bottom on the spot) the
+        level palm stays at the release point; None when it gets there."""
+        p = self.p
+        T_set = T_release.copy()
+        T_set[2, 3] = float(table.z_base_m + carried.hang_m)
+        if T_set[2, 3] >= T_release[2, 3]:
+            return None
+        q, _info = p.ik_tiers[1][1].solve(T_set, q_init=p.controller.reference())
+        if q is not None:
+            return None
+        short = p.reach_residual_m(T_set[:3, 3], p.controller.reference())
+        return max(short, 0.01)
+
+    def _waist_assist(self, target: Target, obj: ObjectConfig, planned: PhaseResult) -> bool:
+        """Pick or drop-off out of reach: turn the torso by the next assist
+        angle (at the preparation pose, hand empty) and re-detect; the whole
+        planner then works in the turned torso frame.  True if turned."""
+        t = self.cfg.tuning
+        if not t.waist_assist or planned.failure not in (Failure.UNREACHABLE, Failure.IK_FAILURE):
+            return False
+        idx = self.waist_tried.get(target.obj_index, 0)
+        if idx >= len(t.waist_assist_yaws_deg):
+            return False
+        self.waist_tried[target.obj_index] = idx + 1
+        # Turning toward the free side brings left / far points in front of
+        # the right shoulder; a target far to the right turns the other way.
+        side = 1.0 if SORT_ARM == "right" else -1.0
+        if side * (float(target.p_base[1]) - float(SHOULDER_IN_BASE[SORT_ARM][1])) < -0.20:
+            side = -side
+        yaw = side * math.radians(t.waist_assist_yaws_deg[idx])
+        self.sm.warn(f"{obj.name}: {planned.detail.split(' (finger directions')[0]}; turning the torso to "
+                     f"{math.degrees(yaw):+.0f} deg and planning again")
+        if not self._waist_turn(yaw, f"waist assist for {obj.name}"):
+            return False
+        self.blacklist = [b for b in self.blacklist if b.obj_index != target.obj_index]
+        self._enter(S.DETECTING, f"torso turned to {math.degrees(yaw):+.0f} deg: detecting again")
+        return True
+
+    def _waist_turn(self, yaw: float, label: str) -> bool:
+        """Turn the waist with the hand at the preparation pose (it sweeps
+        above everything there); views measured before the turn are stale."""
+        p = self.p
+        if self.prep is not None:
+            q_err = float(np.max(np.abs(p.read_current_arm_q(SORT_ARM) - self.prep["q_measured"])))
+            if q_err > self.cfg.tuning.prep_tolerance_rad:
+                self.sm.warn(f"{label}: not at the preparation pose ({q_err:.2f} rad off); waist not turned")
+                return False
+        with self.lock:
+            self.view_epoch += 1
+            self.view_settle_until = float("inf")
+        try:
+            r = p.turn_waist(yaw, self.stop_event, label)
+        finally:
+            with self.lock:
+                self.view_settle_until = time.time() + WAIST_VIEW_SETTLE_S
+        if not r.ok:
+            self.sm.warn(f"{label}: {r.detail}")
+        return r.ok
+
+    def _waist_back(self) -> bool:
+        """Torso back to straight ahead (the frame the start-up / park
+        sequence was recorded in) if the assist turned it."""
+        try:
+            yaw = self.p.waist_yaw()
+        except Exception:
+            return True
+        if abs(yaw) <= WAIST_HOME_TOLERANCE_RAD or self.p.controller.waist_command() is None:
+            return True
+        return self._waist_turn(0.0, "waist back to straight ahead")
 
     def _remaining(self, objects: List[ObjectConfig]) -> bool:
         for i, obj in enumerate(objects):
@@ -455,7 +550,8 @@ class SorterV2(Sorter):
         lift_ctx = MotionContext(table, objects, min_wrist_z_m=T_hand[2, 3] - 0.015, label="lift")
         failure, why, _q = self._check_key_poses([("lift", T_lift, lift_ctx)]
                                                  + [(f"{ctx.label} end", T1, ctx) for _T0, T1, ctx, _y in transport],
-                                                 p.controller.reference(), T_from=T_hand)
+                                                 p.controller.reference(), T_from=T_hand,
+                                                 yaw_free=[f"{ctx.label} end" for _T0, _T1, ctx, _y in transport])
         if failure is not None:
             return PhaseResult.fail(failure, f"drop-off not feasible from the current grasp: {why}")
         plan = GraspPlan(target, T_object, T_hand.copy(), T_hand.copy(), T_hand.copy(), objects, table, radius,
@@ -615,7 +711,8 @@ class SorterV2(Sorter):
             if self.stop_event.is_set():
                 return PhaseResult.fail(Failure.OPERATOR_STOP, "stop requested")
             snap = self._scene_snapshot()
-            if snap["detection_ts"] <= last_ts:
+            # After a waist turn only detections from the settled new view.
+            if snap["detection_ts"] <= max(last_ts, self.view_settle_until):
                 time.sleep(0.1)
                 continue
             last_ts = snap["detection_ts"]
@@ -838,8 +935,16 @@ class SorterV2(Sorter):
             return PhaseResult.fail(failure, f"{why} (finger directions tried: {', '.join(f'{d:+d}' for d in tried)} deg)",
                                     finish_object=finish)
         T_grasp, T_pre, T_clear, carried, drop, drop_detail = planned
+        short = self._set_down_shortfall(drop[1], carried, table)
+        if short is not None and t.waist_assist and \
+                self.waist_tried.get(target.obj_index, 0) < len(t.waist_assist_yaws_deg):
+            # The drop-off works, but the arm cannot lower the object onto the
+            # spot there (it would release several cm up): turn the torso first.
+            return PhaseResult.fail(Failure.UNREACHABLE, f"drop-off at {drop_detail}: the arm cannot set the object "
+                                    f"down there ({short * 1000:.0f} mm short of the table)")
         plan = GraspPlan(target, T_object, T_grasp, T_pre, T_clear, objects, table, carried.radius_m,
-                         {"drop": drop, "drop_detail": drop_detail, "target_obj": self._planned_target_obj})
+                         {"drop": drop, "drop_detail": drop_detail, "target_obj": self._planned_target_obj,
+                          "paths": dict(self._planned_paths)})
         self._log_trajectory(obj, yaw_deg, [("start", p.reference_hand_T()), ("clearance", T_clear),
                                              ("pre-grasp", T_pre), ("grasp", T_grasp)], time.time() - t_plan)
         p.set_grab_plan(SORT_ARM, T_object, T_grasp, [("clearance", T_clear), ("pre-grasp", T_pre),
@@ -936,29 +1041,53 @@ class SorterV2(Sorter):
             self.sm.info(f"  waypoint {name}: {self._pose_text(T)}")
 
     def _check_key_poses(self, poses: List[Tuple[str, np.ndarray, MotionContext]], q_seed: np.ndarray,
-                         T_from: Optional[np.ndarray] = None) -> Tuple[Optional[Failure], str, np.ndarray]:
+                         T_from: Optional[np.ndarray] = None, yaw_free: Sequence[str] = ()
+                         ) -> Tuple[Optional[Failure], str, np.ndarray]:
         """IK + the full motion validator (workspace, joint limits, torso,
         table/hand geometry, obstacles, carried object) on each key 6D pose.
         Each key pose is reached through intermediate 6D poses along the
         straight path (every 2 cm / 5 deg) so the IK follows the motion as it
-        will at run time."""
-        p = self.p
+        will at run time.  The fine paths (next to the object) are kept in
+        self.fine_paths[label] and executed as planned joint paths."""
+        p, t = self.p, self.cfg.tuning
         q = q_seed
         T_prev = p.fk.compute_arm(q_seed) if T_from is None else T_from
+        self.fine_paths = {}
         for label, T, ctx in poses:
             angle = math.degrees(math.acos(float(np.clip((np.trace(T_prev[:3, :3].T @ T[:3, :3]) - 1.0) / 2.0,
                                                          -1.0, 1.0))))
-            n = max(1, int(math.ceil(max(float(np.linalg.norm(T[:3, 3] - T_prev[:3, 3])) / 0.02, angle / 5.0))))
-            for k in range(1, n):
-                q_mid = p.solve_pose(interpolate_pose(T_prev, T, k / n), q)
-                if q_mid is None:
-                    T_mid = interpolate_pose(T_prev, T, k / n)
-                    return (Failure.IK_FAILURE, f"on the way to the {label} pose, at {self._pose_text(T_mid)}: "
-                            f"{p.last_ik_detail}", q)
-                q = q_mid
-            q_next = p.solve_pose(T, q)
-            if q_next is None:
-                return Failure.IK_FAILURE, f"{label} pose {self._pose_text(T)}: {p.last_ik_detail}", q
+            dist = float(np.linalg.norm(T[:3, 3] - T_prev[:3, 3]))
+            # Next to the object the path is solved in steps close to the
+            # execution step and kept: executing it as planned avoids the
+            # per-step IK wandering of a stretched arm (the descent crawled to a
+            # stop that way).  Only a real configuration jump rejects it.
+            fine = label in FINE_PATH_POSES
+            n = max(1, int(math.ceil(max(dist / (FINE_PATH_STEP_M if fine else 0.02), angle / 5.0))))
+            limit = t.path_max_joint_rate_rad_per_m * dist / n + 0.02
+            path: List[np.ndarray] = []
+            for k in range(1, n + 1):
+                T_k = interpolate_pose(T_prev, T, k / n)
+                # As executed: carrying moves keep the palm level with the
+                # finger direction free; the hand beside the object allows
+                # path_yaw_tolerance_rad; the approach the grasp tolerance.
+                if label in yaw_free:
+                    q_k = p.solve_level(T_k, q)
+                else:
+                    q_k = p.solve_pose(T_k, q, t.path_yaw_tolerance_rad if label in PATH_YAW_POSES else None)
+                if q_k is None:
+                    where = f"{label} pose {self._pose_text(T)}" if k == n else \
+                        f"on the way to the {label} pose, at {self._pose_text(T_k)}"
+                    return Failure.IK_FAILURE, f"{where}: {p.last_ik_detail}", q
+                jump = float(np.max(np.abs(q_k - q)))
+                if fine and jump > limit:
+                    return (Failure.IK_FAILURE, f"on the way to the {label} pose, at {self._pose_text(T_k)}: the "
+                            f"joints would jump {jump:.2f} rad over {dist / n * 1000:.0f} mm (max {limit:.2f}; the arm "
+                            f"changes configuration there)", q)
+                q = q_k
+                path.append(q_k)
+            if fine:
+                self.fine_paths[label] = path
+            q_next = q
             reasons = p.validator.check_q(q_next, ctx, T)
             if reasons:
                 return Failure.COLLISION_REJECTED, f"{label} pose {self._pose_text(T)}: {reasons[0]}", q
@@ -1031,6 +1160,7 @@ class SorterV2(Sorter):
         failure, why, q_grasp = self._check_key_poses(
             [("clearance", T_clear, general), ("pre-grasp", T_pre, pre_ctx), ("grasp", T_grasp, grasp_ctx)],
             p.controller.reference())
+        self._planned_paths = dict(self.fine_paths)   # the later checks reuse fine_paths
         if failure is None:
             T_start = p.reference_hand_T()
             failure, why = self._check_path_geometry([(T_start, T_clear, general), (T_clear, T_pre, pre_ctx),
@@ -1069,7 +1199,7 @@ class SorterV2(Sorter):
         lift_ctx = MotionContext(table, objects, min_wrist_z_m=T_grasp[2, 3] - 0.015, label="lift")
         failure, why, _q = self._check_key_poses(
             [("lift", T_lift, lift_ctx)] + [(f"{ctx.label} end", T1, ctx) for _T0, T1, ctx, _y in transport], q_grasp,
-            T_from=T_grasp)
+            T_from=T_grasp, yaw_free=[f"{ctx.label} end" for _T0, _T1, ctx, _y in transport])
         if failure is None:
             failure, why = self._check_path_geometry([(T_grasp, T_lift, lift_ctx)]
                                                      + [(T0, T1, ctx) for T0, T1, ctx, _y in transport])
@@ -1112,23 +1242,38 @@ class SorterV2(Sorter):
                 if not ok:
                     return self.sm.state, PhaseResult.fail(Failure.FINGER_FAILURE, f"finger check: {detail}")
             r = p.move_linear(plan.T_clear, MotionContext(table, objects, keep_clear=keep, label="clearance"),
-                              t.transport_speed_m_s, "clearance", cancel)
+                              t.transport_speed_m_s, "clearance", cancel, yaw_tol=t.path_yaw_tolerance_rad)
             if not r.ok:
                 return fail(r)
             r = p.move_linear(plan.T_pre, MotionContext(table, objects, hand_mode="grasp", keep_clear=keep,
                                                         label="pre-grasp"),
-                              t.approach_speed_m_s, "pre-grasp", cancel, max_tilt_rad=2 * t.grasp_tilt_tolerance_rad)
+                              t.approach_speed_m_s, "pre-grasp", cancel, max_tilt_rad=2 * t.grasp_tilt_tolerance_rad,
+                              q_path=plan.data.get("paths", {}).get("pre-grasp"))
             if not r.ok:
                 return fail(r)
             self._enter(S.APPROACHING)
+            # The open hand touches nothing here: free-arm state for relax()
+            # and the touch baseline for the contact cue below.
+            p.controller.mark_free()
+            p.grip.record_baseline(t.tactile_baseline_s)
+        touched = {"why": ""}
 
         def gate_reason(T_meas: np.ndarray) -> str:
             """Empty when the hand may close: position, palm level, finger
-            direction, and the object inside the fingers' capture box."""
+            direction, and the object inside the fingers' capture box -- or,
+            near the grasp, as soon as a touch sensor feels the object (the
+            palm otherwise pushes it until the EE tolerance is met)."""
             err = float(np.linalg.norm(T_meas[:3, 3] - plan.T_grasp[:3, 3]))
             tilt = math.acos(float(np.clip(T_meas[2, 2], -1.0, 1.0)))
             yaw = yaw_error(T_meas, plan.T_grasp)
             ok_capture, d = p.in_capture(T_meas, p_object)
+            if err <= t.approach_contact_window_m and tilt <= t.grasp_tilt_tolerance_rad and \
+                    yaw <= t.grasp_yaw_tolerance_rad:
+                deltas = p.grip.tactile_deltas(p.grip.snapshot())
+                hits = [i for i, v in enumerate(deltas or []) if v >= t.tactile_contact_delta_raw]
+                if hits:
+                    touched["why"] = f"touch sensors {hits} felt the object {err * 1000:.0f} mm before the grasp pose"
+                    return ""
             if err > t.grasp_position_tolerance_m:
                 return f"EE error {err * 1000:.0f} mm > {t.grasp_position_tolerance_m * 1000:.0f} mm"
             if tilt > t.grasp_tilt_tolerance_rad:
@@ -1145,9 +1290,11 @@ class SorterV2(Sorter):
         if not plan.data.get("resume"):
             r = p.move_linear(plan.T_grasp, MotionContext(table, objects, hand_mode="grasp", label="approach"),
                               t.approach_speed_m_s, "approach", cancel, tolerance_m=t.grasp_position_tolerance_m,
-                              gate=gate, gate_reason=gate_reason)
+                              gate=gate, gate_reason=gate_reason, q_path=plan.data.get("paths", {}).get("grasp"))
             if not r.ok:
                 return fail(r)
+            if touched["why"]:
+                self.sm.info(f"approach: {touched['why']}; closing there")
         T_meas = p.measured_hand_T()
         why = gate_reason(T_meas)
         if why:
@@ -1237,7 +1384,8 @@ class SorterV2(Sorter):
         T_approach, T_release, release_h = drop
         route = self._transport_route(p.reference_hand_T(), T_release, carried, table, objects)
         failure, why, _q = self._check_key_poses([(f"{ctx.label} end", T1, ctx) for _T0, T1, ctx, _y in route],
-                                                 p.controller.reference())
+                                                 p.controller.reference(),
+                                                 yaw_free=[f"{ctx.label} end" for _T0, _T1, ctx, _y in route])
         if failure is None:
             failure, why = self._check_path_geometry([(T0, T1, ctx) for T0, T1, ctx, _y in route])
         if failure is not None:
@@ -1262,7 +1410,7 @@ class SorterV2(Sorter):
         # Phase 6: lower, release, rise clear.
         self._enter(S.LOWERING, f"release with the hand {release_h * 100:.0f} cm above {drop_detail}")
         r = p.move_linear(T_release, carry_ctx, t.approach_speed_m_s, "lower to release", cancel,
-                          max_tilt_rad=2 * t.grasp_tilt_tolerance_rad, monitor=hold_monitor,
+                          max_tilt_rad=2 * t.grasp_tilt_tolerance_rad, monitor=hold_monitor, yaw_free=True,
                           accept_short_m=t.short_move_accept_m)
         if not r.ok:
             return fail(r)
@@ -1271,13 +1419,17 @@ class SorterV2(Sorter):
             # spot with the wrist at the table + its hang at the grasp.  The
             # hand may use its table clearance band, not more.
             z_contact = table.z_base_m + carried.hang_m
-            z_floor = (table.z_base_m + self.cfg.grasp_wrist_floor_m() - self.cfg.safety.grasp_hand_table_clearance_m
+            z_floor = (table.z_base_m + self.cfg.grasp_wrist_floor_m() - self.cfg.grasp_hand_clearance_m()
+                       + self.cfg.place_hand_clearance_m()
                        + 0.003)
             z_goal = max(z_contact - t.touchdown_overshoot_m, z_floor)
             if z_goal < p.reference_hand_T()[2, 3] - 0.005:
+                load_ref = p.grip.load_reference()
+                self.pick_record["set_down_started"] = True
                 r = p.touch_down(z_goal, MotionContext(table, objects, hand_mode="grasp", carried=carried, placing=True,
                                                        label="set down"),
-                                 t.touchdown_speed_m_s, "set down on the spot", cancel)
+                                 t.touchdown_speed_m_s, "set down on the spot", cancel,
+                                 load_cue=lambda: p.grip.load_change(load_ref))
                 if not r.ok:
                     return fail(r)
         self._enter(S.RELEASING_OBJECT)
@@ -1304,9 +1456,16 @@ class SorterV2(Sorter):
         target_obj = plan.data.get("target_obj")
         if target_obj is not None:
             T_retreat[2, 3] = max(float(T_retreat[2, 3]), float(target_obj.top_z_m) + t.hover_clearance_m)
-        r = p.move_linear(T_retreat, MotionContext(table, objects, min_wrist_z_m=T_rel[2, 3] - 0.015, label="retreat"),
-                          t.lift_speed_m_s, "retreat above the spot", cancel, yaw_free=True,
+        retreat_ctx = MotionContext(table, objects, min_wrist_z_m=T_rel[2, 3] - 0.015, label="retreat")
+        r = p.move_linear(T_retreat, retreat_ctx, t.lift_speed_m_s, "retreat above the spot", cancel, yaw_free=True,
                           accept_short_m=t.short_move_accept_m)
+        if not r.ok and r.failure == Failure.IK_FAILURE:
+            # At the reach edge the level palm may not rise from the set-down
+            # pose; the hand is open and the object released: rise with the
+            # orientation free.
+            self.sm.warn(f"{r.detail}; rising with the palm orientation free")
+            r = p.move_linear(T_retreat, retreat_ctx, t.lift_speed_m_s, "retreat above the spot (orientation free)",
+                              cancel, level=False, accept_short_m=t.short_move_accept_m)
         if not r.ok:
             return fail(r)
         self._enter(S.VERIFYING_PLACEMENT)
@@ -1506,21 +1665,37 @@ class SorterV2(Sorter):
 
     # -- recovery -------------------------------------------------------------------
     def _hold_error(self, reason: str) -> None:
-        """Controlled hold: keep the controller (and any grip) as they are."""
+        """Controlled hold: keep the controller (and any grip) as they are,
+        the sag compensation frozen: winding up against a hand pressed on
+        something (the table, an object) pushed the arm back and forth."""
         try:
             if not self.p.controller.running:
                 self.p.controller.start()
+            self._relax_if_pressing()
         except Exception:
             pass
         self.sm.recovery_reason = reason
         self.sm.enter(S.ERROR, reason)
         self._set_phase(f"ERROR — {reason}. The arm holds its pose; operator intervention required.")
 
+    def _relax_if_pressing(self) -> None:
+        """An arm that does not follow its command is pressed against
+        something: relax it (free-arm compensation, hold where it is) so the
+        recovery moves can track ("arm not following" on every move after a
+        wound-up set-down).  Otherwise keep the command, integral frozen."""
+        controller = self.p.controller
+        if controller.status()["tracking_error_rad"] > PRESSING_TRACKING_ERROR_RAD and controller.relax():
+            self.sm.warn("arm pressed against something: relaxed to its free-arm compensation, holding where it is")
+        else:
+            controller.integrate = False
+
     def _recover(self, failed_state: State, result: PhaseResult) -> bool:
         """Recover according to what the hand may hold.  True: continue with
         the next object; False: the run ends (ABORTED or ERROR)."""
         p, t = self.p, self.cfg.tuning
         self.sm.fail(result)
+        if result.failure != Failure.OPERATOR_STOP:
+            self._relax_if_pressing()
         if result.failure == Failure.OPERATOR_STOP:
             self.sm.recovery_reason = "operator stop: holding the current pose; the hand is not opened"
             self.sm.enter(S.ABORTED, self.sm.recovery_reason)
@@ -1549,6 +1724,13 @@ class SorterV2(Sorter):
                 self.sm.recovery_reason = "releasing at the grasp pose (object supported by the table)"
                 if not self._open_or_error("at the grasp pose"):
                     return False
+            elif failed_state == S.LOWERING and self.pick_record.get("set_down_started"):
+                # The set-down was under way: the object stands on (or just
+                # above) the spot.  Opening there is safe; carrying it back from
+                # the table height is not (the recovery lift was refused there).
+                self.sm.recovery_reason = "set-down interrupted at the spot: opening there (object on the table)"
+                if not self._release_at_spot(table, objects):
+                    return False
             elif failed_state in loaded_states:
                 if result.failure == Failure.OBJECT_LOST and failed_state in (S.MOVING_TO_DROPOFF, S.LOWERING):
                     self.sm.recovery_reason = "object lost in transport; returning over the pick location before opening"
@@ -1572,9 +1754,59 @@ class SorterV2(Sorter):
         except Exception as exc:
             self._hold_error(f"recovery failed: {type(exc).__name__}: {exc}")
             return False
+        if failed_state in (S.RELEASING_OBJECT, S.VERIFYING_PLACEMENT, S.RETRACTING) and self.pick_record.get("released"):
+            self._count_released_placement("before the failure")
         self.sm.enter(S.READY_FOR_NEXT_OBJECT, f"recovered ({self.sm.recovery_reason})")
         self.current = None
         return True
+
+    def _release_at_spot(self, table: Any, objects: List[gp1.TableObject]) -> bool:
+        """Open next to the set-down object, move the palm away from it, rise
+        above its top."""
+        p, t = self.p, self.cfg.tuning
+        p.controller.relax()
+        if not self._open_or_error("at the drop spot"):
+            return False
+        self.pick_record["released"] = True
+        r = self._slide_away_from_object(self.current, table, objects, self.stop_event)
+        if r.failure == Failure.OPERATOR_STOP:
+            self.sm.enter(S.ABORTED, "operator stop during recovery")
+            return False
+        T_rel = p.reference_hand_T()
+        z_low = min(float(T_rel[2, 3]), float(p.measured_hand_T()[2, 3]))
+        T_up = T_rel.copy()
+        T_up[2, 3] = float(T_rel[2, 3]) + t.retreat_m
+        target_obj = self.current.data.get("target_obj") if self.current is not None else None
+        if target_obj is not None:
+            T_up[2, 3] = max(float(T_up[2, 3]), float(target_obj.top_z_m) + t.hover_clearance_m)
+        up_ctx = MotionContext(table, objects, min_wrist_z_m=z_low - 0.015, label="recovery retreat")
+        r = p.move_linear(T_up, up_ctx, t.lift_speed_m_s, "recovery: rise clear of the object", self.stop_event,
+                          yaw_free=True, accept_short_m=t.short_move_accept_m)
+        if not r.ok and r.failure == Failure.IK_FAILURE:
+            r = p.move_linear(T_up, up_ctx, t.lift_speed_m_s, "recovery: rise clear (orientation free)", self.stop_event,
+                              level=False, accept_short_m=t.short_move_accept_m)
+        if not r.ok:
+            self._hold_error(f"could not rise clear after opening at the spot ({r.detail})")
+            return False
+        self._count_released_placement("after the interrupted set-down")
+        return True
+
+    def _count_released_placement(self, when: str) -> None:
+        """An object released on its spot outside the normal sequence is
+        checked and counted like a normal placement (a placed object is not
+        sorted again; uncounted, the run ended with a misleading 0/1)."""
+        if self.current is None or "placement" in self.pick_record:
+            return
+        idx = self.current.target.obj_index
+        with self.lock:
+            obj = self.objects[idx]
+        placement = self._confirm_placement(idx, obj, self.cfg.tuning.placement_confirm_timeout_s)
+        self.pick_record["placement"] = placement
+        if placement == "confirmed":
+            self.confirmed[idx] += 1
+        else:
+            self.unconfirmed[idx] += 1
+        self.sm.info(f"{obj.name} released on its spot {when}: placement {placement}")
 
     def _open_or_error(self, where: str) -> bool:
         opened, detail = self.p.grip.open(self.cfg.tuning.release_open_s)
@@ -1599,7 +1831,10 @@ class SorterV2(Sorter):
             T_now = p.reference_hand_T()
             T_up = T_now.copy()
             T_up[2, 3] = max(z_transport, float(T_now[2, 3]))
-            ctx = MotionContext(table, objects, carried=carried, label="recovery transport")
+            # The hand may be below the normal wrist floor (e.g. at the grasp
+            # height): rising out of it is allowed.
+            z_low = min(float(T_now[2, 3]), float(p.measured_hand_T()[2, 3]))
+            ctx = MotionContext(table, objects, carried=carried, min_wrist_z_m=z_low - 0.015, label="recovery transport")
             # Up from where the hand actually is (a failed move leaves the
             # reference ahead of it), skipped when already at the height.
             T_meas = p.measured_hand_T()
@@ -1695,6 +1930,9 @@ class SorterV2(Sorter):
                 if not r.ok:
                     self._hold_error(f"final return to the preparation pose failed: {r.detail}")
                     return
+        if not self._waist_back():
+            self._hold_error("could not turn the waist back before parking the arm")
+            return
         closed, detail = p.grip.close_neutral()
         if not closed:
             self.sm.warn(f"final hand closure not confirmed: {detail}")
