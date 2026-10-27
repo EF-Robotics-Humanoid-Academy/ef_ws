@@ -103,3 +103,6 @@ g1/dev/modules/scripts/altegro_client.py
 g1/dev/modules/scripts/altegro_server.py
 g1/modules/scripts/altegro_client.py
 g1/modules/scripts/altegro_server.py
+
+# Large SONIC policy model (keep locally; distribute separately or with Git LFS)
+g1/mocap/sonic/policy/low_latency/model_decoder.onnx

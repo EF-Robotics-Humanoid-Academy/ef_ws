@@ -1,0 +1,4 @@
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./MANIFEST.sha256
+a1fde8421421f26cd1af39e2ca430bd35c7ba8a13db8042ce21fe3b440dd6632  ./bin/g1_deploy_onnx_ref
+d30a2c6fda629fc2ead15c09f7d419e7e74b29755dbd1d5f0a0efe03719c9250  ./src/g1/g1_deploy_onnx_ref/src/g1_deploy_onnx_ref.cpp
+15e856340460be2148f3ae2be03921208c7a87822fed1c7ad30a5f711015fdb6  ./src/g1/g1_deploy_onnx_ref/include/input_interface/zmq_endpoint_interface.hpp

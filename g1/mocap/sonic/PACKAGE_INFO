@@ -1,0 +1,14 @@
+package=g1-edu-sonic-moretion-20261013
+source_revision=e76ce8798375daae2580521b0ab319d63112f98d
+target_arch=universal
+supported_arches=aarch64,x86_64
+purpose=Moretion/GMR Protocol v1 to selectable SONIC policy to Unitree G1-EDU DDS
+model_profiles=release,low_latency
+input_protocol=1
+reference_cursor=live_frame_index
+planner_included=false
+ros2_included=false
+training_included=false
+simulator_included=false
+external_sim_supported=x86_64
+generated_utc=2026-10-13T11:12:01Z
