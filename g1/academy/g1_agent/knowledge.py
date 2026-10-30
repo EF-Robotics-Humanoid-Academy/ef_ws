@@ -145,11 +145,13 @@ class KnowledgeRetriever:
                 df[token] = df.get(token, 0) + 1
         self.idf = {token: math.log((doc_count + 1) / (freq + 0.5)) + 1.0 for token, freq in df.items()}
 
-    def search(self, query: str, *, top_k: int, min_score: float) -> List[Tuple[KnowledgeEntry, float]]:
+    def search(self, query: str, *, top_k: int, min_score: float,
+               intent_text: Optional[str] = None) -> List[Tuple[KnowledgeEntry, float]]:
+        """`intent_text`: the full question for the intent boosts when `query` is reduced to its topic words."""
         query_set = set(tokenize(query))
         if not query_set:
             return []
-        query_low = normalize_text(query)
+        query_low = normalize_text(intent_text or query)
         scored = []
         for entry in self.entries:
             counts: dict = {}
@@ -200,3 +202,53 @@ class DocumentRAG:
         return [KnowledgeRef(source_type="documentary", source=f"{entry.source} ({entry.title})", text=entry.text,
                              trust="authoritative", note=f"score={score:.3f}")
                 for entry, score in self._retriever.search(query, top_k=top_k, min_score=min_score)]
+
+
+# Words that say nothing about a topic: a greeting or "how are you" must not
+# pull facts into the reply.
+CHAT_FILLER = {
+    "about", "again", "all", "also", "am", "are", "be", "been", "bye", "can", "could", "did", "do", "does", "doing",
+    "for", "from", "good", "great", "has", "have", "hello", "hey", "hi", "how", "if", "in", "is", "it", "its", "just",
+    "know", "like", "many", "morning", "much", "need", "of", "ok", "okay", "on", "or", "our", "should", "so", "some",
+    "tell", "thank", "thanks", "that", "their", "them", "then", "there", "these", "they", "this", "today", "us", "want",
+    "was", "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would", "yes", "you", "your",
+    "explain", "give", "say", "see", "use", "using", "work", "works", "get", "got", "very", "really", "up", "lot", "nice",
+    "meet", "doing", "weather",
+    "wie", "was", "ist", "sind", "hallo", "danke", "guten", "tag", "ein", "eine", "und", "oder", "dir", "dich", "geht",
+}
+
+
+class ChatKnowledge:
+    """Facts for the chat: the JSON FAQ files, searched with the retriever above.
+    An unreadable or missing file only removes its facts."""
+
+    def __init__(self, paths: List[Path], *, on_error: Any = None) -> None:
+        usable = []
+        for path in paths:
+            try:
+                json.loads(Path(path).read_text(encoding="utf-8"))
+                usable.append(Path(path))
+            except Exception as exc:
+                if on_error is not None:
+                    on_error(f"knowledge file {path} skipped: {exc}")
+        self._retriever = KnowledgeRetriever(usable)
+
+    def __len__(self) -> int:
+        return len(self._retriever.entries)
+
+    def search(self, query: str, *, top_k: int = 4, min_score: float = 0.6, keep_fraction: float = 0.55) -> List[str]:
+        """Up to top_k facts (plain text); nothing for small talk.  Scores are
+        length-normalized: a real topic match stays above 1, one chance word
+        below min_score, and facts far under the best match are dropped."""
+        words = [w for w in tokenize(query) if w not in CHAT_FILLER]
+        if not words:
+            return []
+        hits = self._retriever.search(" ".join(words), top_k=top_k, min_score=min_score, intent_text=query)
+        return [self._fact(entry) for entry, score in hits if score >= keep_fraction * hits[0][1]]
+
+    @staticmethod
+    def _fact(entry: KnowledgeEntry) -> str:
+        lines = {key: value for key, _, value in (line.partition(": ") for line in entry.text.splitlines())}
+        if "Question" in lines and "Answer" in lines:
+            return f"{lines['Question']} {lines['Answer']}"
+        return compact_text(entry.text)[:500]

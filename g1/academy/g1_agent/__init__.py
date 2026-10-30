@@ -15,6 +15,8 @@ that needs sdk_client:
   robot_port.py   AgentHost, AgentRobotPort  (host hooks; robot hooks the framework probes)
   registry.py     build_g1_registry          (agent.skills.build_live_registry)
   knowledge.py    DocumentRAG                (agent.knowledge.document_rag -> nav_bot -> sdk_slam)
+  manipulation.py Manipulator                chat arm/hand commands on the /sort V2 pipeline
+  chat.py         ChatAgent                  the dashboard V2 chat (replaces the planner's turn)
 
 Usage (the dashboard does this)::
 
@@ -30,7 +32,85 @@ from typing import Any, Optional
 
 from .robot_port import AgentHost, AgentRobotPort, MotionBlocked
 
-__all__ = ["AgentHost", "AgentRobotPort", "MotionBlocked", "build_agent"]
+__all__ = ["AgentHost", "AgentRobotPort", "MotionBlocked", "build_agent", "build_chat_agent", "chat_knowledge"]
+
+_ACADEMY = Path(__file__).resolve().parents[1]
+CHAT_KNOWLEDGE_FILES = (
+    _ACADEMY.parent / "modules" / "scripts" / "ollama_ai" / "g1_faq_knowledge.json",
+    _ACADEMY.parent / "modules" / "scripts" / "ollama_ai" / "ef_robotics_faq_knowledge.json",
+    Path(__file__).resolve().parent / "knowledge_data" / "unitree_sdk_faq.json",
+    Path(__file__).resolve().parent / "knowledge_data" / "academy_robot_faq.json",
+)
+
+
+def chat_knowledge(log: Any = print) -> Any:
+    from .knowledge import ChatKnowledge
+
+    return ChatKnowledge(list(CHAT_KNOWLEDGE_FILES), on_error=log)
+
+
+def build_chat_agent(inner: Any, robot: Any, *, sorter: Any, built_sorter: Any, conflict: Any, notify: Any) -> Any:
+    """Compose the ChatAgent around a built G1Agent: its skills, capability
+    resolver, settings, state source and language model endpoint are reused."""
+    from agent.settings.models import SkillMode
+    from agent.state import build_robot_state
+
+    from .chat import ChatAgent, OpenAIChat, Tool, build_tools
+    from .manipulation import Manipulator
+
+    manipulator = Manipulator(sorter, built_sorter, conflict, notify)
+
+    def call_skill(name: str, **kwargs: Any) -> Any:
+        result = inner.skills.invoke(name, **kwargs)
+        return bool(result.ok), str(result.message)
+
+    def status() -> str:
+        state = inner.state_source.read()
+        parts = [f"posture {state.posture}", f"stability {state.stability}"]
+        if state.battery_pct is not None:
+            parts.insert(0, f"battery {state.battery_pct:.0f}%")
+        if state.active_faults:
+            parts.append("faults: " + ", ".join(state.active_faults[:4]))
+        holding = manipulator.holding()
+        if holding:
+            parts.append(f"right hand holding {holding}")
+        return ", ".join(parts)
+
+    def policy(tool: Tool, args: dict) -> Any:
+        """Tier default, a per-tool settings override (settings.skills), and the capability check."""
+        if tool.tier == "read":
+            return True, False, ""
+        settings = inner.settings.effective()
+        override = settings.skills.overrides.get(tool.name)
+        if override == SkillMode.DISABLED:
+            return False, False, f"{tool.name} is disabled in the settings"
+        confirm = override == SkillMode.CONFIRM or (override is None and tool.tier == "confirm")
+        if tool.gate_skill is not None:
+            if manipulator.busy():  # queued behind our own command: it owns the arm, not a conflict
+                if not settings.motion.allow_arm_motion:
+                    return False, False, "arm motion is disabled in the settings"
+            else:
+                decision = inner.resolver.resolve_skill(tool.gate_skill, settings=settings,
+                                                        robot_state=build_robot_state(inner.state_source))
+                if not decision.allowed:
+                    return False, False, decision.reason
+                confirm = confirm or decision.requires_approval
+        # Opening a hand with an object in it drops the object.
+        if tool.name == "set_hand" and args.get("action") == "open" and str(args.get("hand", "right")) == "right" \
+                and manipulator.holding():
+            confirm = True
+        return True, confirm, ""
+
+    def on_stop() -> None:
+        robot.loco_stop()
+        if inner.navigation.slam_backend.slam_running:
+            robot.pause_nav()
+
+    tools = build_tools(manipulator, call_skill, status, describe_view=inner._answer_vision_question)
+    planner = inner.planner
+    llm = OpenAIChat(planner._model, planner._base) if hasattr(planner, "_model") else None
+    return ChatAgent(tools, chat_knowledge(), llm=llm, inner=inner, manipulator=manipulator, policy=policy, on_stop=on_stop,
+                     log=lambda line: print(f"[chat] {line}"))
 
 
 def build_agent(args: Any, robot: Any = None, host: Optional[AgentHost] = None) -> Any:

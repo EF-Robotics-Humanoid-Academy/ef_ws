@@ -16,6 +16,11 @@ is imported, not edited); only /sort is replaced:
   * sort_v2_config            hardware limits / safety thresholds / tuning
   * sim_sort_v2               off-robot simulation (also used by the tests)
 
+and the chat is g1_agent.chat.ChatAgent: short replies, knowledge about the G1,
+the Unitree SDK and EF Robotics, and tools for grabbing, placing, hand moves,
+the balanced hold pose, walking and SLAM on the same V2 pipeline.  Off-robot it
+runs without a language model, on the simulated robot and sort scene.
+
 Root causes fixed relative to V1 (details in grasp_pipeline_v2's docstring):
 joint-space partial steps dipping into the table margin with an endless
 retry loop; gain halving (kp 60 -> 30) at every controller handover that let
@@ -34,6 +39,7 @@ from typing import Any
 
 import g1_dashboard as base  # handles --off-robot stubbing before robot modules load
 from g1_dashboard import LiveRequired, np, cv2
+import g1_agent.chat
 
 SORT_V2_TITLE = "G1 Dashboard V2"
 
@@ -125,6 +131,27 @@ class SortSessionV2(base.SortSession):
             robot.close()
 
 
+class DashboardV2(base.Dashboard):
+    """A stop command acts at once, also while the chat is busy with a turn."""
+
+    def chat(self, text: str) -> dict[str, Any]:
+        stop = getattr(self.agent, "stop_now", None)
+        if stop is not None and g1_agent.chat.is_stop_command(text):
+            self.say("you", text.strip())
+            self.say("agent", stop())
+            return {"ok": True}
+        return super().chat(text)
+
+    def chat_report(self, text: str) -> None:
+        """A long chat command finished: shown, and spoken like a reply."""
+        self.say("agent", text)
+        if self.settings["voice_reply"] and self.robot is not None:
+            try:
+                self.robot.say(text, language=self.settings["voice_language"], volume=int(self.settings["robot_volume"]))
+            except Exception as exc:
+                self.say("error", f"Voice reply failed: {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Page: the V1 page plus a V2 diagnostics panel in /sort
 # ---------------------------------------------------------------------------
@@ -209,7 +236,6 @@ def main() -> int:
     args = base.parse_args()
     if args.off_robot:
         return _main_off_robot(args)
-    import g1_agent  # the agent's sdk_wrapper.G1 backend (not imported by --off-robot)
 
     try:
         robot = None if args.offline else base.sdk_wrapper.G1(iface=args.iface, domain_id=args.domain_id)
@@ -218,11 +244,62 @@ def main() -> int:
     except Exception as exc:
         print(f"Could not start g1_dashboard_v2: {exc}", file=sys.stderr)
         return 2
-    dash = base.Dashboard(robot, agent, offline=args.offline, args=args)
+    dash = DashboardV2(robot, agent, offline=args.offline, args=args)
     dash.sort = SortSessionV2(dash, args)
     if host is not None:
         host.bind(arm_conflict=lambda: dash.arm_conflict("agent"), grasp_pipeline=dash.sort.pipeline)
+        _install_chat(dash, g1_agent.build_chat_agent(
+            agent, robot, sorter=dash.sort.get, built_sorter=lambda: dash.sort.sorter,
+            conflict=lambda: dash.arm_conflict("agent"), notify=dash.chat_report))
     return base._serve(dash, args, robot)
+
+
+def _install_chat(dash: Any, chat_agent: Any) -> None:
+    """What G1Console does with its agent at construction."""
+    dash.agent = chat_agent
+    chat_agent._confirm_prompt = dash.confirm_prompt
+    chat_agent.settings.set("interface.reply_language", dash.settings["ai_language"], persist=False)
+
+
+def _sim_chat_agent(dash: Any, robot: Any) -> Any:
+    """The chat on the simulated robot and sort scene; the skills the live
+    agent gets from its registry are small stand-ins here."""
+    from g1_agent.chat import ChatAgent, build_tools
+    from g1_agent.manipulation import Manipulator
+
+    manipulator = Manipulator(dash.sort.get, lambda: dash.sort.sorter, lambda: dash.arm_conflict("agent"), dash.chat_report)
+
+    def walk(direction: str, distance_m: float, speed_mps: float = 0.3) -> str:
+        axis = {"forward": (1, 0), "backward": (-1, 0), "left": (0, 1), "right": (0, -1)}[direction]
+        robot.loco_move(axis[0] * speed_mps, axis[1] * speed_mps, 0.0, duration_s=distance_m / speed_mps)
+        return f"moved {direction} {distance_m:.2f} m"
+
+    def turn(sign: float, degrees: float) -> str:
+        robot.loco_move(0.0, 0.0, sign * 0.5, duration_s=abs(degrees) * 3.14159 / 180.0 / 0.5)
+        return f"turned {abs(degrees):.0f} degrees"
+
+    skills = {
+        "move": walk, "turn_left": lambda degrees=30.0: turn(1.0, degrees), "turn_right": lambda degrees=30.0: turn(-1.0, degrees),
+        "prepare": lambda: robot.prepare_mode(), "walk_mode": lambda: robot.walk_mode(), "run_mode": lambda: robot.run_mode(),
+        "damp": lambda: robot.damp_mode(), "zero_torque": lambda: robot.zero_torque_mode(), "squat": lambda: robot.prepare_mode(),
+        "gesture": lambda name: f"played {name} (simulated)",
+        "start_mapping": lambda: robot.start_mapping(), "save_map": lambda: robot.stop_mapping(),
+        "stop_slam": lambda: robot.stop_mapping(save=False), "start_relocation": lambda: robot.relocate(),
+        "slam_status": lambda: f"pose x {robot.x:.2f} y {robot.y:.2f}",
+        "save_current_nav_point": lambda name: f"saved {name} at {robot.add_point(name)}",
+        "list_nav_points": lambda: "no named points in the simulator", "navigate_named_point": lambda name, auto_relocate=True: f"{name} is not known in the simulator",
+        "pause_navigation": lambda: robot.pause_nav(), "resume_navigation": lambda: robot.resume_nav(),
+    }
+
+    def call_skill(name: str, **kwargs: Any) -> tuple[bool, str]:
+        return True, str(skills[name](**kwargs))
+
+    def status() -> str:
+        holding = manipulator.holding()
+        return f"battery {robot.soc:.0f}%, standing" + (f", right hand holding {holding}" if holding else "")
+
+    return ChatAgent(build_tools(manipulator, call_skill, status), g1_agent.chat_knowledge(), manipulator=manipulator,
+                     on_stop=robot.loco_stop, log=lambda line: dash.say("system", line))
 
 
 def _main_off_robot(args: Any) -> int:
@@ -235,13 +312,14 @@ def _main_off_robot(args: Any) -> int:
         shutil.copyfile(base.g1_cli.SETTINGS_PATH, sim_settings)
     base.g1_cli.SETTINGS_PATH = sim_settings
     robot = base.g1_dashboard_sim.SimRobot()
-    agent = base.g1_dashboard_sim.SimAgent(robot)
-    dash = base.Dashboard(robot, agent, offline=False, args=args)
+    dash = DashboardV2(robot, base.g1_dashboard_sim.SimAgent(robot), offline=False, args=args)
     dash.vision.sim = base.g1_dashboard_sim.SimCamera(robot)
     dash.slam.points_path = Path(tempfile.gettempdir()) / "g1_dashboard_off_robot_points.json"
     dash.sort = SortSessionV2(dash, args)
+    _install_chat(dash, _sim_chat_agent(dash, robot))
     dash.say("system", "Off-robot simulator (V2): robot, SLAM, camera, agent and the /sort scene are simulated. "
-                       "Simulated sorting exercises the sequence and recovery logic only, not real-robot safety.")
+                       "Simulated sorting exercises the sequence and recovery logic only, not real-robot safety. "
+                       "The chat uses its local command parser and knowledge, without a language model.")
     return base._serve(dash, args, robot)
 
 

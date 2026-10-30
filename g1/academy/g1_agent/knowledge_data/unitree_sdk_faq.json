@@ -1,0 +1,71 @@
+{
+  "metadata": {
+    "title": "Unitree SDK knowledge for the academy G1",
+    "purpose": "Chat RAG: Unitree SDK2 concepts and how this repository's sdk_wrapper.G1 uses them. Constants were taken from academy/sdk_wrapper.py; check that file when in doubt."
+  },
+  "knowledge": [
+    {
+      "title": "Unitree SDK basics",
+      "category": "unitree sdk sdk2 python dds cyclonedds setup network interface domain",
+      "faqs": [
+        {"question": "What is the Unitree SDK?", "answer": "unitree_sdk2 is Unitree's C++ development kit and unitree_sdk2_python is its Python counterpart. Programs talk to the robot through DDS topics for streaming data and through RPC clients for services such as locomotion, arm actions, audio and SLAM."},
+        {"question": "What middleware does the Unitree SDK use?", "answer": "The SDK uses DDS, with CycloneDDS as the implementation. The academy setup script builds CycloneDDS from the releases/0.10.x branch and CYCLONEDDS_HOME must point at that install."},
+        {"question": "How do I connect to the G1 with the SDK?", "answer": "Create the channel factory with a DDS domain id and the network interface that faces the robot, for example domain 0 and eth0 on the Jetson. In this repository that is sdk_wrapper.G1(iface, domain_id)."},
+        {"question": "What is sdk_wrapper?", "answer": "sdk_wrapper.py is the academy's single robot interface. Its G1 class wraps locomotion, arm SDK control, Dex3 hands, audio, SLAM, sensors and services behind plain Python methods such as loco_move, engage_arms, close_dex3_hand and start_mapping."},
+        {"question": "Which setup script installs the SDK here?", "answer": "academy/setup_python_cyclonedds_unitree_sdk.sh builds CycloneDDS and the Unitree SDK2 and creates the academy virtual environment."}
+      ]
+    },
+    {
+      "title": "Locomotion and FSM modes",
+      "category": "locomotion fsm modes loco client walk run prepare damp zero torque squat velocity move",
+      "faqs": [
+        {"question": "What are the G1 FSM mode ids?", "answer": "In sdk_wrapper the FSM ids are zero torque 0, damp 1, squat 2, prepare 4, walk 500 and run 802."},
+        {"question": "Why is walk FSM 500 and not 501?", "answer": "The academy's G1 units run with the waist locked, only waist yaw is free. FSM 501 is the balanced stand and walk id for the unlocked three-joint waist, so sdk_wrapper uses 500 here."},
+        {"question": "How do I make the G1 walk with the SDK?", "answer": "Enter a walking mode, then send velocities with the loco client's Move call. sdk_wrapper.G1.loco_move(vx, vy, vyaw, duration_s) sends the command, waits for the duration and then stops; loco_stop stops at once."},
+        {"question": "What is damp mode?", "answer": "Damp mode, FSM 1, makes the joints passively resist motion. The robot no longer balances, so it should be supported or on a gantry. Zero torque, FSM 0, makes the motors completely limp."},
+        {"question": "What is prepare mode?", "answer": "Prepare mode, FSM 4, is the stand-up preparation posture used before a balancing mode."}
+      ]
+    },
+    {
+      "title": "Arm control",
+      "category": "arm sdk arm_sdk rt/arm_sdk weight engage release lowcmd gestures joints ik",
+      "faqs": [
+        {"question": "What is rt/arm_sdk?", "answer": "rt/arm_sdk is the DDS topic for upper-body joint commands while the balance controller keeps running the legs. Motor command slot 29 carries the blend weight between 0 and 1: at 1 the SDK command owns the arms, at 0 the default controller does."},
+        {"question": "What is the difference between rt/arm_sdk and rt/lowcmd?", "answer": "rt/arm_sdk commands only the upper body and leaves balancing to the robot. rt/lowcmd is full low-level control and needs developer mode with ai_sport switched off, so the robot has no balance controller."},
+        {"question": "What do engage_arms and release_arms do?", "answer": "engage_arms ramps the arm SDK weight up to 1 while holding the measured pose, and release_arms fades it to 0 so the arms hand back to the default controller. Only one program should publish arm commands at a time."},
+        {"question": "What are the G1 arm joint indices?", "answer": "On the 29 joint layout the waist is 12 to 14, the left arm 15 to 21 and the right arm 22 to 28."},
+        {"question": "Which high-level arm gestures does the SDK have?", "answer": "The arm action client offers release arm, two-hand kiss, left kiss, right kiss, hands up, clap, high five, hug, heart, right heart, reject, right hand up, x-ray, face wave, high wave and shake hand."},
+        {"question": "How does end-effector IK work here?", "answer": "The /sort pipeline moves the hand along a straight line: each tick solves IK for the next pose, the motion validator checks workspace, table, obstacles and the other arm, and one arm controller publishes the result with gravity sag compensation."}
+      ]
+    },
+    {
+      "title": "Dex3 hands",
+      "category": "dex3 hand fingers tactile rt/dex3 gripper open close crossed",
+      "faqs": [
+        {"question": "How do I control the Dex3 hands with the SDK?", "answer": "Each hand has its own command and state DDS topics, rt/dex3/left and rt/dex3/right with cmd and state. sdk_wrapper offers open_dex3_hand, close_dex3_hand, hand_pose and get_dex3_hand_sensors."},
+        {"question": "Why are the Dex3 topics crossed?", "answer": "On the academy robots the units are mounted crossed: the left wrist uses the rt/dex3/right topics and the right wrist uses rt/dex3/left. sdk_wrapper hides this behind its left and right hand names."},
+        {"question": "How does grasp verification work?", "answer": "The sort grip compares each tactile element to a baseline taken just before closing and also uses finger kinematics, so a grasp only counts when there is real evidence of an object between the fingers."}
+      ]
+    },
+    {
+      "title": "Sensors, audio and services",
+      "category": "sensors topics lowstate odom imu audio tts asr services ai_sport developer mode led lidar battery",
+      "faqs": [
+        {"question": "Which DDS topics carry the robot state?", "answer": "rt/lowstate has joints and IMU, rt/odommodestate and rt/sportmodestate have the sport state, rt/odom has odometry, and rt/lf/bmsstate has the battery."},
+        {"question": "How do I make the robot speak?", "answer": "sdk_wrapper.G1.say(text, language, volume) speaks through the robot's speaker using Piper voices. The robot's microphone transcripts arrive on rt/audio_msg."},
+        {"question": "What is developer mode?", "answer": "Developer mode turns the ai_sport service off so low-level rt/lowcmd control is possible. The robot then has no balance controller, so it must be supported."},
+        {"question": "Which services run on the G1?", "answer": "The service switcher lists ai_sport for motion control, basic_service, g1_arm_example for upper-limb motion, vui_service for audio and lights, and unitree_slam for navigation."}
+      ]
+    },
+    {
+      "title": "SLAM and navigation",
+      "category": "slam mapping navigation relocation lidar map pose_nav points unitree_slam 1801 1802 1804",
+      "faqs": [
+        {"question": "How does SLAM mapping work on the G1?", "answer": "The unitree_slam service runs on the lidar and IMU. Start mapping, walk the robot slowly through the area, then stop and save the map. After that the robot can relocate on the saved map and navigate to poses."},
+        {"question": "What are the SLAM API ids?", "answer": "The SLAM client uses 1801 to start mapping, 1802 to stop and save the map, and 1804 to initialize the pose on a saved map."},
+        {"question": "Why does start mapping fail with error 501?", "answer": "Error 501 with Lack of lidar or imu data means the request reached the SLAM service but it has no lidar or IMU input. Check that the lidar topics are fresh and the service is running."},
+        {"question": "How do I save named navigation points?", "answer": "Relocate on a saved map, drive to the place and save the current pose under a name. The robot can then navigate to that name and relocates first if needed."}
+      ]
+    }
+  ]
+}

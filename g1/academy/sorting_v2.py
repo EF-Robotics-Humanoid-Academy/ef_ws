@@ -18,11 +18,12 @@ not an emergency stop: use the robot's physical e-stop / damping for that.
 """
 from __future__ import annotations
 
+import dataclasses
 import math
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -398,6 +399,258 @@ class SorterV2(Sorter):
             p.keep_alive -= 1
             self.run_lock.release()
 
+    # -- single chat commands -------------------------------------------------------
+    def chat_run(self, label: str, body: Callable[[], Tuple[bool, str]]) -> Tuple[bool, str]:
+        """Run one chat arm command in the calling thread, owning the sorter
+        exactly as a sort does (/sort Stop and the state view keep working)."""
+        if not self.run_lock.acquire(blocking=False):
+            return False, "a sort or another arm command is running"
+        p = self.p
+        p.keep_alive += 1
+        try:
+            self.touch()
+            self.stop_event.clear()
+            p.cancel.clear()
+            with self.lock:
+                self.running = True
+                self.summary = ""
+            self.sm.info(f"chat command: {label}")
+            return body()
+        except TransitionError as exc:
+            self.sm.log.add(self.sm.state, "error", f"state machine: {exc}")
+            self._hold_error(f"internal sequencing error: {exc}")
+            return False, f"internal sequencing error: {exc}; the arm holds its pose"
+        except Exception as exc:  # never leave the arm uncontrolled on a bug
+            self.sm.log.add(self.sm.state, "error", f"unexpected {type(exc).__name__}: {exc}")
+            self._hold_error(f"unexpected {type(exc).__name__}: {exc}")
+            return False, f"{type(exc).__name__}: {exc}; the arm holds its pose"
+        finally:
+            p.v2_active = False
+            self._release_arm()
+            with self.lock:
+                self.running = False
+                self.current_target = None
+                self.active_object = None
+            p.keep_alive -= 1
+            self.run_lock.release()
+
+    def _chat_conclude(self, message: str) -> None:
+        """READY_FOR_NEXT_OBJECT / DETECTING -> COMPLETED without a sort summary."""
+        self._enter(S.FINALIZING, message)
+        self.sm.enter(S.COMPLETED, message)
+        self._set_phase(message)
+
+    def _chat_grab_failed(self, state: State, result: PhaseResult, what: str) -> Tuple[bool, str]:
+        if self._recover(state, result):
+            self._chat_conclude(f"{what}: {result.detail}")
+        return False, f"{what}: {result.detail}"
+
+    def chat_grab(self, index: int) -> Tuple[bool, str]:
+        """Detect, plan, approach, grasp and lift one configured object, then
+        keep holding it.  No drop-off is planned or needed."""
+        p = self.p
+        with self.lock:
+            objects = list(self.objects)
+        obj = objects[index]
+        with p.lock:
+            if p.holding_object:
+                return False, "the right hand is already holding something; place it or open the hand first"
+        self.attempts = [0] * OBJECT_COUNT
+        self.confirmed = [0] * OBJECT_COUNT
+        self.unconfirmed = [0] * OBJECT_COUNT
+        self.finished = [i != index for i in range(len(objects))]
+        self.notes = []
+        self.blacklist = []
+        self.waist_tried = {}
+        self.current = None
+        self.pick_record = {}
+        p.clear_diag()
+        self.sm.reset()
+        self._enter(S.PREPARING, f"chat: grab {obj.name}")
+        result = self._prepare()
+        if not result.ok:
+            self._recover(S.PREPARING, result)
+            return False, f"could not prepare the arm: {result.detail}"
+        self._enter(S.DETECTING)
+        found = self._detect(objects, any_zone=True)
+        if not found.ok:
+            if found.failure == Failure.OPERATOR_STOP:
+                self._recover(S.DETECTING, found)
+                return False, "stopped"
+            self.sm.fail(found)
+            self._chat_conclude(found.detail)
+            return False, f"I can't see the {obj.name}: {found.detail}"
+        target: Target = found.data["target"]
+        self._enter(S.VALIDATING_TARGET, f"{obj.name} at ({target.p_base[0]:+.3f}, {target.p_base[1]:+.3f}, "
+                    f"{target.p_base[2]:+.3f}) m")
+        planned = self._validate(target, obj, pick_only=True)
+        if not planned.ok:
+            if planned.failure == Failure.OPERATOR_STOP:
+                self._recover(S.VALIDATING_TARGET, planned)
+                return False, "stopped"
+            self.sm.fail(planned)
+            self._enter(S.DETECTING, f"target rejected ({planned.failure.value})")
+            self._chat_conclude(planned.detail)
+            return False, f"the {obj.name} is not reachable from here: {planned.detail}"
+        self.current = planned.data["plan"]
+        state, result = self._pick_phase(self.current, obj)
+        if not result.ok:
+            return self._chat_grab_failed(state, result, f"grabbing the {obj.name} failed")
+        self._enter(S.HOLDING_OBJECT, f"holding {obj.name}")
+        return True, f"holding the {obj.name}, lifted {self.cfg.tuning.lift_m * 100:.0f} cm"
+
+    def chat_place(self, zone: int) -> Tuple[bool, str]:
+        """Put the object of the last chat grab on the given spot, open the
+        hand and return to the preparation pose."""
+        p = self.p
+        with p.lock:
+            holding = p.holding_object
+        with self.lock:
+            pattern = self.patterns[zone]
+        plan = self.current
+        if not holding or plan is None or "carried" not in self.pick_record or self.sm.state != S.HOLDING_OBJECT:
+            return False, "I'm not holding an object I picked up; grab it first"
+        with self.lock:
+            obj = dataclasses.replace(self.objects[plan.target.obj_index], zone=zone)
+        # Checked before moving: an unseen spot is a reason to keep holding, not
+        # the failed-transport recovery that carries the object back.
+        deadline = time.time() + 3.0
+        while self._pattern_T_camera(zone, require_current_epoch=True) is None and time.time() < deadline:
+            time.sleep(0.1)
+        drop, detail = self._drop_pose_for(obj, p.measured_hand_T()[:3, :3], self.pick_record["carried"])
+        if drop is None:
+            return False, f"{detail}; I'm still holding the {obj.name}"
+        if not self._acquire_arm():
+            return False, "the arm controller is busy"
+        p.v2_active = True
+        p.ensure_arm_authority(duration_s=0.5)
+        p.controller.start()
+        state, result = self._place_phase(plan, obj)
+        if not result.ok:
+            return self._chat_grab_failed(state, result, f"placing the {obj.name} failed")
+        self.current = None
+        placement = result.detail
+        self._chat_conclude(f"{obj.name} placed on {pattern.name}: {placement}")
+        return True, f"the {obj.name} is on {pattern.name}" + ("" if placement == "confirmed" else
+                                                               f" (not confirmed by the camera: {placement})")
+
+    def _chat_table(self, wait_s: float = 2.5) -> Any:
+        """Latest table plane; perception may just have been started."""
+        deadline = time.time() + wait_s
+        while True:
+            try:
+                table = self.p.current_table()
+            except Exception:
+                table = None
+            if table is not None or time.time() >= deadline:
+                return table
+            time.sleep(0.25)
+
+    def _chat_context(self, side: str, table: Any, label: str) -> MotionContext:
+        carried = self.pick_record.get("carried") if side == SORT_ARM else None
+        with self.p.lock:
+            holding = self.p.holding_object
+        return MotionContext(table, carried=carried if holding else None, label=label)
+
+    def _chat_take_arm(self, side: str) -> Any:
+        """Arm controller running for this arm; the other arm keeps its command."""
+        p = self.p
+        if not self._acquire_arm():
+            raise RuntimeError("the arm controller is busy")
+        p.v2_active = True
+        p.ensure_arm_authority(duration_s=0.5)
+        motion = p.arm_motion(side)
+        motion.controller.start()
+        return motion
+
+    def chat_move_hand(self, side: str, delta: Sequence[float], label: str, max_unchecked_m: float = 0.05) -> Tuple[bool, str]:
+        """Straight-line hand move in the base frame (x forward, y left, z up),
+        through the same IK loop and validator as a sort.  Without a table in
+        view its clearance cannot be checked: at most `max_unchecked_m`."""
+        table = self._chat_table()
+        step = np.asarray(delta, dtype=np.float64)
+        length = float(np.linalg.norm(step))
+        if table is None and length > max_unchecked_m:
+            step = step * (max_unchecked_m / length)
+            length = max_unchecked_m
+        label = f"{label} {length * 100:.0f} cm"
+        motion = self._chat_take_arm(side)
+        T_goal = motion.reference_hand_T()
+        T_goal[:3, 3] += step
+        ctx = self._chat_context(side, table, label)
+        t = self.cfg.tuning
+        # An object in the hand stays upright; otherwise the wrist is free.
+        r = motion.move_linear(T_goal, ctx, t.approach_speed_m_s, label, self.stop_event, level=ctx.carried is not None,
+                               yaw_free=True, accept_short_m=t.short_move_accept_m, timeout_s=15.0)
+        if r.ok:
+            note = "" if table is not None else " (no table in view, so table clearance was not checked)"
+            return True, f"{side} hand moved {label}{note}"
+        if r.failure == Failure.OPERATOR_STOP:
+            return False, "stopped; the arm holds where it is"
+        return False, f"{side} hand could not move {label}: {r.detail}"
+
+    def chat_hand(self, side: str, action: str) -> Tuple[bool, str]:
+        grip = self.p.arm_motion(side).grip
+        ok, detail = grip.open(self.cfg.tuning.release_open_s) if action == "open" else grip.close_neutral()
+        if action == "open" and ok and side == SORT_ARM:
+            if self.sm.state == S.HOLDING_OBJECT:
+                self.sm.reset()
+                self.current = None
+            self.p.clear_hold_flags()
+        verb = "opened" if action == "open" else "closed"
+        return ok, f"{side} hand {verb}" if ok else f"{side} hand not fully {verb}: {detail}"
+
+    def chat_hold_pose(self, targets: Dict[str, np.ndarray], label: str) -> Tuple[bool, str]:
+        """Joint-space move of both arms to a saved pose, each validated per
+        step; a hanging arm first swings away from the thigh."""
+        table = self._chat_table(1.0)
+        speed = self.cfg.tuning.prep_rise_speed_rad_s
+        for side, q_goal in targets.items():
+            motion = self._chat_take_arm(side)
+            ctx = self._chat_context(side, table, label)
+            q = motion.controller.reference()
+            T = motion.fk.compute_arm(q)
+            if float(T[2, 3]) < -0.05 and float(T[0, 3]) < 0.20:  # hanging beside the leg
+                outward = -1.0 if side == "right" else 1.0
+                if outward * float(q[1]) < self.cfg.tuning.prep_abduction_rad - 0.02:
+                    lo, hi = gp1.JOINT_LIMITS[side][1]
+                    q_out = q.copy()
+                    q_out[1] = float(np.clip(outward * self.cfg.tuning.prep_abduction_rad, lo, hi))
+                    r = motion.move_joint(q_out, ctx, f"{side} arm away from the body", self.stop_event,
+                                          speed_rad_s=self.cfg.tuning.prep_abduction_speed_rad_s)
+                    if not r.ok:
+                        return False, r.detail
+            r = motion.move_joint(q_goal, ctx, f"{side} arm to {label}", self.stop_event, speed_rad_s=speed)
+            if not r.ok:
+                if r.failure == Failure.OPERATOR_STOP:
+                    return False, "stopped; the arms hold where they are"
+                return False, r.detail
+        return True, f"both arms at the {label} pose, holding"
+
+    def chat_release_arms(self) -> Tuple[bool, str]:
+        self.p.controller.stop()
+        self.p.grip.stop_hold()
+        if self.sm.state == S.HOLDING_OBJECT:
+            self.sm.reset()
+            self.current = None
+        self.p.run_release_arms()
+        return True, "arm control released"
+
+    def chat_scene(self) -> str:
+        """What perception sees now, in the operator's terms."""
+        snap = self._scene_snapshot()
+        lines = []
+        for e in self._classify(snap):
+            if e["obj"] is None:
+                continue
+            x, y, _z = e["p_base"]
+            side = "left" if y > 0 else "right"
+            lines.append(f"{snap['objects'][e['obj']].name} {x * 100:.0f} cm ahead, {abs(y) * 100:.0f} cm to the {side}"
+                         + (f", on {snap['patterns'][e['zone']].name}" if e["zone"] is not None else ""))
+        seen = [pattern.name for i, pattern in enumerate(snap["patterns"])
+                if self._pattern_T_camera(i, require_current_epoch=True) is not None]
+        return ("; ".join(lines) or "none of the configured objects in view") + ". Spots in view: " + (", ".join(seen) or "none")
+
     # -- waist assist ------------------------------------------------------------
     def _set_down_shortfall(self, T_release: np.ndarray, carried: CarriedObject, table: Any) -> Optional[float]:
         """How far above its set-down height (object bottom on the spot) the
@@ -697,8 +950,10 @@ class SorterV2(Sorter):
                 name = self.objects[target.obj_index].name
             self.notes.append(f"{name}: {result.detail}")
 
-    def _detect(self, objects: List[ObjectConfig]) -> PhaseResult:
-        """Consistent detections over several fresh perception passes."""
+    def _detect(self, objects: List[ObjectConfig], any_zone: bool = False) -> PhaseResult:
+        """Consistent detections over several fresh perception passes.
+        `any_zone`: also objects already lying on their own spot (a chat grab
+        names the object; it is not sorting)."""
         t = self.cfg.tuning
         wanted = [i for i in range(len(objects)) if not self.finished[i]]
         if not wanted:
@@ -718,7 +973,7 @@ class SorterV2(Sorter):
             last_ts = snap["detection_ts"]
             entries = []
             for e in self._classify(snap):
-                if e["obj"] not in wanted or not e["sortable"] or float(e["det"].score) < t.min_detection_score:
+                if e["obj"] not in wanted or not (e["sortable"] or any_zone) or float(e["det"].score) < t.min_detection_score:
                     continue
                 if not np.all(np.isfinite(e["p_base"])):
                     continue
@@ -868,7 +1123,8 @@ class SorterV2(Sorter):
         return result(anchor[0] + (uc - anchor[0]) * lo, anchor[1] + (vc - anchor[1]) * lo,
                       "nearest reachable point toward the robot")
 
-    def _validate(self, target: Target, obj: ObjectConfig) -> PhaseResult:
+    def _validate(self, target: Target, obj: ObjectConfig, pick_only: bool = False) -> PhaseResult:
+        """`pick_only`: plan the grasp and lift without a drop-off (chat grab)."""
         p, t, s = self.p, self.cfg.tuning, self.cfg.safety
         if self.stop_event.is_set():
             return PhaseResult.fail(Failure.OPERATOR_STOP, "stop requested")
@@ -920,7 +1176,7 @@ class SorterV2(Sorter):
                 self.sm.warn(f"finger direction {yaw_deg:+d} deg skipped: {why}")
                 first_failure = first_failure or (Failure.UNREACHABLE, why)
                 continue
-            failure, why, planned = self._plan_route(T_candidate, target, obj, table, objects, radius)
+            failure, why, planned = self._plan_route(T_candidate, target, obj, table, objects, radius, pick_only)
             if failure is None:
                 break
             self.sm.warn(f"finger direction {yaw_deg:+d} deg rejected: {why} [{failure.value}]")
@@ -935,7 +1191,7 @@ class SorterV2(Sorter):
             return PhaseResult.fail(failure, f"{why} (finger directions tried: {', '.join(f'{d:+d}' for d in tried)} deg)",
                                     finish_object=finish)
         T_grasp, T_pre, T_clear, carried, drop, drop_detail = planned
-        short = self._set_down_shortfall(drop[1], carried, table)
+        short = None if drop is None else self._set_down_shortfall(drop[1], carried, table)
         if short is not None and t.waist_assist and \
                 self.waist_tried.get(target.obj_index, 0) < len(t.waist_assist_yaws_deg):
             # The drop-off works, but the arm cannot lower the object onto the
@@ -952,7 +1208,8 @@ class SorterV2(Sorter):
         with self.lock:
             self.current_target = (target.obj_index, target.det.box)
             self.active_object = target.obj_index
-        self.sm.info(f"drop-off: {drop_detail}; release with the hand {drop[2] * 100:.0f} cm above the spot")
+        if drop is not None:
+            self.sm.info(f"drop-off: {drop_detail}; release with the hand {drop[2] * 100:.0f} cm above the spot")
         return PhaseResult.success("validated", plan=plan)
 
     def _fit_grasp_to_reach(self, T_grasp: np.ndarray, target: Target, table: Any
@@ -1139,7 +1396,7 @@ class SorterV2(Sorter):
         return T, f"side approach from {side * 100:.0f} cm beside the grasp"
 
     def _plan_route(self, T_grasp: np.ndarray, target: Target, obj: ObjectConfig, table: Any,
-                    objects: List[gp1.TableObject], radius: float):
+                    objects: List[gp1.TableObject], radius: float, pick_only: bool = False):
         """Plan one grasp: the 6D EE waypoints clearance -> pre-grasp -> grasp
         and the lift/transport/release poses with the planned carried object.
         Key poses get IK and the full validator; the straight paths between
@@ -1173,6 +1430,14 @@ class SorterV2(Sorter):
         carried = CarriedObject(offset, hang, radius)
         T_lift = T_grasp.copy()
         T_lift[2, 3] += t.lift_m
+        if pick_only:
+            lift_ctx = MotionContext(table, objects, min_wrist_z_m=T_grasp[2, 3] - 0.015, label="lift")
+            failure, why, _q = self._check_key_poses([("lift", T_lift, lift_ctx)], q_grasp, T_from=T_grasp)
+            if failure is None:
+                failure, why = self._check_path_geometry([(T_grasp, T_lift, lift_ctx)])
+            if failure is not None:
+                return failure, why, None
+            return None, "", (T_grasp, T_pre, T_clear, carried, None, "")
         drop, drop_detail = self._drop_pose_for(obj, T_grasp[:3, :3], carried)
         if drop is None:
             return Failure.UNREACHABLE, f"{DROP_OUT_OF_REACH}: {drop_detail}", None
@@ -1210,19 +1475,27 @@ class SorterV2(Sorter):
 
     # -- phases 2-7 ----------------------------------------------------------------
     def _pick_and_place(self, plan: GraspPlan, obj: ObjectConfig) -> Tuple[State, PhaseResult]:
+        state, result = self._pick_phase(plan, obj)
+        if not result.ok:
+            return state, result
+        return self._place_phase(plan, obj)
+
+    def _move_failure(self, result: MoveResult) -> Tuple[State, PhaseResult]:
+        failure = result.failure or Failure.INTERNAL
+        if self.sm.state in (S.MOVING_TO_DROPOFF, S.LOWERING) and failure in (
+                Failure.COLLISION_REJECTED, Failure.IK_FAILURE, Failure.NOT_REACHED):
+            failure = Failure.PLACEMENT_FAILURE   # the drop-off route / spot is obstructed
+        return self.sm.state, PhaseResult.fail(failure, result.detail, cause=result.failure.value
+                                               if result.failure else "")
+
+    def _pick_phase(self, plan: GraspPlan, obj: ObjectConfig) -> Tuple[State, PhaseResult]:
+        """Phases 2-4: approach, close and verify, lift and verify."""
         p, t = self.p, self.cfg.tuning
         cancel = self.stop_event
         table, objects = plan.table, plan.objects
         p_object = plan.T_object[:3, 3]
         self.pick_record = {"plan": plan}
-
-        def fail(result: MoveResult) -> Tuple[State, PhaseResult]:
-            failure = result.failure or Failure.INTERNAL
-            if self.sm.state in (S.MOVING_TO_DROPOFF, S.LOWERING) and failure in (
-                    Failure.COLLISION_REJECTED, Failure.IK_FAILURE, Failure.NOT_REACHED):
-                failure = Failure.PLACEMENT_FAILURE   # the drop-off route / spot is obstructed
-            return self.sm.state, PhaseResult.fail(failure, result.detail, cause=result.failure.value
-                                                   if result.failure else "")
+        fail = self._move_failure
 
         # Phase 2: clearance -> pre-grasp -> final approach.
         keep = [plan.data["target_obj"]] if plan.data.get("target_obj") is not None else []
@@ -1375,6 +1648,15 @@ class SorterV2(Sorter):
         if not held:
             return self.sm.state, PhaseResult.fail(Failure.OBJECT_LOST, why)
         self.sm.info(f"lift verified: {lifted * 1000:.0f} mm, {why}")
+        return self.sm.state, PhaseResult.success("lifted")
+
+    def _place_phase(self, plan: GraspPlan, obj: ObjectConfig) -> Tuple[State, PhaseResult]:
+        """Phases 5-7: transport, lower and release, return to the preparation pose."""
+        p, t = self.p, self.cfg.tuning
+        cancel = self.stop_event
+        table, objects = plan.table, plan.objects
+        carried = self.pick_record["carried"]
+        fail = self._move_failure
 
         # Phase 5: transport above the spot at a validated clearance height.
         self._enter(S.MOVING_TO_DROPOFF)

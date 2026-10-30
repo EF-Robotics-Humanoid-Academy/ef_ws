@@ -1017,11 +1017,21 @@ class GraspPipelineV2(GraspPipeline):
         self.cfg = cfg or default_config()
         self.sort_arm = arm
         self.v2_active = False
-        self.controller = ArmController(robot, arm, self.cfg, self.read_current_arm_q)
-        self.validator = MotionValidator(arm, self.cfg, self._opposite_wrist)
         self._diag: Dict[str, Any] = {}
         self._diag_lock = threading.Lock()
-        self.grip = Dex3Grip(robot, arm, self.cfg, self.diag)
+        self._build_arm(arm)
+        # Chat hand moves on the other arm (see arm_motion).
+        self._other_arms: Dict[str, "SecondArmMotion"] = {}
+        # Structured event sink (kind, message); SorterV2 points it at its log.
+        self.event: Callable[[str, str], None] = lambda kind, message: self.log(f"[sort-v2] {kind}: {message}")
+        # Looked up at call time: SorterV2 re-points self.event at its log.
+        self.grip.event = lambda kind, message: self.event(kind, message)
+
+    def _build_arm(self, arm: str) -> None:
+        """Everything a validated move needs for one arm."""
+        self.controller = ArmController(self.robot, arm, self.cfg, self.read_current_arm_q)
+        self.validator = MotionValidator(arm, self.cfg, self._opposite_wrist)
+        self.grip = Dex3Grip(self.robot, arm, self.cfg, self.diag)
         self.fk = ArmFK(arm=arm, backend="urdf")
         n = self.cfg.tuning.ik_max_iter
         # Level-palm tiers: precise, normal, and the bounded reach-edge residual.
@@ -1039,10 +1049,16 @@ class GraspPipelineV2(GraspPipeline):
         # Orientation-free rises (from the hanging arm): minimal joint change.
         self.ik_position = ArmIK(arm=arm, solver="position_dls", max_iter=n, tol_pos_m=0.004, tol_rot_rad=math.pi)
         self.last_ik_detail = ""
-        # Structured event sink (kind, message); SorterV2 points it at its log.
-        self.event: Callable[[str, str], None] = lambda kind, message: self.log(f"[sort-v2] {kind}: {message}")
-        # Looked up at call time: SorterV2 re-points self.event at its log.
-        self.grip.event = lambda kind, message: self.event(kind, message)
+
+    def arm_motion(self, side: str) -> "GraspPipelineV2":
+        """The object whose move_linear / move_joint / grip drive this arm."""
+        if side == self.sort_arm:
+            return self
+        with self.lock:
+            other = self._other_arms.get(side)
+            if other is None:
+                other = self._other_arms[side] = SecondArmMotion(self, side)
+        return other
 
     # -- diagnostics -----------------------------------------------------------
     def diag(self, **values: Any) -> None:
@@ -1065,6 +1081,9 @@ class GraspPipelineV2(GraspPipeline):
         super().stop_active_hold()
         if self.controller.running and not self.v2_active:
             self.controller.stop()
+        if not self.v2_active:
+            for other in self._other_arms.values():
+                other.controller.stop()
 
     def busy(self) -> bool:
         return self.v2_active or super().busy()
@@ -1614,5 +1633,38 @@ class GraspPipelineV2(GraspPipeline):
                 cancel.wait(remaining)
 
 
-__all__ = ["yaw_error", "GraspPipelineV2", "ArmController", "MotionValidator", "MotionContext", "CarriedObject", "MoveResult",
+class SecondArmMotion(GraspPipelineV2):
+    """The validated moves for the arm the pipeline does not sort with: its own
+    controller, FK, IK and validator; scene, joint reader, config and log come
+    from the primary pipeline.  No perception of its own, so the V1 pipeline
+    constructor is deliberately skipped."""
+
+    def __init__(self, primary: GraspPipelineV2, arm: str) -> None:
+        self.primary = primary
+        self.robot = primary.robot
+        self.cfg = primary.cfg
+        self.sort_arm = arm
+        self.v2_active = False
+        self.read_current_arm_q = primary.read_current_arm_q
+        self.hand_T = primary.hand_T
+        self._build_arm(arm)
+        self.grip.event = self._event
+
+    def _event(self, kind: str, message: str) -> None:
+        self.primary.event(kind, f"{self.sort_arm} arm: {message}")
+
+    def event(self, kind: str, message: str) -> None:
+        self._event(kind, message)
+
+    def diag(self, **values: Any) -> None:
+        pass
+
+    def current_table(self) -> Optional[TablePlane]:
+        return self.primary.current_table()
+
+    def stop_active_hold(self) -> None:
+        self.controller.stop()
+
+
+__all__ = ["yaw_error", "GraspPipelineV2", "SecondArmMotion", "ArmController", "MotionValidator", "MotionContext", "CarriedObject", "MoveResult",
            "Dex3Grip", "GripResult", "interpolate_pose", "palm_tilt", "THUMB_JOINTS", "FINGER_JOINTS"]

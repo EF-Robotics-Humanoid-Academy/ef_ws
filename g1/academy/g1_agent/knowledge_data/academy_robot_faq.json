@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "title": "This academy robot and its chat abilities",
+    "purpose": "Chat RAG: what this particular robot can do from the dashboard chat."
+  },
+  "knowledge": [
+    {
+      "title": "This robot",
+      "category": "this robot academy capabilities what can you do abilities sort grab spot aruco hands",
+      "faqs": [
+        {"question": "What can you do, what are your abilities and capabilities?", "answer": "From this chat I can talk about the G1, the Unitree SDK and EF Robotics, grab and place the configured table objects with my right arm, nudge either hand, open and close my hands, go to my balanced hold pose, release my arms, walk, turn, make gestures, and run SLAM mapping and navigation."},
+        {"question": "What are spot A and spot B?", "answer": "Spot A and Spot B are the two ArUco marker boards on the table that mark the drop-off places for the sorting task. By default the coffee cup belongs on Spot A and the domol bottle on Spot B."},
+        {"question": "How do you find and grab objects?", "answer": "The head RGB-D camera finds the object and the table, consistent detections are turned into a 3D position, and a planned, validated right-arm path takes the level palm around it. The hand closes and only counts a grasp with tactile or finger evidence, then lifts it."},
+        {"question": "Which hardware do you have?", "answer": "I am a Unitree G1 EDU with Dex3 three-finger hands, an RGB-D head camera, a 3D lidar and an onboard Jetson computer, and on this unit the waist is locked except for yaw."},
+        {"question": "Is the stop command an emergency stop?", "answer": "No. Saying stop cancels my current motion in software and holds the arm where it is. For an emergency use the robot's physical e-stop or damping."}
+      ]
+    }
+  ]
+}
